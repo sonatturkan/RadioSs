@@ -1,0 +1,36 @@
+{
+ "area": "c-ui-sweep-p2",
+ "summary": "All three files I own have been swept: src/ui/automation_calendar.c, src/ui/broadcast_ui.c and src/ui/header_progress.c. I continued from the existing uncommitted changes (calendar font helper, the AltGr guard and the recording file-name/root checks in broadcast_ui.c) and kept them. Then I grepped all three files for leftover POSIX/Linux constructs: unistd/fcntl/sys headers, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, getenv/HOME, file:// handling, '/' path assumptions, Linux wording, font-family CSS and time-zone calls. Nothing was left. None of the files contains C-string CSS. The file assets/themes/automation-calendar.css, which the calendar loads, has no font-family. Both calendar time-zone call sites already use radios_time_zone_new. Final changes: (1) automation_calendar.c: the calendar block text font is now radios_ui_drawn_font_new(13.333 px) instead of \"Sans 10\" (D5 / gtk-windows-runtime 5.5). Ctrl+C/V now ignores events that also carry Alt, so AltGr on a Turkish Q keyboard (Ctrl+Alt on Windows) does not copy or paste (ui-platform-c 14.6). The preview dialog creates the station time zone once per dialog instead of once per entry. (2) broadcast_ui.c: the recording file name must be one valid Windows file name (radios_path_component_valid rejects ':' alternate data streams, reserved device names, a trailing dot or space, and invalid characters). It must not start with '.' and must end in .wav in any letter case. The recording root must be an absolute path and must not itself be a link or junction. It is created with radios_fs_mkdir_with_parents(root, 0700), so new folders are private to the current user. The receipts buffer of about 110 KiB, used every 100 ms, moved from the stack to a heap buffer owned by the controller. The emergency-run cue_in[] index is limited to RADIOS_AUDIO_RUN_MAX_ITEMS. The <glib/gstdio.h> include is gone because nothing uses it. (3) header_progress.c has no platform-specific code and needed no change. All three files compile cleanly with the strict ENV_CLOUD recipe (-c only).",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/automation_calendar.c",
+  "/home/user/RadioSs/src/ui/broadcast_ui.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. The public functions in include/radios/broadcast_ui.h, automation_calendar.h and header_progress.h are unchanged. New calls into existing APIs: radios_path_component_valid, radios_path_is_absolute, radios_fs_stat (follow_links=FALSE, RADIOS_FILE_TYPE_LINK) and radios_fs_mkdir_with_parents from platform.h; radios_ui_drawn_font_new from widgets.h. Inside broadcast_ui.c, struct RadioSBroadcastController gained a private member 'RadioSAudioRunReceipt *receipts' (allocated in radios_broadcast_ui_new, freed in radios_broadcast_ui_unref).",
+ "verification": [
+  "Compiled /home/user/RadioSs/src/ui/automation_calendar.c with the strict ENV_CLOUD recipe (-std=c11 -Wall -Wextra -Wpedantic -Werror, Win10 defines, UNICODE) to /opt/radios-port/work/c-ui-sweep-p2/automation_calendar.o: 0 warnings, 0 errors.",
+  "Compiled /home/user/RadioSs/src/ui/broadcast_ui.c the same way to /opt/radios-port/work/c-ui-sweep-p2/broadcast_ui.o: 0 warnings, 0 errors.",
+  "Compiled /home/user/RadioSs/src/ui/header_progress.c the same way to /opt/radios-port/work/c-ui-sweep-p2/header_progress.o: 0 warnings, 0 errors.",
+  "Grep sweep of all three files for unistd/fcntl/sys, g_spawn/GSubprocess, g_unix, gdk_x11/GDK_BACKEND, getenv/HOME, file://, '/' path checks, Pulse/PipeWire/pactl/Wayland/X11/flatpak/run-radios wording, font-family/Sans, g_time_zone_new_identifier/get_identifier and gstdio calls: nothing left after the edits.",
+  "As instructed (fast write-only pass): no tests, no linking, nothing run under Wine, no self-review pass."
+ ],
+ "industrial_fixes": [
+  "broadcast_ui.c: the WAV recording file name now passes radios_path_component_valid. Before, 'x:y.wav' would have written to an NTFS alternate data stream of a file named 'x', and names such as 'CON.wav', 'name.wav.' or names with *?\"<>| were accepted. The .wav suffix check now ignores letter case; the leading-dot rule is kept.",
+  "broadcast_ui.c: the recording root must be an absolute Windows path and must not be a name-surrogate reparse point (symlink, junction or mount point), checked with radios_fs_stat(follow_links=FALSE). g_file_test(IS_SYMLINK) does not report junctions. Missing folders are now created private to the current user (radios_fs_mkdir_with_parents, mode 0700); g_mkdir_with_parents ignored the mode on Windows.",
+  "broadcast_ui.c: emergency_capture() kept a 2000-entry RadioSAudioRunReceipt array (~110 KiB) on the stack every 100 ms. It now uses one heap buffer per controller. Nested calls are safe because the buffer is only read before radios_playout_ui_repeat_completed() can call back in.",
+  "broadcast_ui.c: run->count from the emergency playout plan is now limited to RADIOS_AUDIO_RUN_MAX_ITEMS. Before, a plan with more than 500 entries would overflow the heap array BroadcastRun.cue_in[500].",
+  "automation_calendar.c (earlier, kept): calendar block text uses the absolute-pixel Inter font (radios_ui_drawn_font_new 13.333 px). The old 'Sans 10' resolved to Tahoma and grew with screen scaling (DPI) while the blocks did not.",
+  "automation_calendar.c (earlier, kept): Ctrl+C/V ignores events that also carry Alt, so AltGr combinations on the Turkish Q keyboard no longer copy or paste blocks.",
+  "automation_calendar.c: the preview dialog now creates and releases the station time zone once instead of once per preview entry.",
+  "D2b leftover removed: the unused #include <glib/gstdio.h> in broadcast_ui.c."
+ ],
+ "requests_for_other_areas": [
+  "core/playout owner (src/core/playout.c, radios_playout_plan_build): consider refusing emergency/automation playback plans with more than RADIOS_AUDIO_RUN_MAX_ITEMS entries with a clear error. broadcast_ui.c now caps the count defensively, but entries beyond the engine's run limit can never be reported as consumed.",
+  "SDBASE Python owner (desktop-broadcast run-start profile validation): the C side now accepts a recording 'filename' that is one valid Windows file name and ends in .wav in any letter case. If the service validates the name, it should apply the same Windows rules (no ':', reserved device names, trailing dot/space or invalid characters), so the service never hands out a name the desktop refuses."
+ ],
+ "open_issues": [
+  "Not run or tested (write-only pass by user decision): the recording start path (radios_fs_mkdir_with_parents private ACL, junction refusal) and the calendar AltGr guard need checking on the Windows PC. The tests are native_broadcast/routing recording runners and test_automation_calendar Ctrl+C/V. Injecting AltGr needs SendInput on a real desktop.",
+  "broadcast_ui.c job_free() wipes the stream password with memset before g_free. GCC cannot remove that memset because g_free is opaque (a DLL import). A guaranteed wipe (SecureZeroMemory) would need <windows.h> in a UI file. I left it as is; a platform-level radios_secure_zero() helper would be the cleaner place, if the platform owner wants one."
+ ]
+}

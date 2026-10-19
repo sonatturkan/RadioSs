@@ -1,0 +1,34 @@
+{
+ "area": "c-ui-sweep-p1",
+ "summary": "Swept src/ui/broadcast.c, assets/themes/*.css and assets/README.md for Windows. An earlier agent had already started this work: it put Inter Variable Text first in the radios.css font list, switched dj-pedals.css to Cascadia Mono/Consolas, rewrote assets/README.md for the TTF/DirectWrite setup and gave the history export save dialog a default folder. I kept all of that and finished the rest. A full grep of broadcast.c found no POSIX or Linux constructs: no unistd/fcntl/sys includes, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, file:// handling, getenv/HOME, hard-coded '/' paths, or Linux wording in UI strings. Its one time-zone call site (general_status_update) already uses radios_time_zone_new. Its only C-string CSS (the square player theme) has no font-family. Industrial fix: nine functions each copied a RadioSAudioSnapshot (about 260 KiB) onto the GUI thread stack, giving frames of 266-279 KiB that pile up across nested GTK callbacks. All nine now use a heap copy through a new static helper, player_engine_snapshot_new(), with a g_free on every exit path. The same function also got bounds checks on two indices that could read past the end of tables. Of the theme files, automation-calendar.css, header-status.css and routing-graph.css have no font-family and inherit the .radios list. The monospace LCD lists in dj-pedals.css keep \"Cascadia Mono\", Consolas, monospace as gtk-windows-runtime.md 5.7 requires; putting Inter first there would break the monospace design. I also made assets/README.md more precise about which font-family lists start with Inter Variable Text and how the font-load error is worded.",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/broadcast.c",
+  "/home/user/RadioSs/assets/README.md",
+  "/home/user/RadioSs/assets/themes/radios.css (earlier agent, kept)",
+  "/home/user/RadioSs/assets/themes/dj-pedals.css (earlier agent, kept)"
+ ],
+ "files_deleted": [],
+ "api": "No public API change. New file-local helper in src/ui/broadcast.c: static RadioSAudioSnapshot *player_engine_snapshot_new(RadioSViewContext *ctx). It returns a heap copy of the engine snapshot, or NULL when no engine is attached; the caller frees it with g_free(). broadcast.c now also calls the existing radios_ui_file_chooser_default_folder() from include/radios/widgets.h, which is already defined in src/ui/widgets.c.",
+ "verification": [
+  "Compiled src/ui/broadcast.c with the strict ENV_CLOUD.md recipe (-std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE plus pkg-config cflags, -c only) into /opt/radios-port/work/c-ui-sweep-p1/broadcast.o: exit 0, no warnings.",
+  "Extra diagnostic compile with -Wframe-larger-than=16384. Before the fix, 9 functions had frames of 266-279 KiB. After it, the largest frame is about 24 KiB (5 functions that copy RadioSPlayerTopology).",
+  "Grepped broadcast.c for unistd/fcntl/sys/, g_spawn, GSubprocess, g_unix, gdk_x11, GDK_BACKEND, file://, getenv, HOME, g_get_home_dir, XDG, /tmp, /usr, Linux/Pulse/PipeWire/pactl/Wayland/X11/flatpak/run-radios, g_time_zone_*, font-family/Sans/monospace: nothing Linux-specific is left.",
+  "Grepped every assets/themes/*.css for font-family: only radios.css (Inter Variable Text first) and dj-pedals.css (monospace) have one. All theme files are UTF-8 with no BOM.",
+  "Nothing was run (write-only pass, as instructed). There are no CSS files to compile; the CSS is only parsed at runtime on the user's PC."
+ ],
+ "industrial_fixes": [
+  "broadcast.c: nine functions copied a RadioSAudioSnapshot of about 260 KiB onto the GUI thread stack: player_rotation_start_ready, player_rotation_scope_ready, player_rotation_scope_start, player_autodj_clicked, radios_broadcast_player_register_playlist, player_output_ready, player_output_refresh, player_output_changed and radios_broadcast_header_snapshot (the last runs on every header refresh). Nested callbacks (player_output_changed -> player_output_refresh) stacked two or more copies, more than 0.5 MiB of the stack. They now use a heap copy through player_engine_snapshot_new(), freed on every return path. Behaviour is the same, including the 'engine missing' handling.",
+  "broadcast.c player_output_changed: snapshot->mixer.channels[selected] is now read only when 0 <= selected < RADIOS_AUDIO_MIXER_CHANNELS. A mixer source_deck >= RADIOS_AUDIO_NORMAL_DECKS (32) now blocks the change instead of reading past run.owned[32] / other.owned[32] (RadioSAudioRunSnapshot.owned has 32 entries, RadioSAudioSnapshot.decks has 66).",
+  "broadcast.c history_export (earlier agent, kept): the 'Yerel oynatma geçmişini kaydet' save dialog now opens in the project root (radios_ui_file_chooser_default_folder) instead of the process working directory (ui-platform-c 14.7 / gtk-windows-runtime 13.2)."
+ ],
+ "requests_for_other_areas": [
+  "src/ui/window.c owner (fonts, D5 / gtk-windows-runtime 5.3): window.c:735 still builds the path to InterVariable.woff2 and window.c:748-751 still uses Fontconfig. assets/README.md now describes the target state: InterVariable.ttf registered with pango_font_map_add_font_file before any widget exists, DirectWrite family 'Inter Variable Text', and a failure message starting with 'Tasarımın Inter fontu yüklenemedi'.",
+  "src/ui/preferences.c owner: its C-string CSS font-family list at about line 72 must use the same canonical list as assets/themes/radios.css: 'Inter Variable Text', 'Inter Variable', 'Inter', 'Segoe UI Symbol', 'Segoe UI Emoji', 'Segoe UI', 'Nirmala UI', sans-serif."
+ ],
+ "open_issues": [
+  "Five broadcast.c functions still keep a copy of RadioSPlayerTopology (about 24 KiB) on the stack for copy-modify-replace: player_remove, player_mode_changed, player_autodj_default, player_options_changed, player_add. I left them because 24 KiB is well within even a 1 MiB Windows stack and much more so the 8 MiB one D7 links. They can move to the heap with g_memdup2 if the final audit wants a stricter frame limit.",
+  "Not built or run here (write-only pass): the heap-snapshot change and the save-dialog default folder are unverified at runtime. Check them on the PC with the broadcast/player GUI tests.",
+  "dj-pedals.css keeps the monospace list '\"Cascadia Mono\", Consolas, monospace' and deliberately does not put 'Inter Variable Text' first (gtk-windows-runtime.md 5.7). The D5 'Inter first' rule covers the Inter lists; putting Inter in front of a monospace LCD readout would break the design."
+ ]
+}

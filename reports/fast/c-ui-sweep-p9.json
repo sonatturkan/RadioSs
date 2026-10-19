@@ -1,0 +1,35 @@
+{
+ "area": "c-ui-sweep-p9",
+ "summary": "Swept and ported the five owned UI files: advert_editors.c, editors.c, event_playout.c, programme_lifecycle.c and transition_distribution.c. An earlier agent had already changed two of them, and I kept that work: the advert export Save dialog now starts in the project root and suggests a valid Windows file name (widgets.c helpers), and the transition editor's audio file filter uses the shared pattern-only list instead of the \"audio/*\" mime rule, which never matches on Windows. A grep of all five files found no other POSIX/Linux code: no unistd/fcntl/sys headers, no g_spawn, GSubprocess, g_unix or gdk_x11 calls, no GDK_BACKEND, getenv(HOME) or file:// handling, no path-separator assumptions, no Linux wording in UI strings, no CSS or font-family strings, and no time-zone calls. transition_distribution.c needed no change. I made four D2 fixes (listed under industrial_fixes): large engine snapshots moved off the stack in event_playout.c, a byte-size bug in programme_lifecycle.c, a missing-member check there, and an empty-path case in editors.c. All five files compile cleanly with the strict recipe. No tests were run (write-only pass, by instruction).",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/advert_editors.c",
+  "/home/user/RadioSs/src/ui/editors.c",
+  "/home/user/RadioSs/src/ui/event_playout.c",
+  "/home/user/RadioSs/src/ui/programme_lifecycle.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. Contracts in event_playout.h, programme_lifecycle.h, editors.h, advert_views.h and transition_distribution.h are unchanged. Widget names and Turkish UI texts are unchanged.",
+ "verification": [
+  "Ran 'git diff HEAD --stat' first: found the earlier agent's edits in advert_editors.c (export dialog default folder + radios_ui_file_name_suggestion) and editors.c (radios_ui_file_filter_add_audio). Kept both.",
+  "Grep sweep of all five files for unistd/fcntl/sys, g_spawn/GSubprocess, g_unix, gdk_x11, GDK_BACKEND, file://, getenv/HOME, Pulse/PipeWire/pactl/Wayland/X11/run-radios/flatpak, font-family/CSS, g_time_zone/GTimeZone, fopen/open/stat, mime, long/off_t/time_t and stack arrays. The only items found are the fixes listed.",
+  "Measured struct sizes with a compile-time diagnostic (no program was run): RadioSAudioSnapshot = 266600 bytes, RadioSAudioRunReceipt = 56 bytes (x2000 = 112000), RadioSAudioRunSnapshot = 544, RadioSPlayoutSnapshot = 576, RadioSAudioUiSnapshot = 3168.",
+  "Compiled every owned file with the ENV_CLOUD.md strict recipe (-std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE, -c only) into /opt/radios-port/work/c-ui-sweep-p9/: advert_editors.o, editors.o, event_playout.o, programme_lifecycle.o, transition_distribution.o. All five compile with 0 warnings and 0 errors. The three edited files were recompiled after the edits, also clean.",
+  "No tests, probes or Wine runs, as the write-only pass requires."
+ ],
+ "industrial_fixes": [
+  "event_playout.c: three ~260 KiB RadioSAudioSnapshot stack locals (job_current, event_tick, job_new) now live on the heap (g_new0/g_free on every exit path). event_tick nests job_current, so it used >520 KiB of GTK main-thread stack every 50 ms tick, plus ~110 KiB more for the receipt array below. Same pattern as playout_ui.c, header.c and broadcast.c.",
+  "event_playout.c final_terminal(): the RadioSAudioRunReceipt[RADIOS_AUDIO_RUN_MAX_RECEIPTS] stack array (~110 KiB) is now on the heap, and the returned count is clamped to the capacity before indexing.",
+  "event_playout.c event_tick(): added a NULL check on radios_audio_ui_engine_acquire() before the runner/engine snapshot calls; it was the only unchecked acquire in the file.",
+  "programme_lifecycle.c: the service-key buffers (ProgrammeLifecycle and LifecycleJob) were 101 bytes, but gtk_entry_set_max_length(100) counts characters. A long key with non-ASCII characters (e.g. Turkish letters, 2 bytes each in UTF-8) was cut short by g_strlcpy and never compared equal to the entry. Every 250 ms tick then cleared the review and sent a new overview request (endless request loop), and 'Onaylı sırayı yerel çal' was always refused as 'changed'. The buffers are now 100*4+1 bytes.",
+  "programme_lifecycle.c render() (runs every 250 ms): json_object_get_boolean_member(overview, \"source_matches\") emitted a GLib critical whenever the member was absent (fatal under G_DEBUG=fatal-warnings). It now uses json_object_get_boolean_member_with_default(..., FALSE), so behaviour is the same without the critical.",
+  "editors.c snapshot_apply(): saved transition drafts store \"\" when no file is chosen. gtk_file_chooser_set_filename(\"\") selected the process working directory (for a Start-menu launch, the program's bin folder) instead of clearing the button. Empty strings now take the unselect_all path."
+ ],
+ "requests_for_other_areas": [],
+ "open_issues": [
+  "Not run or tested (write-only pass): the GUI paths touched here (Event playout tick, programme lifecycle panel, transition editor file buttons, advert export Save dialog) should be checked by the user's Windows test run (tests driving the rotation/transition editor, programme lifecycle and advert workflow).",
+  "advert_editors.c today() pre-fills the day/report-date entries with the UTC date. Between 00:00 and 03:00 Istanbul time it shows yesterday. This is not platform-specific and was left unchanged (the service/tests may expect it); flagging for a product decision.",
+  "transition_distribution.c draws U+25BE (▾) in the compact summary label. Inter has no such glyph, so it relies on the 'Segoe UI Symbol' fallback in the theme font-family list (gtk-windows-runtime.md 5.4). That list belongs to whoever owns assets/themes/radios.css / window.c, not this chunk.",
+  "editors.c stores local transition file paths (UTF-8 Windows paths from gtk_file_chooser_get_filename) in the saved draft config. A draft saved on Linux ('/home/...') will not resolve on Windows; GTK then leaves the button empty. That is acceptable, but the Linux data-migration step should know about it."
+ ]
+}

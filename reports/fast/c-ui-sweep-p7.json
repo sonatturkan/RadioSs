@@ -1,0 +1,25 @@
+{
+ "area": "c-ui-sweep-p7",
+ "summary": "I checked all five owned UI files for POSIX/Linux code (unistd, fcntl, sys/*, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, '/' path assumptions, file:// handling, getenv/HOME, Linux wording in UI strings, font-family lists, time-zone calls, large stack arrays, long/off_t). Only small changes were needed; there are no TODO stubs.\n\n- workflow_hub.c (continued from an earlier agent; its change was kept as is): the save dialog for an export file now opens in the project root (radios_ui_file_chooser_default_folder). The suggested file name goes through radios_ui_file_name_suggestion, which replaces the old '/' and '\\\\'-only sanitising with the full Windows file-name rules (spec ui-platform-c §14.3). I found nothing else platform-specific. The file filter patterns (\"*.\" + extension from the service) match case-insensitively on Windows (GTK 3.24, see widgets.h).\n- rhythm_jobs.c: the check on the service's managed_path before media analysis now uses radios_path_is_absolute() (drive or UNC paths only) instead of g_path_is_absolute(). On Windows the old check also accepted a drive-relative path like \"\\\\objects\\\\x.flac\", which resolves against the process's current drive. I added #include \"radios/platform.h\".\n- schema_track_picker.c: it already used radios_time_zone_new() (with UTC fallback), includes platform.h, and has no %Z formatting. No change needed.\n- catalogue_playlist.c and programme_queue.c: plain GTK/GLib/json-glib code (in-app drag-and-drop restricted to RadioS's own widgets, Escape handled with the default modifier mask, CSS without font-family). No change needed.\n\nAll five files compile cleanly with the strict ENV_CLOUD recipe (-c only).",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/rhythm_jobs.c",
+  "/home/user/RadioSs/src/ui/workflow_hub.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. Uses the existing radios_path_is_absolute() (include/radios/platform.h), radios_ui_file_chooser_default_folder() and radios_ui_file_name_suggestion() (include/radios/widgets.h, implemented in src/ui/widgets.c), and radios_time_zone_new() (platform.h).",
+ "verification": [
+  "Compiled all 5 owned files ONCE with the strict ENV_CLOUD.md recipe (x86_64-w64-mingw32-gcc GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE, pkg-config cflags glib/gio/gio-windows/gtk3/json-glib/curl/ffmpeg, -c only, 2 parallel). Output: /opt/radios-port/work/c-ui-sweep-p7/{catalogue_playlist,programme_queue,rhythm_jobs,schema_track_picker,workflow_hub}.o. All exit 0, no warnings (logs in the same dir are empty).",
+  "Grep sweep of the 5 files for unistd/fcntl/sys/, g_spawn/GSubprocess/g_unix, x11/GDK_BACKEND, file://, getenv/HOME, Pulse/PipeWire/pactl/Wayland/run-radios/flatpak, font-family, g_time_zone_new_identifier/get_identifier, '/' separators, realpath/stat/open/fopen, mime filters, long/off_t/time_t, large stack arrays and unsafe string functions. The only hits needing a change were rhythm_jobs.c managed_path absoluteness and the workflow_hub.c save-name handling (already done by the earlier agent).",
+  "No tests, probes or Wine runs were done, as the fast write-only pass instructs."
+ ],
+ "industrial_fixes": [
+  "rhythm_jobs.c rhythm_sync(): the absoluteness check on the service-returned managed_path is now radios_path_is_absolute() (drive/UNC) instead of g_path_is_absolute(). On Windows the old check accepted a drive-relative path like \"\\\\objects\\\\x.flac\", which resolves against the process's current drive, so a different file could be analysed.",
+  "workflow_hub.c download_result() (earlier agent's change, checked and kept): the suggested save name now follows the full Windows file-name rules (\\ / : * ? \" < > |, control chars, trailing dot/space, reserved device names). Previously only '/' and '\\\\' were replaced. The save dialog now opens in the project root, not the process working directory (the bin dir for a Start-menu launch)."
+ ],
+ "requests_for_other_areas": [],
+ "open_issues": [
+  "Not run or tested here, as the fast pass instructs. The user's Windows PC needs to check: the workflow_hub export save dialog (suggested name and start folder); the Rhythm/BPM analysis path with SDBASE returning Windows managed paths (normal X:\\ paths are accepted, which is what media.object_path produces from the store path); and programme_queue in-app drag-and-drop and the U+2715 glyph rendering through the global font fallback list owned by window.c/radios.css.",
+  "Not changed, out of scope as pre-existing non-platform behaviour: rhythm_jobs.c calls json_object_get_object_member() on members that may be missing (\"media\"/\"version\"), which logs a json-glib critical. It only fails under G_DEBUG=fatal-criticals and only with malformed service replies."
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "area": "c-ui-sweep-p10",
+ "summary": "Grep-driven Windows sweep of src/ui/autodj_marker_jobs.c, automation.c, header.c, player_tree_ui.c and widgets.c. None of these files has any POSIX or Linux construct left: no unistd/fcntl/sys headers, no g_spawn/GSubprocess, no g_unix_*/gdk_x11/GDK_BACKEND, no file:// or \"/\" path assumptions, no getenv(HOME), and no Linux wording in UI strings. The \"/v1/...\" strings in autodj_marker_jobs.c are SDBASE HTTP routes, not file paths. No time-zone calls remain: header.c uses radios_station_now() from station_time.h, which already calls radios_time_zone_new(), and automation.c works only in UTC. There is no font-family in C-string CSS here: the player_tree_ui.c provider sets only sizes and colours, and its icon names resolve to Adwaita on Win32 according to gtk-windows-runtime.md. An earlier agent's work in this chunk (widgets.c/widgets.h helpers that other UI files already call, and the default save-dialog folder in automation.c) was kept unchanged. This pass made four changes: (1) header.c's support-note save dialog now uses the shared helper radios_ui_file_chooser_default_folder(); behaviour is the same and the order matches the other export dialogs. (2) Fixed a use-after-free and a dialog that could no longer be closed in automation.c; see industrial_fixes. (3) Added a NULL guard in automation_preview_received. (4) Removed the now-unneeded automation_export_for_owner (D2b). All five files compile with no errors or warnings under the strict ENV_CLOUD recipe (-c only). As instructed, nothing was run, tested or probed.",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/automation.c",
+  "/home/user/RadioSs/src/ui/header.c",
+  "/home/user/RadioSs/src/ui/widgets.c",
+  "/home/user/RadioSs/include/radios/widgets.h"
+ ],
+ "files_deleted": [],
+ "api": "widgets.h additions (made by the earlier agent of this chunk, unchanged here; other UI files already call them: automation_calendar.c, player_waveform.c, dj.c, editors.c, broadcast.c, advert_editors.c, workflow_hub.c):\n- #define RADIOS_UI_DRAWN_FONT_FAMILIES \"Inter Variable Text, Inter Variable, Inter, Segoe UI Symbol, Segoe UI Emoji, Segoe UI, Nirmala UI, sans-serif\"\n- PangoFontDescription *radios_ui_drawn_font_new(gdouble pixel_size, PangoWeight weight);\n- gdouble radios_ui_cairo_show_text(cairo_t *cr, const gchar *text, gdouble pixel_size, PangoWeight weight, gboolean measure_only);\n- void radios_ui_file_filter_add_audio(GtkFileFilter *filter); (*.wav *.mp3 *.flac *.ogg *.opus *.m4a *.aac patterns, no mime rules)\n- void radios_ui_file_chooser_default_folder(GtkFileChooser *chooser, RadioSViewContext *ctx); (project_root)\n- gchar *radios_ui_file_name_suggestion(const gchar *name, const gchar *fallback); (makes a name valid as one Windows file name via radios_path_component_valid)\nNo other public contract changed.",
+ "verification": [
+  "Compiled each owned file once with the strict ENV_CLOUD recipe (x86_64-w64-mingw32-gcc GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE, pkg-config cflags for glib/gio/gio-windows/gtk3/json-glib/curl/ffmpeg), -c only, into /opt/radios-port/work/c-ui-sweep-p10/: autodj_marker_jobs.o, automation.o, header.o, player_tree_ui.o, widgets.o. All exit 0 with empty logs: no errors, no warnings.",
+  "Grep sweep of all five files for unistd|fcntl|sys/|g_spawn|GSubprocess|g_unix|gdk_x11|GDK_BACKEND|file://|getenv|HOME|pulse|pipewire|pactl|wayland|x11|run-radios|flatpak|font-family|time_zone|fopen|open(|stat(|long|off_t|time_t found no remaining POSIX or Linux constructs.",
+  "Not run: no tests, probes or Wine execution (FAST WRITE-ONLY PASS)."
+ ],
+ "industrial_fixes": [
+  "src/ui/automation.c, rules export ('Kuralları indir') and the planDate calendar dialog: the response handler held a raw pointer to the AutomationView and to the page's date entry. If the rules page was destroyed or rebuilt while the dialog was open, the view (freed when the page is finalized) and the entry were used after free. Fix: the new automation_dialog_follow_page() ties each dialog to the page with g_signal_connect_object(page, \"destroy\", gtk_widget_destroy, dialog, G_CONNECT_SWAPPED), so closing the page closes the dialog.",
+  "src/ui/automation.c, plan download ('Planı indir'): the response handler was tied to the page with g_signal_connect_object. Once the page was disposed the handler was disconnected, so the dialog's Vazgeç/Kaydet/Esc/close buttons no longer closed it and it stayed on screen until the main window closed. It now uses the same follow-page mechanism; automation_export_for_owner was removed as dead code (D2b).",
+  "src/ui/automation.c automation_preview_received: added a NULL check on the view looked up from the owner widget before reading it."
+ ],
+ "requests_for_other_areas": [],
+ "open_issues": [
+  "header.c writes the support-note draft (RadioS-bildirim-taslagi.txt) with g_file_set_contents, which keeps the LF line endings typed in the GtkTextView. Notepad on Windows 10 1809 and later shows LF correctly, so this was left as is. If CRLF is wanted for a user-facing .txt on Windows, it is a one-line change.",
+  "widgets.c radios_ui_file_name_suggestion falls back to the given fallback name when a sanitised name is longer than 255 UTF-16 units; it does not truncate the name. This is acceptable, but truncating while keeping the extension would be kinder.",
+  "Header HealthObservation (about 10 KB) and the topology copies in player_tree_ui.c (a few KB) stay on the stack. They fit easily within the 8 MiB stack from D7, so they were not moved to the heap.",
+  "Needs checking on the Windows PC (not run here): the automation export, plan download and calendar dialogs close when the rules page is rebuilt, and the support-note save dialog opens in the project root."
+ ]
+}

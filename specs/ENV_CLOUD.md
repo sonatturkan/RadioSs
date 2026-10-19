@@ -61,7 +61,7 @@ A compile takes ~3 s (Wine start-up included). Build several files with `&` + `w
 Identical to the PC: compiler, headers, import libraries, warnings, PE output, GTK/GLib/FFmpeg/curl DLLs, CRT (UCRT), Win32 API signatures.
 
 Different or missing under Wine (a failing check in these areas is NOT automatically a defect; prove it):
-- No `icu.dll` (Windows' system ICU). The IANA->Windows time-zone mapping (platform_tz.c ICU path) cannot run; the bundled TZif fallback path runs instead. Local Windows zone resolves to "Arab Standard Time" (Wine picks the first +03:00 zone), not "Turkey Standard Time".
+- `icu.dll`: Wine has none; the test prefix has a test-only proxy `C:\windows\system32\icu.dll` exporting the unversioned ICU C API RadioS uses (ucal_getWindowsTimeZoneID, ucal_getTimeZoneIDForWindowsID, ucal_getCanonicalTimeZoneID, ucal_openTimeZoneIDEnumeration, uenum_next, uenum_close), statically linked to ICU 78 (newer data than Windows' ICU 2022g). So the ICU mapping path of platform_tz.c runs here (Europe/Istanbul -> Turkey Standard Time, and Wine's registry zones have Turkey's historical DST). Wine's LOCAL zone still resolves to "Arab Standard Time" (Wine picks the first +03:00 zone), not "Turkey Standard Time".
 - No audio devices: WASAPI enumerates nothing. Use `RADIOS_AUDIO_BACKEND=none|virtual` (D8). Real-device WASAPI behaviour is verified on the user's PC later (hardware tests are labelled and skip with 77 here).
 - No MIDI devices (WinMM lists none). Use the injectable fake WinMM backend.
 - Security descriptors are stored and returned, but Wine does NOT enforce DACL access checks; owner SIDs and integrity levels are simplified. ACL/SDDL creation code can be verified by reading the descriptor back, not by denied access.

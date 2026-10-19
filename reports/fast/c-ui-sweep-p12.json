@@ -1,0 +1,24 @@
+{
+ "area": "c-ui-sweep-p12",
+ "summary": "I checked all six files for Linux and POSIX code and found none to port, so I left them unchanged. Before starting I ran `git diff HEAD --stat` on these files and it showed no earlier edits. HEAD is also identical to main for them, which means the original Linux versions were already platform-neutral. The check covered: unistd/fcntl/sys headers, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, '/' path assumptions, file:// handling, getenv/HOME, binary fopen/open, long/off_t sizes, Linux words in UI strings (PulseAudio/PipeWire/pactl/Wayland/X11/run-radios.sh/flatpak), font-family in C-string CSS, and time-zone calls. The files contain only GTK, json-glib and data-service code. The one time-zone call (probability_editor.c:204 zone_offset) already uses `radios_time_zone_new()` with a UTC fallback and unrefs the new reference correctly. The two embedded CSS strings (automation_workspace_ui.c compact_style, probability_editor.c editor_style) name no font-family, so the Inter Variable Text font rule (D5) does not apply. The UI texts are Turkish with no Linux wording. silence_guard's 'monitor' value is the logical 'Program çıkışı' point, not a PulseAudio monitor source. I also read every file in full for defects: the destroy-on-failure callback handling, refcounts, weak refs, generation guards and timer cleanup are all correct. Number parsing does not depend on the locale (g_ascii_strtod/strtoll, and a ',' decimal is accepted). I found no hangs, leaks, races or 32-bit truncation risks worth an industrial fix. I compiled every owned file once with the strict ENV_CLOUD recipe (-c only): 0 warnings, 0 errors. I ran no tests and nothing under Wine, as instructed.",
+ "files_created": [],
+ "files_modified": [],
+ "files_deleted": [],
+ "api": "No API changes. The public contracts are unchanged: radios_automation_scope_fetch; radios_automation_workspace_ui_new/_select/_refresh/_set_edit_hook; radios_loudness_settings_new; radios_probability_editor_new/_set_policy/_set_targets/_show_scope/_snapshot/_ready; radios_schema_settings_new/_set_config/_set_playlists/_set_players/_set_library/_set_channels/_snapshot/_set_routing_handler; radios_silence_guard_bind/_apply_preparation/_status/_set_level_source.",
+ "verification": [
+  "git diff HEAD --stat and git diff main --stat on the 6 owned files: both empty (no earlier agent edits; the files match the start-of-cloud tree).",
+  "Grepped all 6 files for POSIX/Linux constructs, Linux UI wording, font-family/CSS, time-zone APIs, fopen/open/stat/mkdir/rename/unlink, long/off_t and path separators: nothing to port.",
+  "Read all 6 files in full (3941 lines) looking for D2 defects; none found that justified a change.",
+  "Strict standalone compile (x86_64-w64-mingw32-gcc GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE, pkg-config cflags for glib/gio/gio-windows/gtk3/json-glib/libcurl/FFmpeg), -c only, output in /opt/radios-port/work/c-ui-sweep-p12/: automation_scope.c rc=0, automation_workspace_ui.c rc=0, loudness_settings.c rc=0, probability_editor.c rc=0, schema_settings_ui.c rc=0, silence_guard.c rc=0; all six compiler logs are empty (no diagnostics).",
+  "Not run: tests, programs under Wine, linking (per the fast write-only pass rule)."
+ ],
+ "industrial_fixes": [],
+ "requests_for_other_areas": [
+  "Owner of assets/themes/*.css (not in this chunk): the D5 sweep step 'put Inter Variable Text first in every font-family list' must be done there; my six files contain no font-family declarations."
+ ],
+ "open_issues": [
+  "src/ui/loudness_settings.c includes radios/station_time.h but uses none of its symbols. It is a harmless leftover include; I kept it to avoid churn, and it can go in the later leftover sweep (D2b).",
+  "Display-only: number_text() in probability_editor.c and the dB labels in silence_guard.c use locale-dependent printf (%.1f), so the decimal comma follows the Turkish locale, exactly as on Linux. Input parsing accepts both ',' and '.', so the round-trip is correct. The user's PC run should confirm the UCRT locale matches (gtk_init setlocale).",
+  "Nothing in these files needs Windows-hardware verification. GUI behaviour (probability editor, schema settings, loudness scope, silence guard meter lookup) should be smoke-tested on the user's PC with the existing GUI tests."
+ ]
+}

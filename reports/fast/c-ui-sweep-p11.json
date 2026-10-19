@@ -1,0 +1,29 @@
+{
+ "area": "c-ui-sweep-p11",
+ "summary": "I swept the six files I own for POSIX and Linux leftovers, finished their Windows port, fixed three robustness defects, and compiled all six with the strict recipe: zero warnings, zero errors. None of the six had POSIX headers, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, getenv/HOME, file:// handling, '/' path assumptions, fopen/open, long/off_t sizes, or Linux wording in UI strings. The CSS strings in autodj_automation_ui.c and player_waveform.c set no font-family, so the D5 font-family rule did not apply to them. The one time-zone call (copyright_settings.c:77, g_time_zone_new_local()) is the allowed D3 case: the local zone is what is wanted and only UTC text is stored (utc_date). Platform change: autodj_automation_ui.c drew the 'Çıkan parça' / 'Giren parça' lane captions with the cairo toy font API, which on Windows picks Arial and never sees the bundled Inter font. They now use the shared Pango helper radios_ui_cairo_show_text(cr, text, 12, PANGO_WEIGHT_NORMAL, FALSE) from widgets.h, with the same position, baseline and 12 px size (gtk-windows-runtime.md 5.6). player_waveform.c: an earlier agent had already switched draw_text from 'Sans 8' to radios_ui_drawn_font_new(8*96/72 px) and added the widgets.h include. I kept that change as is. advert.c, copyright_settings.c, programme_prerequisites.c and view_presets_ui.c needed no platform changes. Turkish UI texts and public contracts are unchanged.",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/autodj_automation_ui.c",
+  "/home/user/RadioSs/src/ui/advert.c",
+  "/home/user/RadioSs/src/ui/programme_prerequisites.c",
+  "/home/user/RadioSs/src/ui/player_waveform.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. Every header for these six files is unchanged. The new helpers are static to their files: page_destroyed() in autodj_automation_ui.c, and object_member() and array_member() in advert.c. This area now also uses radios_ui_cairo_show_text() and radios_ui_drawn_font_new() from include/radios/widgets.h, both already in the tree.",
+ "verification": [
+  "Compiled all six owned files once each with the strict ENV_CLOUD.md recipe (-c only; MSYS2 GCC 16 under Wine; -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE plus the pkg-config cflags for glib/gio/gio-windows/gtk3/json-glib/curl/ffmpeg): advert.c, autodj_automation_ui.c, copyright_settings.c, player_waveform.c, programme_prerequisites.c, view_presets_ui.c. All six exited 0 with empty compiler output. Objects and logs are in /opt/radios-port/work/c-ui-sweep-p11/.",
+  "Grepped the six files for unistd/fcntl/sys headers, g_spawn/GSubprocess, g_unix, gdk_x11/GDK_BACKEND, getenv/HOME, file://, PulseAudio/PipeWire/pactl/Wayland/X11/flatpak/run-radios, font-family, g_time_zone_*, fopen/open/stat/mkdir/rename, long/off_t/time_t: none left except the allowed g_time_zone_new_local() in copyright_settings.c.",
+  "Per the fast write-only pass decision, I ran no tests, wrote no probes, and ran nothing under Wine. Rendering of the Pango lane captions in the AutoDJ designer still needs a look on the user's Windows PC."
+ ],
+ "industrial_fixes": [
+  "autodj_automation_ui.c: the 40 ms transition-preview timer (play_source) was only removed in page_free, which runs when the page is finalized. If anything still held a reference to the destroyed page, play_tick kept calling gtk_widget_queue_draw(page->designer) and gtk_button_set_label(page->play) on finalized child widgets (use-after-free). A new 'destroy' handler (page_destroyed) now stops the timer and clears the drag state.",
+  "advert.c: json_object_get_double_member/get_boolean_member on desktop_fields (price, duration/count/capacity/intro/outro/announcement seconds, skip_empty) raised GLib criticals and returned 0 for missing members, and misread object/array nodes as scalars. They now use the json-glib *_with_default variants with the old fallback values (0.0 / FALSE), so valid data behaves the same.",
+  "advert.c: desktop_fields, the campaign-get 'campaign' member and the campaign-list 'records' member were read with json_object_get_object_member/get_array_member, which raise criticals or misread malformed service replies. New checked object_member/array_member helpers replace those reads. Non-object elements of 'records' are skipped; before, json_object_ref(NULL) was called and a NULL record was stored and later passed to json_object_has_member.",
+  "programme_prerequisites.c: render() called json_node_get_boolean() on association.eligible without checking the node type. For an object or array node (a malformed reply), json-glib reads the JsonObject/JsonArray union member as a JsonValue, which is undefined behaviour. The value is now read only from value/null nodes. The button and summary behave exactly as before for valid data, including null meaning 'not eligible'."
+ ],
+ "requests_for_other_areas": [],
+ "open_issues": [
+  "Not run: the AutoDJ designer captions now go through radios_ui_cairo_show_text (Pango, baseline at the old toy-text point). They should look the same, but the exact glyph metrics compared with the Linux toy text should be checked on the user's PC (the GUI test runner for rotation_editor_regressions covers this page).",
+  "Not changed (checked, no defect): advert.c CampaignActionLoad.campaign_id[37] and the 37-byte ID buffers in player_waveform.c and programme_prerequisites.c assume UUID-length ids. SDBASE creates _id values with str(uuid4()) (36 characters), so they are correct as they are."
+ ]
+}

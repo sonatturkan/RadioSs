@@ -1,0 +1,114 @@
+{
+ "area": "platform-layer",
+ "verdict": "needs-fixes",
+ "findings": [
+  {
+   "severity": "high",
+   "file": "include/radios/station_time.h",
+   "line": "15",
+   "problem": "CROSS-AREA, not owned by platform-layer (the implementer already asked the UI area for this fix and it is still open). radios_station_now() still calls g_time_zone_new_identifier(<IANA id>). GLib on Windows returns NULL for IANA ids, so the function silently falls back to UTC. Station-local time is therefore wrong for every non-UTC station in the header clock (src/ui/header.c:511) and the weekly programme UI (src/ui/weekly_programme_ui.c:42). It is the last unmigrated call site required by D3.",
+   "evidence": "Probe /opt/radios-port/work/review-platform-layer/probes/probe_glib_iana.c run under Wine with the shipped GLib 2.90 and TZDIR set: g_time_zone_new_identifier(\"Europe/Istanbul\") = NULL, (\"America/New_York\") = NULL, (\"Turkey Standard Time\") = zone. This matches PLATFORM_FACTS (measured on the PC). A grep of src/, tests/ and include/ finds no other g_time_zone_new_identifier caller outside platform_tz.c.",
+   "fix": "In station_time.h add #include \"radios/platform.h\" and use: GTimeZone *zone = radios_time_zone_new(radios_station_timezone(ctx)); if (!zone) zone = g_time_zone_new_utc(); (owner: UI/header area)."
+  },
+  {
+   "severity": "medium",
+   "file": "tests/test_platform.c",
+   "line": "1445-1460, 1709-1714",
+   "problem": "/platform/process/handle-isolation does not test what it claims. The helper reports 'present' whenever GetHandleInformation() succeeds on the parent's numeric handle value in the child. A child process always owns handles of its own (registry keys, directories, events), so the same value can belong to an unrelated object. The result is a false failure, deterministic under Wine and possible on Windows whenever the parent's event value is low. The production code is correct; only the check is wrong.",
+   "evidence": "Under Wine the test fails with \"present\" == \"absent\". Probe /opt/radios-port/work/review-platform-layer/probes/probe_spawn_handles.c (links the platform objects, spawns via radios_process_spawn) shows the child's handle 116 is of type Key and not signalled, while ours is a signalled Event, i.e. not inherited. probe_inherit.c also shows Wine honours PROC_THREAD_ATTRIBUTE_HANDLE_LIST. A corrected identity check (probe_handle_identity.c: inheritable NAMED event; the child requires type \"Event\" plus a matching ObjectNameInformation suffix) gives parent self-check = present and child = absent under Wine.",
+   "fix": "Create the event with a unique name (Local\\\\RadioS-test-handle-<pid>-<random>, inheritable). Pass the handle value and the name to the helper. In 'handle-check', print \"present\" only if NtQueryObject(ObjectTypeInformation) is \"Event\" and NtQueryObject(ObjectNameInformation) ends with that name (the code in probe_handle_identity.c can be copied)."
+  },
+  {
+   "severity": "medium",
+   "file": "src/core/platform_win32.c",
+   "line": "1238-1270 (crash_writer 1248-1250, crash_dump 1269), 42-67",
+   "problem": "The in-process crash writer cannot finish when the faulting thread holds the process heap lock or the loader lock. That is the usual case for crashes inside malloc/free or heap corruption. The faulting thread then blocks for 120 s (WaitForSingleObject(crash.done, 120000)) with the process frozen, still holding exclusive WASAPI endpoints and gui.lock, and no dump is written. The crash path also does avoidable heap work: the first call of owner_only_descriptor() happens inside crash_writer (GetTokenInformation, g_malloc, g_strdup_printf, ConvertStringSecurityDescriptorToSecurityDescriptorW), and CreateDirectoryW/CreateFileW convert DOS paths on the process heap. Microsoft's MiniDumpWriteDump documentation recommends writing the dump from another process for this reason.",
+   "evidence": "Probe /opt/radios-port/work/review-platform-layer/probes/probe_crash_heaplock.c installs the handler, calls HeapLock(GetProcessHeap()) and dereferences NULL. No dump appeared within 22 s, both in mode 0 (descriptor initialised lazily in the crash path) and mode 1 (descriptor pre-initialised by an earlier owned-pipe spawn). The same handler without the heap lock wrote a valid 2,153,105-byte MDMP immediately (helper 'crash' run). The Windows-side heap use (CreateFileW path conversion, the lazy descriptor) is argued from documentation, not verified on Windows.",
+   "fix": "(1) Initialise owner_only_descriptor() and a static SECURITY_ATTRIBUTES in radios_platform_install_crash_handler(), never in the crash path. (2) At install time, pre-create the dump file (e.g. <crash>\\\\RadioS-pending-<pid>.dmp, private SD, handle kept open, marked delete-pending with FileDispositionInfo{TRUE}). At crash time clear the disposition and rename it to the timestamped name through a preallocated FILE_RENAME_INFO buffer, so the crash path does no path conversion or heap allocation of its own. (3) Bound crash_dump's wait to about 15-20 s. (4) For full coverage (heap corruption, __fastfail, dbghelp's own allocations), add an out-of-process writer (a pre-started RadioS.exe --crash-monitor waiting on an event, with MiniDumpWriteDump(ClientPointers=TRUE)), or have the installer configure WER LocalDumps for RadioS.exe."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform_win32.c",
+   "line": "1272-1276, 1317-1350",
+   "problem": "After the dump the filter returns EXCEPTION_CONTINUE_SEARCH and production never sets SEM_NOGPFAULTERRORBOX, so on client SKUs WER shows a 'RadioS stopped working' dialog. The dead on-air process stays alive, holding exclusive audio endpoints and locks, until someone clicks it. Several failure paths also bypass the filter and get no dump: the CRT invalid-parameter handler, pure-virtual calls, /GS failures, HeapEnableTerminationOnCorruption fail-fast, and abort() with the default _CALL_REPORTFAULT (__fastfail after the SIGABRT handler). The test hides this, because the helper sets SEM_NOGPFAULTERRORBOX and _set_abort_behavior(0, ...) itself (tests/test_platform.c:1769-1770).",
+   "evidence": "Code reading: crash_filter returns crash.previous(pointers) or CONTINUE_SEARCH. radios_platform_init only adds SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX. No _set_invalid_parameter_handler or _set_purecall_handler is installed. UCRT abort() runs the SIGABRT handler and then __fastfail(FAST_FAIL_FATAL_APP_EXIT) when _CALL_REPORTFAULT is set (the default).",
+   "fix": "Once the dump has been written, terminate deliberately: TerminateProcess(GetCurrentProcess(), code), or set SEM_NOGPFAULTERRORBOX in radios_platform_install_crash_handler. Install _set_invalid_parameter_handler and _set_purecall_handler handlers that call crash_dump with a captured context. Document WER LocalDumps as the fallback for fail-fast cases."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform_win32.c",
+   "line": "596-603",
+   "problem": "The .bat/.cmd rejection only compares the raw string suffix. Win32 path normalisation strips trailing dots and spaces, and kernel32 detects batch files from the extension of the name it opens. So argv[0] values such as \"C:\\\\x\\\\run.bat \" or \"C:\\\\x\\\\run.bat.\", or an ADS form like \"run.bat::$DATA\", pass the check, and CreateProcessW then runs the batch file through cmd.exe, which re-parses the arguments (the BatBadBut class, CVE-2024-24576; Rust std checks the extension after GetFullPathNameW for exactly this reason). Risk is low because argv[0] comes from trusted configuration, but the header promises '.bat/.cmd are rejected'.",
+   "evidence": "Code reading of has_suffix_ci(program, \".bat\"/\".cmd\") applied to the unnormalised UTF-8 path. Not reproducible under Wine (Wine's batch detection differs).",
+   "fix": "Normalise first: run GetFullPathNameW (or radios_path_normalize) and reject a ':' outside the drive prefix. Then require the final name to end in \".exe\" (case-insensitive, allow-list), which matches the header contract 'argv[0] must be an absolute path to an .exe'."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform.c",
+   "line": "531-535, 555-556",
+   "problem": "O_TRUNC and O_CREAT|O_TRUNC without NOFOLLOW map to FILE_OVERWRITE/FILE_OVERWRITE_IF with FILE_ATTRIBUTE_NORMAL. Microsoft documents that overwriting an existing file with FILE_ATTRIBUTE_HIDDEN or FILE_ATTRIBUTE_SYSTEM without specifying those attributes fails with ERROR_ACCESS_DENIED (CreateFile, CREATE_ALWAYS; the same overwrite check applies to TRUNCATE_EXISTING). Overwrite also resets the file's attributes and named streams. POSIX O_TRUNC only truncates the data. The NOFOLLOW path already emulates truncation correctly with FileEndOfFileInfo.",
+   "evidence": "Code reading plus the CreateFile documentation. Not reproducible under Wine: probe /opt/radios-port/work/review-platform-layer/probes/probe_trunc_hidden.c shows Wine accepts even a plain CreateFileW(CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL) on a hidden file, so Wine does not model this rule. Needs a check on the PC.",
+   "fix": "Always open with FILE_OPEN/FILE_OPEN_IF and truncate with SetFileInformationByHandle(FileEndOfFileInfo, 0), i.e. use the truncate_after path for all TRUNC opens, not only NOFOLLOW ones."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform_win32.c",
+   "line": "1167-1180",
+   "problem": "radios_platform_detach_console() redirects BOTH stdout and stderr to the log (const gboolean both[2] = {TRUE, TRUE}), even when only one stream was reopened on CONOUT$. Example: started as 'RadioS.exe > out.txt' from cmd, stdout is a usable file and only stderr was attached. After the window appears, stdout is silently moved to radios-desktop.log and out.txt stops receiving output.",
+   "evidence": "Code reading: radios_platform_attach_parent_console() reopens only the unusable streams (lines 1094-1095), but detach does not remember which ones they were.",
+   "fix": "Record in attach which streams were reopened on CONOUT$ (e.g. static gboolean reopened[2]), and in detach redirect only those (redirect_to_handle(h, reopened))."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform.c",
+   "line": "1096-1097",
+   "problem": "radios_fd_list_names() silently skips any entry whose UTF-16 name cannot be converted to UTF-8 (unpaired surrogates are legal on NTFS). Recursive deletes such as remove_tree then fail later with ENOTEMPTY and no hint, and media scans miss files without any error.",
+   "evidence": "Code reading: 'gchar *name = utf8(...); if (name) g_ptr_array_add(...)'.",
+   "fix": "Either fail the listing with EILSEQ/EINVAL and a message naming the directory, or return a lossless escaped form that the radios_fs_*at functions accept. At minimum, log the skipped entry with g_warning."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform_win32.c",
+   "line": "1144-1146, 1249-1250",
+   "problem": "The log sink (open_log) and the crash writer use CreateFileW/CreateDirectoryW on plain DOS paths, while the rest of the layer converts paths to \\\\\\\\?\\\\ form at 240 or more characters. With a deep log root and LongPathsEnabled off, the log redirect fails, and crash dumps fail silently.",
+   "evidence": "Code reading; the platform.c helpers win32_path()/nt_path() exist but are static.",
+   "fix": "Build the path with the \\\\\\\\?\\\\ form for long paths: export an internal helper from platform.c (e.g. radios_platform_win32_path()) and use it in open_log() and for crash.directory/crash.path."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform.c",
+   "line": "1195-1198",
+   "problem": "Optional, lead decision. radios_fd_lock() aborts an SH/EX request when its preparatory UnlockFileEx fails with anything other than ERROR_NOT_LOCKED. That is correct per Windows docs, but the preparatory unlock only drops our own lock, and any other failure would be reported again by LockFileEx. Under Wine (UnlockFileEx on an unlocked range returns ERROR_LOCK_VIOLATION=33, a WINE-GAP) every lock acquire fails. That breaks /platform/lock/* and will break every lock-dependent test of other areas (test_recovery, preferences, data) in the cloud CTest run.",
+   "evidence": "Probe /opt/radios-port/work/review-platform-layer/probes/probe_lock.c: 'unlock-unlocked=0 err=33' for OffsetHigh 0x40000000/1/0x7ffffffe/0x3fffffff, while the SH lock, EX conflict (err 33) and unlock all behave correctly. A scratch copy that only also tolerates 33 in the preparatory unlock (/opt/radios-port/work/review-platform-layer/winevariant/platform_winelock.c, test_platform_winelock.exe) passes /platform/lock/one-process and /platform/lock/two-processes under Wine.",
+   "fix": "Make the preparatory unlock best effort for SH/EX (ignore its result), keeping the ERROR_NOT_LOCKED rule only for RADIOS_LOCK_UN. This is semantically identical on Windows and not Wine-specific. Otherwise register the WINE-GAP and label lock tests accordingly."
+  },
+  {
+   "severity": "low",
+   "file": "src/core/platform_win32.c",
+   "line": "983-984; src/core/platform.c 372-375, 1438-1440",
+   "problem": "D2b leftovers: a no-op statement ('HANDLE h = streams[i].handle; streams[i].handle = h;'), a trivial wrapper single_component() around radios_path_component_valid(), and a misleading comment in radios_path_is_root ('\\\\\\\\server\\\\share without the trailing separator' followed by return FALSE, although that case is handled by root_length()).",
+   "evidence": "Code reading.",
+   "fix": "Delete the no-op assignment, inline single_component(), and drop or correct the comment."
+  }
+ ],
+ "checks_run": [
+  "Read ENV_CLOUD.md, PLATFORM_FACTS.md, DECISIONS.md, core-posix-files.md (sections 0-9), ui-platform-c.md sections 2-5 and 13, and the implementer report /opt/radios-port/reports/foundation-a/platform-layer.impl.json.",
+  "Strict D7 compile (MSYS2 GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror, D7 defines, ENV_CLOUD pkg-config cflags, -I include only): OK for platform.c, platform_tz.c, platform_win32.c, test_platform.c, the 14 migrated src files and tests/test_automation_calendar.c. tests/test_autoplay_header_ui.c and tests/test_header_playout_ui.c fail only in the included, non-owned tests/test_playout_ui.c:333 (g_stat with struct stat) and :344 (pread). With those two diagnostics demoted, both compile cleanly, so the migrated lines are fine. Objects in /opt/radios-port/work/review-platform-layer/obj.",
+  "Linked /opt/radios-port/work/review-platform-layer/test_platform.exe (-lntdll -ladvapi32 -lshell32 -ldbghelp, 8 MiB stack) and ran each of the 31 cases separately under Wine with G_DEBUG=fatal-warnings and RADIOS_TEST_PROJECT_ROOT (logs in /opt/radios-port/work/review-platform-layer/logs). 21 pass, including all 5 time-zone, python-utf8, exit-timeout, validation-quoting, watch-async, stop-event and startup-helpers. 10 fail: 7 are WINE-GAPs, 2 are lock tests that pass once one Wine gap is bypassed, and 1 is a test defect (handle-isolation).",
+  "WINE-GAP: UnlockFileEx on an unlocked range returns ERROR_LOCK_VIOLATION(33) instead of ERROR_NOT_LOCKED(158). Probe /opt/radios-port/work/review-platform-layer/probes/probe_lock.c. Affects /platform/lock/one-process and two-processes; both pass with the scratch variant test_platform_winelock.exe.",
+  "WINE-GAP: FileRenameInformationEx(REPLACE|POSIX) over a FILE_SHARE_DELETE-open target returns STATUS_ACCESS_DENIED, and FileDispositionInfoEx(POSIX) returns ERROR_INVALID_PARAMETER; the name stays visible and re-creating it fails with ERROR_FILE_EXISTS. Probe /opt/radios-port/work/review-platform-layer/probes/probe_posix.c. Affects /platform/fs/replace-open-target (line 553) and unlink-open-file (line 628).",
+  "WINE-GAP: a directory symlink created by CreateSymbolicLinkW is not visible (GetFileAttributesW fails, no-follow open gives ERROR_FILE_NOT_FOUND). Probe /opt/radios-port/work/review-platform-layer/probes/probe_links.c. Affects /platform/fs/links (line 662).",
+  "WINE-GAP: no ACE inheritance from a protected OICI parent DACL. Probe /opt/radios-port/work/review-platform-layer/probes/probe_inherit.c. Affects /platform/fs/private (line 736).",
+  "WINE-GAP, which corrects ENV_CLOUD.md's 'security descriptors are stored and returned': on this ext4 prefix Wine derives DACLs from Unix mode bits. SetSecurityInfo returns 0 but the DACL does not change. Probe /opt/radios-port/work/review-platform-layer/probes/probe_setsd.c. This makes radios_fd_make_private/radios_fs_path_make_private unverifiable here.",
+  "WINE-GAP: no DACL enforcement (already in ENV_CLOUD). Affects /platform/fs/space-access line 861.",
+  "WINE-GAP: GetFinalPathNameByHandleW on a path longer than MAX_PATH returns 0 with ERROR_MORE_DATA(234), even with a 1024-character buffer. Probe /opt/radios-port/work/review-platform-layer/probes/probe_longpath.c. Affects /platform/fs/long-paths line 351.",
+  "WINE-GAP: an unhandled access violation in any GIO-linked process hangs in Wine's debugger start despite SEM_NOGPFAULTERRORBOX. Proof: probes/probe_gpfault3.c (GIO only, no RadioS code) hangs, while probes/probe_gpfault.c without GLib exits at once with 0xC0000005. Affects /platform/startup/crash-dumps. The dump itself was verified: the AV helper wrote a valid 2,153,105-byte MDMP; the abort helper exited with 3; retention kept 9 old dumps + the new one = 10.",
+  "Assertions that follow each Wine-gap failure point were exercised with /opt/radios-port/work/review-platform-layer/probes/probe_remainders.c. 25 of 27 pass: make_public detection, owner check, mkdir_with_parents(0700) privacy, ENOTDIR/EISDIR/ENOTEMPTY rules, renameat onto a directory giving EISDIR, and long-path private/rename/access/disk-space/nofollow open. The 2 failures (make_private results) are the DACL-persistence gap above.",
+  "All 23 non-gap cases ran in one process twice in a row with the winelock variant: 23/23 both times (no order or timing flakiness seen).",
+  "Time zones: compared radios_time_zone_new() for all 598 bundled zones with the embedded CPython 3.14.8 zoneinfo (same tzdata 2026.5), 3 samples per month from 2026-11 to 2031-10 (143,520 points): 0 differences. Note: the shared Wine prefix now contains a test-only icu.dll proxy (ICU 78, /opt/radios-port/wine-support/icu_proxy.c), so ENV_CLOUD's 'no icu.dll' is outdated. The ICU route ran with ICU 78 data, not Windows' ICU 2022g.",
+  "Reviewed the D3/D6 contract against include/radios/platform.h: all section-3 functions, the D3 process API, crash handler, init hardening, time-zone API, lock region 0x4000000000000000/1, private SDDL with explicit owner, and stop event Local\\\\RadioS-stop-<pid> are present. The documented deviations (Etc/UTC gets its own zone, a bundled TZif file is required when the tree exists, DETACHED uses CREATE_NO_WINDOW instead of DETACHED_PROCESS, the core termination API is used instead of the UI spec's RadioSTermination) are justified and accepted.",
+  "D1 check: grep for G_OS_UNIX, #ifndef G_OS_WIN32, /proc, /usr/share, glib-unix, fork, SIGTERM, setsid, flatpak, Pulse, ALSA, X11, getuid, statvfs and flock in the owned files finds no Linux code paths.",
+  "Read against Microsoft documentation: handle/heap leaks on error paths (none found), share modes (READ|WRITE|DELETE everywhere), binary non-inheritable CRT fds, 64-bit offsets and sizes, the errno map, SDDL and owner/DACL checks, the named-pipe DACL with FIRST_PIPE_INSTANCE and REJECT_REMOTE_CLIENTS, the explicit handle list with deduplication, MSVCRT quoting (round-trips through CommandLineToArgvW in the test), the sorted case-insensitive environment block, bounded retries and waits, cancellation, thread affinity of the watch/async callbacks, lock ordering (no callbacks under locks), and dynamic loading of ICU and dbghelp from System32 with NULL-safe fallback.",
+  "Not verifiable here, PC only: real ICU 2022g mapping and registry history, DACL enforcement and ACE inheritance, make_private and the non-admin/elevated owner paths, POSIX-semantics rename/delete, symlink/junction no-follow, long-path realpath, the hidden/system overwrite rule, WER dialog behaviour, attach/detach with a real console, CTRL_CLOSE/LOGOFF waiting, and crash dumps under a real heap or loader lock."
+ ]
+}

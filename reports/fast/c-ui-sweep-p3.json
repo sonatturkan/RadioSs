@@ -1,0 +1,33 @@
+{
+ "area": "c-ui-sweep-p3",
+ "summary": "I checked all four owned files for POSIX/Linux code: unistd/fcntl/sys headers, g_spawn/GSubprocess, g_unix_*, gdk_x11/GDK_BACKEND, '/' path assumptions, file:// handling, getenv(HOME), Linux wording in UI strings, font-family in C-string CSS, and time-zone calls. None of the four has any. No earlier agent had changed them (the git diff for them was empty at the start). Because there was nothing platform-specific to convert, the changes are industrial fixes (D2). advert_ui.c: two very large stack buffers moved to the heap (a ~270 KiB RadioSAudioSnapshot in event_add and a 2000-entry receipt array of ~94 KiB in capture, run on the 50 ms poll). Both are now allocated once per controller and reused on the GTK thread. advert_ui.c also gets NULL guards: a missing audio engine, a failed timestamp conversion, and a failed JSON deep copy no longer crash. broadcast_output_ui.c: a stored metadata profile with no 'automatic' member no longer raises a GLib critical (which aborts under G_DEBUG=fatal-warnings). rotation_editor.c and stream_metadata.c needed no changes: their CSS has no font-family, the Shift+F10/Menu context-menu handling already follows Windows conventions (spec section 14.6), and they have no large stack arrays, file-system access or time-zone calls. Each of the four files was compiled once with the strict ENV_CLOUD.md recipe and produced zero warnings or errors. Per the fast-pass rule, nothing was linked, run or tested.",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/advert_ui.c",
+  "/home/user/RadioSs/src/ui/broadcast_output_ui.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. include/radios/advert_ui.h, broadcast_output_ui.h, rotation_editor.h and stream_metadata.h are unchanged. Behaviour change: radios_advert_ui_new(ctx) now returns NULL when radios_audio_ui_engine_acquire(ctx) returns NULL. Its only caller, window.c:791, already handles NULL: radios_advert_ui_close/unref accept NULL and every radios_advert_ui_* entry point reports 'Reklam yürütücüsü hazır değil.' when there is no controller.",
+ "verification": [
+  "Ran 'git diff HEAD --stat' on the four owned files before starting: empty, so there was no earlier partial work to continue.",
+  "Grepped all four files for unistd/fcntl/sys, g_spawn/GSubprocess, g_unix, gdk_x11/GDK_BACKEND, file://, getenv/HOME, PulseAudio/PipeWire/pactl/Wayland/X11/run-radios/flatpak/Linux, font-family, time_zone/localtime/mktime, fopen/g_file/paths, long/off_t: no hits needing conversion.",
+  "Compiled each file once with the strict ENV_CLOUD.md recipe (MSYS2 GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE, full pkg-config cflags, -c only) into /opt/radios-port/work/c-ui-sweep-p3/: advert_ui.c, broadcast_output_ui.c, rotation_editor.c and stream_metadata.c all exited 0 with empty compiler logs.",
+  "Not linked, run or tested (fast write-only pass, as the task instructs)."
+ ],
+ "industrial_fixes": [
+  "advert_ui.c event_add(): a RadioSAudioSnapshot (~270 KiB: 66 deck snapshots plus 128 device entries) was declared on the stack for every recorded event, up to 2000 times per capture. It now uses a heap buffer that is allocated once per controller (p->audio) and reused on the GTK thread.",
+  "advert_ui.c capture(): the RadioSAudioRunReceipt receipts[2000] stack array (~94 KiB, filled every 50 ms by the poll timer) is now a heap buffer allocated once per controller (p->receipts). Both buffers are freed in radios_advert_ui_unref after close.",
+  "advert_ui.c radios_advert_ui_new(): if the audio engine could not be acquired, the controller was still created with engine NULL. Every engine snapshot call then hit g_return_if_fail, which leaves the out-struct uninitialised, so the run-state logic read uninitialised stack memory. Now it returns NULL, which the callers already handle.",
+  "advert_ui.c stamp(): a NULL GDateTime (out-of-range engine timestamp) was passed straight to g_date_time_format/unref and crashed, and negative microsecond remainders produced malformed '.-NNNNNNZ' strings. It now uses floor division and falls back to the current UTC time if the conversion fails.",
+  "advert_ui.c copy_object(): the result of json_parser_load_from_data was not checked and a NULL root was dereferenced. The parse result and root type are now checked, with a fallback to referencing the source object.",
+  "broadcast_output_ui.c apply(): json_object_get_boolean_member(config, \"automatic\") raises a GLib critical when the member is missing (for example a metadata profile saved before the flag existed), and that aborts under G_DEBUG=fatal-warnings. It is replaced with json_object_get_boolean_member_with_default(..., FALSE), read once, which is the same value for existing documents."
+ ],
+ "requests_for_other_areas": [
+  "broadcast_ui.c owner (spec ui-platform-c.md section 14.2): the record filename typed in broadcast_output_ui.c (widget 'broadcast-record-filename', stored as config.filename) is validated in broadcast_ui.c. On Windows it must also reject ':' (NTFS alternate data streams), the characters <>\"|?* and control characters, reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9, also with an extension) and trailing dots or spaces (radios_platform_file_name_check), and compare the '.wav' suffix case-insensitively. broadcast_output_ui.c only supplies the default name 'RadioS-%Y%m%d-%H%M%S.wav', which is already valid on Windows."
+ ],
+ "open_issues": [
+  "Compiled only (-c). Nothing linked, run or tested here; the tests that cover this code (for example test_advert_ui.c) are for the user's Windows PC.",
+  "rotation_editor.c source_pressed() opens the source context menu on a right-button press, including a GDK_2BUTTON_PRESS. This is the GTK convention, not the native Windows one (context menu on button release / WM_CONTEXTMENU). It is left unchanged as GTK on Windows behaves the same, and spec section 14.6 accepts the current Shift+F10/Menu handling.",
+  "rotation_editor.c percent_label() casts a JSON double to gint64 to test for whole numbers. That would be undefined behaviour for values outside the gint64 range, but probabilities are bounded 0-100 by the service, so it was left unchanged."
+ ]
+}

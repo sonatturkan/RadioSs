@@ -1,0 +1,34 @@
+{
+ "area": "c-ui-sweep-p4",
+ "summary": "Grep-driven Windows sweep of src/ui/dj.c, src/ui/header_navigation.c, src/ui/instruments.c and src/ui/live_control.c, continuing from an earlier agent's dj.c changes. Those changes were kept: the audio file filter now uses radios_ui_file_filter_add_audio instead of the \"audio/*\" mime rule plus three patterns, and the source-menu comment now talks about WASAPI endpoint ids instead of Pulse. None of the four files contained unistd/fcntl/sys includes, g_spawn/GSubprocess, g_unix, GDK X11/backend calls, file:// handling, getenv/HOME, \"/\" path assumptions or Linux wording in UI strings. The time-zone call sites in header_navigation.c:115 and instruments.c:372 already used radios_time_zone_new() with a UTC fallback, and none of the files has CSS font-family strings. Changes made: (1) instruments.c no longer uses the cairo toy font API (cairo_select_font_face \"sans-serif\"). On Windows that API picks a single Arial face with no glyph fallback and never sees the registered Inter font. The meter scale and clock numerals now use radios_ui_cairo_show_text() from widgets.h, measured first and then drawn at 9 px, as gtk-windows-runtime.md §5.6 recommends. (2) Industrial fixes in all three edited files, listed in industrial_fixes. All four files compile with no warnings using the strict ENV_CLOUD.md recipe (-c only).",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/dj.c",
+  "/home/user/RadioSs/src/ui/header_navigation.c",
+  "/home/user/RadioSs/src/ui/instruments.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. Internal helpers only: header_navigation.c gains static JsonObject *record_object(JsonArray *records, guint index), which returns NULL for elements that are not objects. instruments.c now depends on radios_ui_cairo_show_text() from include/radios/widgets.h (already in the tree, implemented in src/ui/widgets.c). dj.c keeps using radios_ui_file_filter_add_audio() from widgets.h.",
+ "verification": [
+  "Strict compile, each file once after the edits (MSYS2 GCC 16.2 under Wine; -std=c11 -Wall -Wextra -Wpedantic -Werror -D_FILE_OFFSET_BITS=64 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00 -DUNICODE -D_UNICODE; pkg-config cflags for glib/gio/gio-windows/gtk3/json-glib/curl/ffmpeg; -c only), objects in /opt/radios-port/work/c-ui-sweep-p4/: dj.c OK, header_navigation.c OK, instruments.c OK, live_control.c OK (unchanged, compiled anyway). Recipe script: /opt/radios-port/work/c-ui-sweep-p4/cc.sh",
+  "Grep of the four files for unistd|fcntl|sys/|g_spawn|GSubprocess|g_unix|x11|GDK_BACKEND|file://|getenv|HOME|Pulse|PipeWire|pactl|Wayland|run-radios|flatpak|font-family|g_time_zone_new_identifier|cairo_select_font_face: no hits remain after the change.",
+  "As instructed, nothing was linked, run or tested under Wine, and no self-review pass was done."
+ ],
+ "industrial_fixes": [
+  "dj.c network_source_dialog_open: fixed a use-after-free. The modal 'Ağ kaynağı' dialog's editor kept a raw ChannelUI pointer. If the strip was removed while the dialog was open (remote channel sync in channels_apply, or page teardown when the dialog's parent was the main window), the ChannelUI was freed, and the response handler then read ui->disposed / ui->owner from freed memory. The dialog is now destroyed together with the strip widget (g_signal_connect_object(ui->widget, \"destroy\", gtk_widget_destroy, dialog, G_CONNECT_SWAPPED)).",
+  "instruments.c knob_motion: fixed a runaway knob drag. If the button release was lost during a knob drag (Alt+Tab, a dialog stealing focus, losing the Windows mouse capture), 'dragging' stayed TRUE and the GTK grab stayed active. Every later pointer motion then kept changing the mixer value (gain/EQ/send) with no button pressed. Motion without GDK_BUTTON1_MASK now ends the drag and removes the grab.",
+  "instruments.c clock_draw: returns early if g_date_time_new_now() returns NULL instead of passing NULL to g_date_time_get_* and g_date_time_unref (criticals / crash).",
+  "instruments.c meter scale: CLAMP upper bound guarded with MAX(0, width - text_width), so a meter narrower than its label never gets an inverted clamp range.",
+  "header_navigation.c programmes_received / override_clicked / playlist_choose_toggled: service list rows are now read through record_object() + radios_json_string(). Before, a malformed or partial reply (a non-object element, a missing _id/name) reached json_object_get_string_member on NULL. That raised criticals, which are fatal under G_DEBUG=fatal-warnings, and passed NULL to printf %s (undefined behaviour). Rows without an _id are now skipped, and a missing name falls back to the id."
+ ],
+ "requests_for_other_areas": [
+  "Audio area (owner of include/radios/audio_channel_input.h): the comment on RadioSAudioChannelInputSpec.device at line 38 still says \"Pulse source name, or the stream URL\". It should say \"WASAPI capture endpoint id (\\\"<render endpoint id>.monitor\\\" for an output loopback), or the stream URL\", to match dj.c's source-menu comment and D1.",
+  "Final audit / GUI test owner: the detached-mixer drag in dj.c (mixer_handle_motion -> mixer_detach -> gtk_window_begin_move_drag on a window created while the main window holds the implicit grab/mouse capture, about dj.c:325-343) must be checked by hand on real Windows, as gtk-windows-runtime.md §11.2 and §17.3 require. If GDK-Win32 does not carry the drag over, the documented fallback is to skip begin_move_drag when no motion arrives within 200 ms; the window is already placed at the pointer."
+ ],
+ "open_issues": [
+  "Not verified at runtime (write-only pass): the Inter drawn labels in instruments.c (meter dB scale with U+2212 minus signs, clock numerals at 9 px under the clock's cairo_scale) should be checked visually on the Windows PC. Text widths now come from Pango logical extents instead of cairo ink extents, so labels may sit up to about 1 px differently.",
+  "Detached-mixer begin_move_drag on GDK-Win32 is not verified (see requests_for_other_areas). The code is unchanged: there is no evidence it fails, and the spec only asks for manual verification.",
+  "header_navigation.c button glyphs ⏮ (U+23EE), ⏭ (U+23ED) and ▾ (U+25BE) are not in Inter. They rely on the Segoe UI Symbol/Emoji fallback in the theme CSS font-family list (radios.css, owned by another agent and already updated). Check the rendering on the PC.",
+  "live_control.c had no platform-specific constructs and no defects found in this pass; it was left unchanged and compiled."
+ ]
+}

@@ -1,0 +1,8 @@
+LIBRARY icu.dll
+EXPORTS
+ucal_getWindowsTimeZoneID = rt_getWindowsTimeZoneID
+ucal_getTimeZoneIDForWindowsID = rt_getTimeZoneIDForWindowsID
+ucal_getCanonicalTimeZoneID = rt_getCanonicalTimeZoneID
+ucal_openTimeZoneIDEnumeration = rt_openTimeZoneIDEnumeration
+uenum_next = rt_uenum_next
+uenum_close = rt_uenum_close
