@@ -1,0 +1,27 @@
+{
+  "recorded_at": "2026-10-09T02:06:37.277999+00:00",
+  "responsible": "/root/p13_architecture",
+  "tests_per_run": 6,
+  "sanitizer_scope": "new adapter and test translation units; existing linked static libraries are not instrumented",
+  "records": [
+    {
+      "executable": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt13/test_automation_calendar_plan_standalone",
+      "exit_code": 0,
+      "stdout": "TAP version 14\n# random seed: R02S067ef8677512979aa9c2e8bdbd6e1361\n1..6\n# Start of automation-calendar-plan tests\nok 1 /automation-calendar-plan/prepare-deep-copy\nok 2 /automation-calendar-plan/frequency-order-reorder\nok 3 /automation-calendar-plan/random-source-quotas\nok 4 /automation-calendar-plan/independent-kind-randomness\nok 5 /automation-calendar-plan/duration-diagnostic-security\nok 6 /automation-calendar-plan/frozen-bindings-real-planner\n# End of automation-calendar-plan tests\n",
+      "stderr": "",
+      "sanitizers": [],
+      "leak_detection": false
+    },
+    {
+      "executable": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt13/test_automation_calendar_plan_asan",
+      "exit_code": 0,
+      "stdout": "TAP version 14\n# random seed: R02Sa5713c2a6ef1d066e8cd0f6839da83e0\n1..6\n# Start of automation-calendar-plan tests\nok 1 /automation-calendar-plan/prepare-deep-copy\nok 2 /automation-calendar-plan/frequency-order-reorder\nok 3 /automation-calendar-plan/random-source-quotas\nok 4 /automation-calendar-plan/independent-kind-randomness\nok 5 /automation-calendar-plan/duration-diagnostic-security\nok 6 /automation-calendar-plan/frozen-bindings-real-planner\n# End of automation-calendar-plan tests\n",
+      "stderr": "",
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "leak_detection": true
+    }
+  ]
+}

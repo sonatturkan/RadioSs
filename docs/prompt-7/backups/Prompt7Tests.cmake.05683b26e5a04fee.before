@@ -1,0 +1,44 @@
+# Live player queue and picker regressions from the prompt/7 audit.
+if(BUILD_TESTING AND RADIOS_GUI_TESTS)
+    add_executable(test_live_players_ui
+        "${CMAKE_CURRENT_LIST_DIR}/../tests/test_live_players_ui.c")
+    target_link_libraries(test_live_players_ui PRIVATE radios_ui radios_warnings)
+    target_link_options(test_live_players_ui PRIVATE
+        -Wl,--wrap=radios_media_library_get
+        -Wl,--wrap=radios_media_library_open_for_deck
+        -Wl,--wrap=radios_player_loader_open
+        -Wl,--wrap=radios_audio_ui_get_snapshot
+        -Wl,--wrap=radios_audio_ui_load_media
+        -Wl,--wrap=radios_audio_ui_play
+        -Wl,--wrap=radios_audio_ui_pause
+        -Wl,--wrap=radios_audio_ui_stop
+        -Wl,--wrap=radios_broadcast_online_match
+        -Wl,--wrap=radios_broadcast_online_card_state
+        -Wl,--wrap=radios_broadcast_online_card_play
+        -Wl,--wrap=radios_broadcast_online_card_stop
+        -Wl,--wrap=radios_playout_ui_deck_metadata)
+    add_test(NAME native_live_players COMMAND test_live_players_ui)
+
+    add_executable(test_player_loader_ui
+        "${CMAKE_CURRENT_LIST_DIR}/../tests/test_player_loader_ui.c")
+    target_link_libraries(test_player_loader_ui PRIVATE radios_ui radios_warnings)
+    target_link_options(test_player_loader_ui PRIVATE
+        -Wl,--wrap=radios_data_connected
+        -Wl,--wrap=radios_data_request
+        -Wl,--wrap=radios_broadcast_online_provider_lists
+        -Wl,--wrap=radios_broadcast_online_provider_tracks)
+    add_test(NAME native_player_loader COMMAND test_player_loader_ui)
+    set_tests_properties(native_live_players native_player_loader PROPERTIES
+        TIMEOUT 30 SKIP_RETURN_CODE 77
+        ENVIRONMENT "G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+    # Exercise the last normal deck through real PCM and managed UI APIs.
+    add_executable(test_player_mapping_ui
+        "${CMAKE_CURRENT_LIST_DIR}/../tests/test_player_mapping_ui.c")
+    target_link_libraries(test_player_mapping_ui PRIVATE radios_ui radios_warnings)
+    add_test(NAME native_player_mapping
+        COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/run_audio_ui.py"
+            "$<TARGET_FILE:test_player_mapping_ui>")
+    set_tests_properties(native_player_mapping PROPERTIES
+        TIMEOUT 120 WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+endif()

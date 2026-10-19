@@ -1,0 +1,21 @@
+.routing-graph-editor { color: #eaf9fc; }
+.routing-graph-palette, .routing-graph-settings { background-color: #252b2e; border: 1px solid #424f55; border-radius: 8px; padding: 12px; }
+.routing-graph-heading { color: #eaf9fc; font-size: 13px; font-weight: 600; }
+.routing-graph-caption { color: #a9bec7; font-size: 11px; }
+.routing-graph-block { background-image: none; background-color: #087e99; color: #effcff; border: 1px solid #16a6c2; border-radius: 6px; padding: 10px 8px; }
+.routing-graph-block:hover { background-color: #0a9fbb; border-color: #78e2f4; }
+.routing-graph-settings button { background-image: none; background-color: #35434a; color: #eaf9fc; border-color: #5e727b; }
+.routing-graph-settings combobox button { background-image: none; background-color: #172024; color: #eaf9fc; }
+.routing-graph-settings checkbutton, .routing-graph-settings scale value { color: #eaf9fc; font-size: 11px; }
+.routing-graph-settings scale trough { background-color: #172024; min-height: 4px; }
+.routing-graph-settings scale highlight { background-color: #0bb0cf; }
+.routing-graph-settings scale slider { background-color: #eaf9fc; min-width: 10px; min-height: 10px; }
+#routing-graph-canvas { border: 1px solid #43545b; border-radius: 8px; }
+#routing-graph-delete-node, #routing-graph-disconnect { font-size: 11px; padding: 7px; }
+.routing-graph-close { background-image: none; background-color: transparent; color: #eaf9fc; border: 1px solid #5e727b; border-radius: 6px; font-size: 15px; font-weight: 600; padding: 0 9px; min-height: 26px; }
+.routing-graph-close:hover { background-color: #b0413a; border-color: #e0756d; }
+.routing-graph-settings entry, .routing-graph-settings spinbutton { background-image: none; background-color: #172024; color: #eaf9fc; border-color: #4b5d64; }
+.routing-graph-settings label.routing-graph-section { color: #78e2f4; font-size: 11px; font-weight: 600; }
+.routing-graph-settings .routing-record-state { color: #eaf9fc; font-size: 13px; font-weight: 600; }
+.routing-graph-settings button.routing-danger { background-color: #6b2c28; border-color: #a8473f; }
+.routing-graph-settings button.routing-primary { background-color: #087e99; border-color: #16a6c2; }

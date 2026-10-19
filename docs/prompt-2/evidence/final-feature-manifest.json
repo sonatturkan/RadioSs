@@ -1,0 +1,168 @@
+{
+  "created_utc": "2026-10-09T02:42:45.579416+00:00",
+  "scope": "All requirements of prompt/2 only, RadioS project",
+  "p2_acceptance": "complete",
+  "acceptance_ids": {
+    "P2-01": "PASS",
+    "P2-02": "PASS",
+    "P2-03": "PASS",
+    "P2-04": "PASS",
+    "P2-05": "PASS",
+    "P2-06": "PASS"
+  },
+  "source_documents": {
+    "prompt/2/2.pdf": "fc01fceb345526e161d61373c919676d8467402563fa418127f558b3347d5438"
+  },
+  "source_figure": {
+    "path": "prompt/2/figures/sema_1.png",
+    "sha256": "4e02741e464324a59f6b9ee8827892da3d5761a923900cfd1badc0b1694b5c7b"
+  },
+  "source_decisions": [
+    "Remaining minutes means actual playing track remaining dk/sn; PDF does not specify total programme duration.",
+    "Settings expose three independent persisted visibility checkboxes; PDF gives no detailed settings layout or interaction."
+  ],
+  "production_sources_sha256": {
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+    "assets/themes/header-status.css": "7f2e0557d2c20e69008a60c9f92cafdac9d407aa617a612eeb781f6420ad51b3",
+    "cmake/Pdf2HeaderStatus.cmake": "2c3781e02306739bc254031f7c639cfea005792088d36d8b5d39f6f05f9b42ba",
+    "include/radios/broadcast_header.h": "88ea073d0d00aa5503459854c563b2f1f0ca509d56453a1e802dfa614eeadc28",
+    "include/radios/header_status.h": "2ad4ea76144a29dba8da6e19d5b2c0818c709f2cc8455d1eb31e08381cec378d",
+    "include/radios/playout_ui.h": "ea981fbe8494603f33cbc6284b37f13a050b2e533e1c490c7013b062c4f402d5",
+    "include/radios/ui_preferences.h": "775db72aa3695706bce122635df928bc2c17237e2d94c1cf4c82101cac90d66b",
+    "src/core/ui_preferences.c": "e4be04d2c14b2bc84c9ec13de44d9f4b1e326a9e301b5c84326462dd72069582",
+    "src/playout/planner.c": "2f84ecd6e2e823730c1b5bfabdb5663504f25e0d825449c28d52261357acba35",
+    "src/ui/broadcast.c": "658917509c2c95845e8ab48acdec889b11470ca97d7ad77c311d27dce19dfcc8",
+    "src/ui/broadcast_online.c": "89a4e6a6bd90ca7f834e57f4f52be7cd02f0817bf8ac356f04cfbbed1500ae60",
+    "src/ui/header.c": "2f8696092b4dfd8be3f7e9df0d95dd52885f277f2684a16882e4fd86ca536681",
+    "src/ui/header_status.c": "4926015b89aa422503cf01de924c04169a5336fcb3e0ce954d283e9c81900cc7",
+    "src/ui/playout_ui.c": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28",
+    "src/ui/preferences.c": "c264c91fd94bc28d0680b4506b30c725348cdc67c61f2e303d5eafb3cc6595b9",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8"
+  },
+  "owned_tests_driver_sha256": {
+    "tests/test_ui_preferences.c": "0ca7591a8ef901b7c6b681ba5b243f4cce4f9f97d9208e8a6cb2d18a166d8b4e",
+    "tests/test_header_ui.c": "1765f046b410331e8678fcd63af54450994578caa897c4eb904d13e883bf1d77",
+    "tests/test_broadcast_header.c": "33aafe9ff5eb32c2870025f4c211e8ec4d3f32686b75a05a86941b4c3ce8793a",
+    "tests/test_header_online_status.c": "067759f491d3a827c6b6ba83e4999860686ae4c57908392ae42674d33d7f2a2c",
+    "tests/test_header_playout_ui.c": "4f3d5896acb494039f461e8666013ec0088b21fa7ea2c70515247254572dd2b8",
+    "tests/header_layout_driver.c": "326a42f6ee157b9961d6eedf53978481d53fec46e7c8879b1585cdc5e60af8cf"
+  },
+  "production_drift_from_latest_release": {},
+  "owned_test_drift_from_functional_snapshot": {},
+  "acceptance_counts": {
+    "selected_ctest_targets_passed": 8,
+    "selected_glib_cases_passed": 80,
+    "focused_online_flow_cases_passed": 1,
+    "total_actual_glib_cases_passed": 81,
+    "skipped": 0,
+    "native_header_captures_normal_large": 6,
+    "full_main_captures": 1,
+    "preferences_view_captures": 1,
+    "independent_visual_captures_total": 8,
+    "native_smoke_profiles": 8
+  },
+  "test_cases": {
+    "ui_preferences": 11,
+    "playout": 22,
+    "native_controls": 10,
+    "native_header_status": 8,
+    "broadcast_header": 23,
+    "header_online_status": 4,
+    "native_header_private_programme": 1,
+    "native_header_private_wait": 1,
+    "focused_online_flow": 1
+  },
+  "proof_limits": [
+    "Selected feature/integration regressions only; not every repository test.",
+    "Header component upstream observations are stubs; production selector and online provider observations use linker wrappers.",
+    "Two private native scenarios use real isolated DB/engine/Pulse MAIN PCM with no audio/playout wrappers.",
+    "Visual observations use explicit synthetic long Unicode fixture in real production GTK/theme/font/grid.",
+    "Actual header-only 1000/1400 geometry does not establish full-main fit at those widths.",
+    "Functional validation had one external playlist.c source drift; all actual build/test commands passed, control script failed only its drift assertion.",
+    "Current source changes by other sessions are not automatically present in dated installed binaries."
+  ],
+  "functional_source_drift_preserved": [
+    "src/ui/playlist.c"
+  ],
+  "latest_release": {
+    "path": "build/prompt-2-release/radios",
+    "sha256": "116fc0aa16a5ce4d46cc606591188466bf6099b275cd0bcb07ef4b2dd20ab4a9",
+    "commands_all_exit_zero": true,
+    "source_files_tracked": 370,
+    "source_drift": [],
+    "strict_flags": {
+      "-O3": true,
+      "-DNDEBUG": true,
+      "-Wall": true,
+      "-Wextra": true,
+      "-Wpedantic": true,
+      "-Werror": true
+    },
+    "native_8_profile_smoke": true,
+    "production_preferences_file": "absent before and after smoke"
+  },
+  "dated_default_install": {
+    "owner": "prompt5/root",
+    "installed_utc": "2026-10-09T02:35:19.391782+00:00",
+    "sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "current_actual_sha256_at_manifest": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "root2_default_mutation": false,
+    "functional_production_match_count": 16,
+    "provenance": "Sixteen production sources match dated functional/P5 Release snapshot. Shared header.c was already newer by final visual 02:34:34, before install 02:35:19; latest visual/own Release matches current header. Writer/exact mutation time not inferred.",
+    "latest_release_vs_dated_functional_source_delta": {
+      "src/ui/header.c": "2f8696092b4dfd8be3f7e9df0d95dd52885f277f2684a16882e4fd86ca536681"
+    }
+  },
+  "native_minimum_panel_visible_hidden": {
+    "normal": [
+      1568,
+      1568
+    ],
+    "large": [
+      1574,
+      1574
+    ],
+    "additional_full_main_width_px": [
+      0,
+      0
+    ]
+  },
+  "report_sha256": {
+    "docs/prompt-2/implementation.md": "a86665d3d1853372acc7d91accf3a792cde7864800314d5a1239ef4ce6559de5",
+    "docs/prompt-2/requirements.md": "f45c7e3f337305b232090b2bb742d1a1a085e12aebbe4204561b7c49dbc31ce4",
+    "docs/prompt-2/architecture-audit.md": "ef5eec3d4e968fd15b1ab2deb72097a136545fee8edb8b1e15eb7b5bda8831ee"
+  },
+  "evidence_receipt_sha256": {
+    "docs/prompt-2/evidence/20261009T023257Z/manifest.json": "1f275d3c9deaadc29c5d2539a1e3f996e5d81c487d457846147cf926febf4b59",
+    "docs/prompt-2/evidence/20261009T023257Z/selected-tests.xml": "5621cb13eae26e114c15936ad4befee49604c800a9c366ea0ed99821388157a5",
+    "docs/prompt-2/evidence/20261009T023257Z/selected-tests-full-tap.log": "019567135d643f582bf2593b25375dbd364c59e962f3d03a5399a6f6fdfc8894",
+    "docs/prompt-2/evidence/20261009T023257Z/coordinator-tap-verification.json": "8f556fbb8634911b4826ad0585461f5a16aed7f7cc04c39803f42f955a75ba72",
+    "docs/prompt-2/evidence/20261009T023257Z/online-flow.log": "0b33f483c51e38a745ee9c55c18fcf410388a56681d6d84979b150dfd8571d28",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/manifest.json": "f9f43693872e985cd76f0abadbf8a2e6aecd0aa8841eafccfb9cba9f9f3a83ee",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/coordinator-visual-review.json": "74c630afe2ddece5ff16c8c671b6b2c6a3ae3ce7a2d0980a9dbf935ed88a693d",
+    "docs/prompt-2/evidence/release-20261009T023847Z/manifest.json": "b0b1d857aaf98e8dcaa311ee21f4c9f116aef5bd7c7079de7a2972f866b5c4f0",
+    "docs/prompt-2/evidence/release-20261009T023847Z/coordinator-release-verification.json": "039fa8e466dac4e7e80bd72a2018c7b2173457cd2a731d161ee77e49adaff08a",
+    "docs/prompt-2/evidence/default-prompt5-p2-inclusion-verification.json": "8cbb4eb2c836bc1e196b825c12e233b6a03bdc653f0fcca678d4c70ca5e63a67"
+  },
+  "final_visual_png_sha256": {
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1000-large.png": "d54d722285a14ea5b57429d0250402d06e563ef78ddf21b1e5cec9efadb760b3",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1000-normal.png": "eef94d14ce4b7c596b72d330b386a359f58e26857abef1f8c9d6cc61d000d50e",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1400-large.png": "bef61826735a1c34cede8fb08a4f2d7ee3f21177e0cc04cee8ddb024b6146535",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1400-normal.png": "be89440d56d17678cd1549868663832ba94c55d2f9307e1cafea16b82dbc74b9",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1800-large.png": "b10577fb9a920f91138c3d36c0f80ae7abaea314e6112538b823d67085f9d9e2",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/header-1800-normal.png": "34ed1c95cdb99d64eb5cd6ed50d7e9b7c0adb880f381f9513a3dd7b145522f29",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/main-normal.png": "e47b08ab85e9d596f015fb11cfa679e907ebdaf67d2cc51c24a28c2ae11d42f8",
+    "docs/prompt-2/screenshots/final-20261009T023434Z/preferences-view.png": "d06b84a062b66ff09a336f4439021b2d5c518fd4df1339d4fcf9cfcd18cd4670"
+  },
+  "concurrency": {
+    "available_max_including_root": 4,
+    "used_roles": [
+      "root",
+      "requirements",
+      "architecture",
+      "coordinator"
+    ],
+    "user_requested_total": 14
+  },
+  "required_p2_pending": []
+}

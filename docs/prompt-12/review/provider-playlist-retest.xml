@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="1"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="8"
+	timestamp="2026-10-09T02:29:27"
+	>
+	<testcase name="native_prompt12_playlist" classname="native_prompt12_playlist" time="8.49847" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sd7d3cb6f61e622cdaea620bf89a075ce
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..5
+# Start of prompt12 tests
+ok 1 /prompt12/selectors-provider-copy
+# slow test /prompt12/selectors-provider-copy executed in 0.51 secs
+ok 2 /prompt12/provider-form-edit-roundtrip
+# slow test /prompt12/provider-form-edit-roundtrip executed in 0.58 secs
+ok 3 /prompt12/inline-analysis-marker-stale-selection
+# slow test /prompt12/inline-analysis-marker-stale-selection executed in 4.59 secs
+ok 4 /prompt12/provider-bound-analysis-marker-reopen
+# slow test /prompt12/provider-bound-analysis-marker-reopen executed in 0.76 secs
+ok 5 /prompt12/provider-analysis-picker-source-copy
+# slow test /prompt12/provider-analysis-picker-source-copy executed in 0.78 secs
+# End of prompt12 tests
+</system-out>
+	</testcase>
+</testsuite>

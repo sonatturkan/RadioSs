@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="5"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="12"
+	timestamp="2026-10-09T02:07:40"
+	>
+	<testcase name="desktop_api" classname="desktop_api" time="3.8957" status="run">
+		<properties/>
+		<system-out>test_audio_preferences_permissions_replay_cas_and_reopen (__main__.DesktopAPI.test_audio_preferences_permissions_replay_cas_and_reopen) ... ok
+test_audio_preferences_reject_runtime_claims_invalid_devices_and_levels (__main__.DesktopAPI.test_audio_preferences_reject_runtime_claims_invalid_devices_and_levels) ... ok
+test_cas_and_reopen (__main__.DesktopAPI.test_cas_and_reopen) ... ok
+test_channel_stable_slots_preserve_gaps_and_legacy (__main__.DesktopAPI.test_channel_stable_slots_preserve_gaps_and_legacy) ... ok
+test_delete_revision_and_replay (__main__.DesktopAPI.test_delete_revision_and_replay) ... ok
+test_dj_channel_routes_persist_and_reject_feedback (__main__.DesktopAPI.test_dj_channel_routes_persist_and_reject_feedback) ... ok
+test_dj_master_routes_persist_and_validate (__main__.DesktopAPI.test_dj_master_routes_persist_and_validate) ... ok
+test_dj_mixer_permissions_replay_cas_and_reopen (__main__.DesktopAPI.test_dj_mixer_permissions_replay_cas_and_reopen) ... ok
+test_dj_mixer_rejects_invalid_shapes_ranges_...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="desktop_playout" classname="desktop_playout" time="3.86045" status="run">
+		<properties/>
+		<system-out>127.0.0.1 - - [09/Oct/2026 02:07:44] "POST /v1/workflows/desktop-playout/prepare HTTP/1.1" 403 -
+127.0.0.1 - - [09/Oct/2026 02:07:44] "POST /v1/workflows/desktop-playout/prepare HTTP/1.1" 403 -
+127.0.0.1 - - [09/Oct/2026 02:07:44] "POST /v1/workflows/desktop-playout/prepare HTTP/1.1" 200 -
+127.0.0.1 - - [09/Oct/2026 02:07:44] "POST /v1/workflows/desktop-playout/prepare HTTP/1.1" 403 -
+127.0.0.1 - - [09/Oct/2026 02:07:44] "POST /v1/workflows/desktop-playout/prepare HTTP/1.1" 422 -
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 3.564s
+
+OK
+</system-out>
+	</testcase>
+	<testcase name="native_controls" classname="native_controls" time="3.09502" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S3b21336beeebb0fae20c11868b6ee7c6
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..10
+# Start of ui tests
+# Start of markers tests
+ok 1 /ui/markers/validation
+ok 2 /ui/markers/history
+ok 3 /ui/markers/cancel
+# End of markers tests
+# Start of transition tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 4 /ui/transition/validation
+# End of transition tests
+# Start of forms tests
+ok 5 /ui/forms/preserve-input
+# End of forms tests
+# Start of profiles tests
+ok 6 /ui/profiles/lifecycle
+# End of profiles tests
+# Start of playlist tests
+ok 7 /ui/playlist/session
+# End of playlist tests
+# Start of dj tests
+ok 8 /ui/dj/session
+# End of dj tests
+# Start of emergency tests
+ok 9 /ui/emergency/session
+# End of emergency tests
+# Start of preferen...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="desktop_automation_calendar" classname="desktop_automation_calendar" time="1.33387" status="run">
+		<properties/>
+		<system-out>test_copy_requires_fresh_event_and_rotation_ids (__main__.DesktopAutomationCalendar.test_copy_requires_fresh_event_and_rotation_ids) ... ok
+test_disabled_playlist_keeps_saved_calendar_readable_but_blocks_new_save (__main__.DesktopAutomationCalendar.test_disabled_playlist_keeps_saved_calendar_readable_but_blocks_new_save) ... ok
+test_empty_calendar_and_midnight_adjacent_intervals_persist (__main__.DesktopAutomationCalendar.test_empty_calendar_and_midnight_adjacent_intervals_persist) ... ok
+test_event_and_rotation_capacity_limits (__main__.DesktopAutomationCalendar.test_event_and_rotation_capacity_limits) ... ok
+test_event_order_rotation_order_and_cas_reorder (__main__.DesktopAutomationCalendar.test_event_order_rotation_order_and_cas_reorder) ... ok
+test_event_time_date_color_text_and_field_types_are_atomic (__main__.DesktopAutomationCalendar.test_event_time_date_color_text_and_field_types_are_atomic) ... ok
+test_http_put_get_overlap_replay_and_stale_revision (__main__.DesktopAutomationCalendar.test_http_put_ge...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="automation_calendar_plan" classname="automation_calendar_plan" time="0.0635883" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S037cbd27d5d48bb2c06c1772ad673692
+1..6
+# Start of automation-calendar-plan tests
+ok 1 /automation-calendar-plan/prepare-deep-copy
+ok 2 /automation-calendar-plan/frequency-order-reorder
+ok 3 /automation-calendar-plan/random-source-quotas
+ok 4 /automation-calendar-plan/independent-kind-randomness
+ok 5 /automation-calendar-plan/duration-diagnostic-security
+ok 6 /automation-calendar-plan/frozen-bindings-real-planner
+# End of automation-calendar-plan tests
+</system-out>
+	</testcase>
+</testsuite>

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-11T12:22:23.665780+00:00",
+  "command": "PYTHONPATH=database/SDBASE/src python3 tests/test_desktop_routing.py",
+  "exit_code": 0,
+  "seconds": 9.653,
+  "distinct_test_methods": 13,
+  "input_hashes": {
+    "database/SDBASE/src/sdbase/desktop_api.py": "3bf9b06219bc51b8289027381b303f2b34da5a065738a9a353f8b0506124b6d1",
+    "tests/test_desktop_routing.py": "12c418c8389c9b133170930986e33ed3760aa4945f77371b959ffff7613a090e"
+  },
+  "changed_during_tests": [],
+  "preserved_first_failure": "desktop-routing-first-rate-limit.log"
+}

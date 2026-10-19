@@ -1,0 +1,71 @@
+{
+  "utc": "2026-10-11T11:11:50.629481+00:00",
+  "task": "Compile latest RadioS and open actual new application",
+  "state": "COMPLETE_DELIVERED",
+  "project": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+  "root_owner": "/root",
+  "continuity_owner": "/root/continuity_latest",
+  "agENT_md_write_allowed": false,
+  "source_binary_process_mutations_by_continuity_agent": false,
+  "previous_settings_delivery": {
+    "utc": "2026-10-10 23:56:59 UTC",
+    "state": "COMPLETE_DELIVERED",
+    "binary_sha256": "5becacf9f998120c890d729793a3d1bc5b788e0beb76de13a7df701b9075306b",
+    "visible_proof": "docs/prompt-7/settings-ui-20261010/delivery-visible.json"
+  },
+  "pending": [],
+  "observed_sha256": {
+    "src/ui/preferences.c": "81d8b6d68ba04012dbaf4b556a8576b542165af9fc979a0ab0a6f22aae5e18cd",
+    "build/radios": "7e12e4ad0d02f16fa7c0222316997679c0f9df4175ccc2ee5e3fc235712730b9"
+  },
+  "shared_md_note": "Historical parent prompt/agent existed at initial 11:06 read; actual UTC11:08 parent dir absent, actor unknown. AGENT.md never written. Existing rootlocal source-edit.lock and build/radios.lock now measured; root notified.",
+  "canonical_lock_order_prior_observation": [
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock SH",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/default-binary.lock EX",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios.lock EX"
+  ],
+  "actual_lock_paths": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/source-edit.lock",
+      "exists": true,
+      "inode": 41947,
+      "exclusive_probe_available": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios.lock",
+      "exists": true,
+      "inode": 49609,
+      "exclusive_probe_available": true
+    }
+  ],
+  "historical_shared_parent_missing": true,
+  "build_independently_checked": {
+    "receipt": "build-install.json",
+    "returncode": 0,
+    "source_fence_stable": true,
+    "source_hashes_current_checked": 240,
+    "source_drift": [],
+    "candidate_binary_sha256": "7e12e4ad0d02f16fa7c0222316997679c0f9df4175ccc2ee5e3fc235712730b9",
+    "installed_binary_matches": true,
+    "checks": [
+      {
+        "name": "version",
+        "exit_code": 0
+      },
+      {
+        "name": "configuration",
+        "exit_code": 0
+      }
+    ]
+  },
+  "delivery": {
+    "visible_proof": "visible.json",
+    "launch_proof": "launch.json",
+    "independent_visual_reviewer": "/root/launch_check_latest",
+    "expected_binary_sha256": "7e12e4ad0d02f16fa7c0222316997679c0f9df4175ccc2ee5e3fc235712730b9",
+    "installed_sha256": "7e12e4ad0d02f16fa7c0222316997679c0f9df4175ccc2ee5e3fc235712730b9",
+    "actual_native_window_verified": true,
+    "current_user_dialog_focus_preserved": true
+  },
+  "record_scope": "Small isolated continuity state only. AGENT.md not written."
+}

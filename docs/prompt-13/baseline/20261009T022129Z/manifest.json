@@ -1,0 +1,11 @@
+{
+  "time_utc": "2026-10-09T02:21:29.225145+00:00",
+  "agent": "/root",
+  "file": "src/ui/automation_calendar.c",
+  "changes": [
+    "two-line full day/date sticky headings",
+    "owned prepare diagnostics carried across real media revalidation and summarized in preview"
+  ],
+  "before_sha256": "5491e67aa575c3e5ed4a339503afef2db3835376b517d362502286d8106cbba8",
+  "after_sha256": "641b68c93e015fc347ef8248e1ccdfacb58ccd5a8ce6e64db5448ea83dd38a0e"
+}

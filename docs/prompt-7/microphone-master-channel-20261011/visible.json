@@ -1,0 +1,38 @@
+{
+  "utc": "2026-10-11T12:29:42.727388+00:00",
+  "agent": "/root",
+  "passed": true,
+  "expected_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "installed_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "process": {
+    "pid": 94078,
+    "exe": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios",
+    "sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+    "launcher_ancestry": [
+      94078,
+      94077,
+      94061,
+      2592
+    ],
+    "profile_argument": "dj"
+  },
+  "window": {
+    "window": "0x1600004",
+    "owner_query_status": 0,
+    "owners": [
+      {
+        "pid": 94078,
+        "client_base": "0x1600000",
+        "mask": 2
+      }
+    ],
+    "viewable": true,
+    "geometry": {
+      "Width": "1920",
+      "Height": "1042"
+    }
+  },
+  "requested_profile": "dj",
+  "launcher_pid": 94061,
+  "layout_evidence": "dj-microphone-master-viewport.png and dj-microphone-channel-viewport.png"
+}

@@ -1,0 +1,15 @@
+{
+  "recorded_at": "2026-10-09T02:08:50.013334+00:00",
+  "responsible": "/root/p13_architecture",
+  "case": "/native-playout/autodj-deck-policy-save-reopen-PCM-append",
+  "command": [
+    "python3",
+    "tests/run_playout_ui.py",
+    "build/prompt13/test_playout_ui",
+    "-p",
+    "/native-playout/autodj-deck-policy-save-reopen-PCM-append"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 32.6737211210002,
+  "output": "TAP version 14\n# random seed: R02Se4aa6c2d7863b9c49da38c4e9144e033\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# Start of native-playout tests\nok 1 /native-playout/autodj-deck-policy-save-reopen-PCM-append\n# slow test /native-playout/autodj-deck-policy-save-reopen-PCM-append executed in 30.30 secs\n# End of native-playout tests\n1..1\n"
+}

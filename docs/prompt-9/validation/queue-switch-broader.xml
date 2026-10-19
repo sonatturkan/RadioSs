@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="8"
+	failures="4"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="71"
+	timestamp="2026-10-09T02:07:47"
+	>
+	<testcase name="programme_model" classname="programme_model" time="0.0166709" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S230df76b59eb6aaf476424c6529ce37b
+1..2
+# Start of programme-model tests
+ok 1 /programme-model/legacy
+ok 2 /programme-model/edit
+# End of programme-model tests
+</system-out>
+	</testcase>
+	<testcase name="native_broadcast_online" classname="native_broadcast_online" time="37.4149" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sf5adce152a1187c849f4ec63a077f1f0
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: setenv()/putenv() are not thread-safe and should not be used after threads are created
+1..11
+# Start of broadcast-online tests
+ok 1 /broadcast-online/youtube-source-lists-plays-account-saved-search
+# slow test /broadcast-online/youtube-source-lists-plays-account-saved-search executed in 4.18 secs
+ok 2 /broadcast-online/viewer-cannot-play
+ok 3 /broadcast-online/youtube-items-become-flow-events
+# slow test /broadcast-online/youtube-items-become-flow-events executed in 2.27 secs
+ok 4 /broadcast-online/flow-plays-youtube-events
+# slow test /broadcast-online/flow-plays-youtube-events executed in 3.17 secs
+ok 5 /broadcast-online/card-loads-and-plays-provider-list
+# slow test /broadcast-online/card-loads-and-plays-provider-list executed in 1.51 secs
+ok 6 /broadcast-online/spotify-list-plays-through-youtube-matches
+# slow test /broadcast-online/spotify-list-plays-through-youtube-matches executed in 1.21 secs
+ok 7 /broadcast-online/apple-list-prepares-before-play
+# slow test /broadcast-online/apple-list-prepares-before-play executed in 0.61 secs
+ok 8 /broadcast-online/multiple-sources-music-playlist-scope
+ok 9 /broadcast-online/source-menu-search-hints-scope
+not ok /broadcast-online/multiple-selected-rows-insert-play-visible-order - FATAL-ERROR: Broadcast online catalogue timed out: only selected online rows persisted in visible order
+Bail out!
+</system-out>
+	</testcase>
+	<testcase name="native_broadcast_catalogue" classname="native_broadcast_catalogue" time="10.8085" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Native catalogue independent fixture: /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+TAP version 14
+# random seed: R02S1fd2ee32211895e79f07ab580a444170
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# Start of native-broadcast-catalogue tests
+ok 1 /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+# slow test /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded executed in 1.30 secs
+# End of native-broadcast-catalogue tests
+1..1
+Native catalogue independent fixture: /native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close
+TAP version 14
+# random seed: R02S9666888767607920ee8bfa3befa0f98c
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# Start of native-broadcast-catalogue tests
+ok 1 /native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close
+# slow test /native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close executed in 2.34 secs
+# End of native-broadcast-catalogue tests
+1..1
+Native catalogue independent fixture: /native-broadcast-catalogue/playlist-tab-programme-toolbar
+TAP version 14
+# random seed: R02S31f41ed3a90988037b096843eb3f8e64
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# Start of native-broadcast-catalogue tests
+not ok /native-broadcast-catalogue/playlist-tab-programme-toolbar - Gtk-FATAL-CRITICAL: gtk_widget_get_name: assertion 'GTK_IS_WIDGET (widget)' failed
+Bail out!
+</system-out>
+	</testcase>
+	<testcase name="native_programme" classname="native_programme" time="9.64548" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sa0737aedd4549286c4f0054fdc4381b3
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+1..1
+# Start of native-programme tests
+ok 1 /native-programme/prerequisites-immutable-approval-PCM-stale-reply-fork
+# slow test /native-programme/prerequisites-immutable-approval-PCM-stale-reply-fork executed in 8.00 secs
+# End of native-programme tests
+</system-out>
+	</testcase>
+	<testcase name="native_controls" classname="native_controls" time="2.29276" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S7ff0a27631c38679584be10ff7697633
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..10
+# Start of ui tests
+# Start of markers tests
+ok 1 /ui/markers/validation
+ok 2 /ui/markers/history
+ok 3 /ui/markers/cancel
+# End of markers tests
+# Start of transition tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 4 /ui/transition/validation
+# End of transition tests
+# Start of forms tests
+ok 5 /ui/forms/preserve-input
+# End of forms tests
+# Start of profiles tests
+ok 6 /ui/profiles/lifecycle
+# End of profiles tests
+# Start of playlist tests
+ok 7 /ui/playlist/session
+# End of playlist tests
+# Start of dj tests
+ok 8 /ui/dj/session
+# End of dj tests
+# Start of emergency tests
+ok 9 /ui/emergency/session
+# End of emergency tests
+# Start of preferen...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_data" classname="native_data" time="37.6935" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S7f06f6de166dfae09db38398a0ec8270
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+# /native-data/playlist-persistence
+# /native-data/conflict-input-retention
+# /native-data/transport-input-retention
+# /native-data/shutdown-during-connect
+# /native-data/all-profiles-persistence
+# /native-data/refresh-edit-revision-race
+# /native-data/document-read-order
+# End of native-data tests
+1..7
+Native data independent fixture: /native-data/playlist-persistence
+TAP version 14
+# random seed: R02S74a60dc60664398479fea04fb009b8df
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/playlist-persistence
+# slow test /native-data/playlist-persistence executed in 2.22 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/conflict-input-retention
+TAP version 14
+# random seed: R02Sb2eca666311f5136522df10bdfb465f8
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/conflict-input-retention
+# slow test /native-data/conflict-input-retention executed in 1.87 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/transport-input-retention
+TAP version 14
+# random seed: R02S955b5f8a3fed82f8811bbf32a6c80b05
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/transport-input-retention
+# slow test /native-data/transport-input-retention executed in 2.92 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/shutdown-during-connect
+TAP version 14
+# random seed: R02S37bf65e3f9381c32e75f071fb62df575
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/shutdown-during-connect
+# slow test /native-data/shutdown-during-connect executed in 4.64 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/all-profiles-persistence
+TAP version 14
+# random seed: R02S36ed8b2da1597790da2ebe75c3d38a89
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+not ok /native-data/all-profiles-persistence - FATAL-ERROR: Persisted native document did not reach expected state: programme
+Bail out!
+Private fixture's last HTTP results:
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+</system-out>
+	</testcase>
+	<testcase name="native_playout" classname="native_playout" time="34.5211" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S8fb6f37328a7c41ee862b8f3dd083238
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+1..11
+# Start of native-playout tests
+# /native-playout/verified-queue-auto-next-crossfade-PCM
+# /native-playout/transport-busy-deck-CUE-isolation
+# /native-playout/automation-preview-history-reopen
+# /native-playout/autodj-deck-policy-save-reopen-PCM-append
+# /native-playout/future-schedule-cancel-native-stop
+# /native-playout/validation-owner-close-CAS-preservation
+# /native-playout/independent-player-native-PCM-pause-next-stop-history
+# /native-playout/player-card-manual-metadata-generation-identity
+# /native-playout/player-waveform-cues-square-automatic-analysis
+# /native-playout/player-SYNC-analysis-persistence-chosen-pair-PCM
+# /native-playout/player-SYNC-unknown-and-late-target-preserve-PCM
+# End of native-playout tests
+Native playout independent fixture: /native-playout/verified-queue-auto-next-crossfade-PCM
+TAP version 14
+# random seed: R02S77d5c4f2c4988140ada22a04b0249e86
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-playout tests
+# Seeded programme prerequisite: queue contents ready=0, acknowledged identity/revision ready=0
+not ok /native-playout/verified-queue-auto-next-crossfade-PCM - FATAL-ERROR: Native playout acceptance timed out: native button becomes available after its status poll
+Bail out!
+</system-out>
+	</testcase>
+	<testcase name="native_window" classname="native_window" time="2.73331" status="run">
+		<properties/>
+		<system-out>Native pencere kabulü geçti: mapped window, 8 profil, gerçek iş/durum teslimi.
+</system-out>
+	</testcase>
+</testsuite>

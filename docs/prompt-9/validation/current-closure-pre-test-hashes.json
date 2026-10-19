@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-09T02:13:53.788187+00:00",
+  "current_source_hashes": {
+    "src/ui/broadcast.c": "1797348e6c9e1abe47653c733b8a769f2c0145335a171098ad0f5a83dc2be86e",
+    "src/ui/broadcast_online.c": "a45c4c9b802dc54629b6075d9bf859fe258fb9cb5b506880444928cab6d8ca65",
+    "tests/test_broadcast_catalogue_ui.c": "89d7669f022c149fb4e2775a4e10d7be859048120ff725b10c62673630258f58",
+    "tests/test_broadcast_online_ui.c": "ff2d0c089341c2ba738e41d066adedacf8394cad85e18d063fd298022984aaca",
+    "tests/run_broadcast_catalogue_ui.py": "4908ec497018e5bb5fe7f902e2f81a3e9b9d6e1e2d1a010a8a6389920c14fbc6"
+  },
+  "tested_binary_hashes": {
+    "build-prompt9/test_broadcast_catalogue_ui": "e8ead4d64b701ab48af2e56e985d5d51730b797ab0282e64757dab75d41ffbc4",
+    "build-prompt9/test_broadcast_online_ui": "3646f223aa70a43da00fdfe9b4fb35ccaaf24459f30d479724f8541ef32e77a4"
+  }
+}

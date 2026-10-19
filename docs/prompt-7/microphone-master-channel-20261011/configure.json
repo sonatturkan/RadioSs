@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-11T12:19:27.700544+00:00",
+  "agent": "/root",
+  "command": [
+    "cmake",
+    "-S",
+    "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS",
+    "-B",
+    "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/build/bas-konus-master-kanal-20261011-1219",
+    "-G",
+    "Ninja",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DBUILD_TESTING=ON",
+    "-DRADIOS_GUI_TESTS=ON",
+    "-DRADIOS_STRICT_WARNINGS=ON"
+  ],
+  "exit_code": 0,
+  "build": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/build/bas-konus-master-kanal-20261011-1219"
+}

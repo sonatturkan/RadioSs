@@ -1,0 +1,15 @@
+{
+  "started_utc": "2026-10-09T02:09:59.831965+00:00",
+  "ended_utc": "2026-10-09T02:10:37.748929+00:00",
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build/prompt-7-validation",
+    "--output-on-failure",
+    "-R",
+    "^native_audio$"
+  ],
+  "exit_code": 0,
+  "stdout_log": "docs/prompt-7/test-evidence/current-pcm-ctest-20261009T020959Z.log",
+  "scope": "Closest existing native GTK/real PCM suite with isolated test DB and owned null Pulse outputs; not physical hardware."
+}

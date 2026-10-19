@@ -1,0 +1,50 @@
+{
+  "utc": "2026-10-11T12:22:47.427511+00:00",
+  "agent": "/root",
+  "private_x11": true,
+  "checks": [
+    {
+      "name": "speech-master-channel-route",
+      "case": "/native-dj/speech-master-channel-route",
+      "exit_code": 0,
+      "seconds": 11.955,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/speech-master-channel-route.log"
+    },
+    {
+      "name": "speech-effector-route",
+      "case": "/native-dj/speech-effector-route",
+      "exit_code": 0,
+      "seconds": 7.068,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/speech-effector-route.log"
+    },
+    {
+      "name": "push-to-talk-lifecycle",
+      "case": "/native-dj/push-to-talk-PCM-keyboard-loss-lifecycle",
+      "exit_code": 0,
+      "seconds": 11.649,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/push-to-talk-lifecycle.log"
+    },
+    {
+      "name": "four-pedals-migration",
+      "case": "/native-dj/four-pedals-legacy-fifth-migration",
+      "exit_code": 0,
+      "seconds": 5.979,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/four-pedals-migration.log"
+    },
+    {
+      "name": "configuration-CAS-reopen",
+      "case": "/native-dj/configuration-CAS-reopen",
+      "exit_code": 0,
+      "seconds": 4.378,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/configuration-CAS-reopen.log"
+    },
+    {
+      "name": "native-effect-return",
+      "case": null,
+      "exit_code": 250,
+      "seconds": 5.827,
+      "log": "docs/prompt-7/microphone-master-channel-20261011/native-effect-return.log"
+    }
+  ],
+  "passed": false
+}

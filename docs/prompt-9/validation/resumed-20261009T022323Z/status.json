@@ -1,0 +1,42 @@
+{
+  "artifact_directory": "docs/prompt-9/validation/resumed-20261009T022323Z",
+  "started_utc": "2026-10-09T02:23:23.378009+00:00",
+  "build_command": [
+    "cmake",
+    "--build",
+    "build-prompt9",
+    "--target",
+    "test_broadcast_catalogue_ui",
+    "test_broadcast_online_ui",
+    "--parallel",
+    "4"
+  ],
+  "build_exit_code": 0,
+  "compile_source_drift": [],
+  "test_command": [
+    "ctest",
+    "--test-dir",
+    "build-prompt9",
+    "-R",
+    "^native_broadcast_(catalogue|online)$",
+    "--output-on-failure",
+    "--verbose",
+    "--parallel",
+    "2",
+    "--output-junit",
+    "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/docs/prompt-9/validation/resumed-20261009T022323Z/tests.xml"
+  ],
+  "environment": {
+    "GDK_BACKEND": "x11",
+    "RADIOS_SHOT_DIR": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/docs/prompt-9/validation/resumed-20261009T022323Z/visual",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "test_exit_code": 0,
+  "runtime_source_drift": [
+    "src/ui/broadcast.c",
+    "src/ui/broadcast_online.c",
+    "src/ui/editors.c"
+  ],
+  "runtime_binary_drift": [],
+  "finished_utc": "2026-10-09T02:23:54.985110+00:00"
+}

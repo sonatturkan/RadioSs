@@ -1,0 +1,23 @@
+{
+  "agent": "/root",
+  "time_utc": "2026-10-10T23:29:19.638112+00:00",
+  "changes": "Initialize compact editor children before no-show-all; explicit selected editor visibility; link scoped stylesheet into real native CSS conversion; valid 0px min-width and actual preview style class",
+  "files": {
+    "src/ui/automation_calendar.c": {
+      "before_sha256": "faefe608491f2b17dcf87de63e2f0fb90c118a91ec68cfbe1afe31685fbef27e",
+      "after_sha256": "9dfb5d9af35a07ecc0c69274a7f3474308d3d14bae3b69d3b4b194b1456bac4b"
+    },
+    "src/ui/automation.c": {
+      "before_sha256": "112bbe7077a27421999e80d8921b6cb4f7d7c21b776cce76ec3dc8a7964ebe34",
+      "after_sha256": "5afd4ac45f0493572d3bbb3cd47fdb3ccd97fd6d775755312c96329394b9d06b"
+    },
+    "design/reference/tasarrım/automation-calendar.css": {
+      "before_sha256": "7fca2c4286b8e0c1f23496203ba7081ec0212e6df0eca6ded62fa9d0cadc60b2",
+      "after_sha256": "fe2883e55c66d15c5d4ff0796242bbebc364c33289e87935015893b30d93bc9e"
+    },
+    "design/reference/tasarrım/index.html": {
+      "before_sha256": "a858c6e8341345d7515101d52970c85b48e42e138a00b1447998447c83a306eb",
+      "after_sha256": "3adb1070e7fcbaca467956e58cff69a2ec9eca2136b1be580a34869f9c06aa75"
+    }
+  }
+}

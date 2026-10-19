@@ -1,0 +1,10 @@
+{
+  "agent": "prompt7/root",
+  "utc": "2026-10-09T02:25:23.930330+00:00",
+  "path": "src/ui/playout_ui.c",
+  "before_sha256": "f162abe50ccabaa30949e1c9d2aa050f0cf6b4c596bba0de0b44a611be9a5b95",
+  "after_sha256": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28",
+  "changes": "Only three mixer-channel mapping loop bounds: private pool, general pool, manual handover protection; stereo PCM channel count is not mixer strip count. Existing AutoDJ loop and all other hunks preserved.",
+  "backup": "docs/prompt-7/backups/playout_ui.c.f162abe50ccabaa3.before",
+  "runtime_verification": "Pending new 3-case real PCM mapping suite."
+}

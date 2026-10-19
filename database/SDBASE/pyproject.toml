@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radios-sdbase"
+version = "0.8.1"
+description = "Independent non-SQL RadioS database and playout data service"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+sdbase = "sdbase.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sdbase*"]

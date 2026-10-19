@@ -1,0 +1,333 @@
+/* GTK node/geometry adaptation. The design's 30 CSS sources are compiled first.
+ * Layout lives in C; the palette and sizes below follow header-layout.css,
+ * broadcast-black.css, task-views.css and readability.css. */
+.radios { font-family: "Inter Variable", "Inter", sans-serif; font-size: 14px; }
+window.radios { background-color: #000; color: #b5b5b5; }
+.radios label { color: inherit; }
+.radios button { background-image: none; box-shadow: none; text-shadow: none;
+    border: 1px solid #3b3b3b; border-radius: 4px; padding: 6px 10px;
+    min-height: 24px; color: #c8c8c8; background-color: #101010; }
+.radios button:hover { border-color: #777; background-color: #222; }
+.radios button:disabled { color: #707070; background-color: #090909; border-color: #282828; }
+.radios button:focus { border-color: #aaa; }
+.radios button:checked { background-color: #292929; border-color: #777; color: #eee; }
+.radios entry, .radios spinbutton, .radios textview { background-color: #070707; color: #c8c8c8;
+    border: 1px solid #444; border-radius: 4px; padding: 6px 8px; min-height: 24px; }
+.radios spinbutton button { padding: 0 3px; min-height: 20px; min-width: 14px; border: 0; }
+.radios combobox button { padding: 5px 8px; min-height: 24px; }
+.radios notebook, .radios notebook stack { background-color: #030b0e; }
+.radios treeview { background-color: #000; color: #b5b5b5; font-size: 13px; }
+.radios treeview:selected { background-color: #252525; color: #ededed; }
+.radios treeview header button { background-color: #202020; border: 0; border-radius: 0;
+    padding: 9px; min-height: 16px; color: #b5b5b5; font-size: 13px; }
+.radios viewport, .radios scrolledwindow { background-color: transparent; }
+.radios scrollbar { background-color: #050505; }
+.radios scrollbar slider { min-width: 6px; min-height: 6px; border-radius: 4px; background-color: #444; }
+.radios .page-header { padding: 12px 48px; background-color: #000; border-bottom: 1px solid #292d33; }
+.radios .brand-name { font-size: 36px; font-weight: 100; color: #fff; }
+.radios .brand-letter { font-size: 48px; font-weight: 200; color: #fff; }
+.radios .brand-subtitle { font-size: 10px; color: #969696; }
+.radios .brand-rule { min-height: 1px; background-color: #bfc7d2; }
+.radios .header-settings-button { padding: 3px 5px; min-width: 22px; min-height: 22px; }
+.radios .header-settings-menu { background-color: #101010; border: 1px solid #3b3b3b; color: #c8c8c8; }
+.radios .header-onair, .radios .header-behavior, .radios .header-next, .radios .header-time {
+    border-left: 1px solid #252d35; padding-left: 20px; padding-right: 20px; }
+.radios .header-behavior, .radios .header-time { border-top: 1px solid #1d252d; padding-top: 9px; }
+.radios .broadcast-label { font-size: 12px; color: #8f9cab; }
+.radios .broadcast-content { font-size: 20px; color: #e3e8ee; }
+.radios .broadcast-target-value, .radios .header-live-name, .radios .header-live-state,
+.radios .header-health-value { font-size: 13px; color: #9eacb9; }
+.radios .header-behavior-text { font-size: 16px; color: #c9d2dc; }
+.radios .header-health button { font-size: 12px; padding: 2px 6px; min-height: 18px; }
+.radios .header-health .broadcast-health-link { border: 0; background-color: transparent; }
+.radios .header-next-title { font-size: 18px; color: #e3e8ee; }
+.radios .header-next-advert, .radios .header-programme-end { font-size: 13px; color: #8f9cab; }
+.radios .header-countdown { font-size: 42px; font-weight: 200; color: #36caff; }
+.radios .header-clock-label { font-size: 11px; color: #8f9cab; }
+.radios .header-clock-time { font-size: 26px; font-weight: 300; color: #e3e8ee; }
+.radios .header-calendar { font-size: 12px; color: #8f9cab; }
+.radios .header-programme { border-left: 1px solid #1d252d; padding-left: 20px; }
+.radios .header-programme-title { font-size: 15px; color: #e3e8ee; }
+.radios .header-meter { border-left: 1px solid #252d35; padding-left: 16px; }
+.radios .header-audio-module { border-right: 1px solid #252d35; padding-right: 8px; }
+.radios .header-audio-module .cue-module-heading { font-size: 13px; color: #c1ccd6; }
+.radios .cue-module-context { font-size: 10px; color: #7d8b9a; }
+.radios .header-monitor-source label { font-size: 10px; color: #9eacb9; }
+.radios .header-monitor-source combobox button { min-height: 24px; padding: 2px 4px; font-size: 12px; }
+.radios .header-cue-button { min-width: 40px; min-height: 24px; padding: 2px 4px; font-size: 13px;
+    color: #221700; background-color: #a47b28; border: 1px solid #846621; }
+.radios .header-cue-button:checked { background-color: #e9b347; color: #221700; }
+.radios .meter-caption { font-size: 11px; color: #8391a0; }
+.radios .knob-label { font-size: 10px; color: #9eacb9; }
+.radios .knob-value { font-size: 11px; color: #c1ccd6; }
+.radios .task-profile-nav { background-color: #000; padding: 8px 40px 0; border-bottom: 1px solid #282828; }
+.radios .task-profile-tabs button { background-color: transparent; color: #929292; border: 1px solid transparent;
+    border-bottom: 0; border-radius: 12px 12px 0 0; min-height: 26px; padding: 10px 18px; font-size: 15px; }
+.radios .task-profile-tabs button:checked { background-color: #0a0a0a; color: #eee; border-color: #333; }
+.radios .task-profile-tabs button:hover { background-color: #151515; color: #ddd; }
+.radios .ld-panel { border: 1px solid #333; border-radius: 5px; background-color: #000; }
+.radios .ld-head { border-bottom: 1px solid #333; padding: 12px 15px; background-color: #111; }
+.radios .ld-head .ld-tab { font-size: 17px; color: #ededed; }
+.radios .ld-body { padding: 10px; }
+.radios .broadcast-workspace { font-size: 16px; }
+.radios .broadcast-workspace .ld-btn { font-size: 13px; }
+.radios .broadcast-workspace .programme-square { min-width: 24px; min-height: 24px; font-size: 19px; padding: 7px; }
+.radios .broadcast-right { border: 1px solid #333; border-radius: 7px; }
+.radios stackswitcher button { border-radius: 8px 8px 0 0; }
+.radios .broadcast-right-tabs { border-bottom: 1px solid #3c3c3c; padding: 7px 12px 0; }
+.radios .broadcast-right-tabs button { font-size: 14px; min-height: 22px; padding: 8px 14px; }
+.radios .broadcast-library-body { padding: 12px; }
+.radios .broadcast-catalog-source-summary { color: #929292; font-size: 11px; }
+.radios .task-view { padding: 24px 0; color: #abc0c7; background-color: #04090d; }
+.radios .task-card { background-color: #030b0e; border: 1px solid #21383f; border-radius: 7px; }
+.radios .task-view .ld-head { background-color: #07171e; border-color: #21383f; }
+.radios .task-view entry, .radios .task-view spinbutton { background-color: #051116; border-color: #2d4550; color: #c4dce3; }
+.radios .task-view button { background-color: #102530; color: #b8d0d8; border-color: #304b58; }
+.radios .task-view button:checked { background-color: #15362d; border-color: #3e8271; color: #c6eddf; }
+.radios .task-view treeview { background-color: #051116; color: #b8d0d8; }
+.radios .task-view treeview header button { background-color: #0e2029; color: #89a8b4; }
+.radios .pw-heading label.heading, .radios .task-view-heading label.heading { font-size: 28px; font-weight: 300; color: #d3e7e9; }
+.radios .task-eyebrow { color: #60aaa6; font-size: 11px; }
+.radios .pw-sidebar, .radios .pw-content { border: 1px solid #26434d; border-radius: 7px; background-color: #06151b; }
+.radios .status-footer { border-top: 1px solid #292d33; padding: 6px 32px; min-height: 24px;
+    background-color: #06080a; font-size: 12px; color: #aeb5bf; }
+.radios .application-status { color: #889aa3; font-size: 11px; }
+.radios .task-dialog { background-color: #08171e; }
+.radios .dj-mixer button { min-height: 16px; padding: 3px 6px; font-size: 11px; }
+.radios .dj-small-label, .radios .dj-table-cell { font-size: 11px; }
+.radios .dj-mixer .fx-table-row { padding: 3px 6px; border-bottom: 1px solid #28343d; }
+.radios .dj-channel, .radios .dj-master { border: 1px solid #35414c; border-radius: 5px; padding: 10px 6px; background-color: #080d12; }
+.radios .dj-mixer-toolbar, .radios .dj-effects-table-head { padding: 10px; background-color: #101921; }
+.radios .dj-speech-bar { padding: 12px; border: 1px solid #35414c; border-radius: 5px; background-color: #080d12; }
+.radios #dj-mixer button.dj-sampler-pad { min-width: 64px; min-height: 64px; padding: 6px; border-radius: 4px; }
+.radios #dj-mixer button.dj-pad-edit { min-width: 18px; min-height: 18px; padding: 0; border-radius: 3px; }
+.radios #dj-mixer .dj-channel-routing { border-top: 1px solid #333; padding-top: 7px; }
+.radios #dj-mixer button.dj-on-air-button { min-width: 72px; min-height: 38px; padding: 7px 10px; border: 1px solid #644343; background-image: none; background-color: #271b1b; color: #c6aaaa; font-weight: 700; }
+.radios #dj-mixer button.dj-on-air-button:checked,
+.radios #dj-mixer button.dj-on-air-button.is-active { border-color: #ff7272; background-color: #b9202c; color: #fff; }
+.radios #dj-mixer button.dj-on-air-button:disabled { background-color: #222; border-color: #444; color: #777; }
+.radios #live-task-view .programme-queue-side button { padding: 3px 4px; min-width: 48px; min-height: 48px; }
+.radios #live-task-view .programme-queue-side .queue-side-symbol { font-size: 24px; }
+.radios #live-task-view .programme-queue-side .queue-side-caption { font-size: 12px; }
+.radios #live-task-view .broadcast-history label.heading { font-size: 16px; }
+.radios #live-task-view .broadcast-history .ops-table header button { font-size: 13px; padding: 7px 9px; }
+.radios #live-task-view .programme-queue-toolbar button { min-height: 24px; }
+.radios #live-task-view .broadcast-workspace .ld-search entry { min-height: 24px; padding: 6px 8px; }
+.radios #live-task-view .broadcast-workspace combobox { padding: 0; border: 0; }
+.radios #live-task-view .broadcast-workspace combobox button { min-height: 24px; padding: 5px 8px; }
+.radios .page-header combobox { padding: 0; border: 0; }
+.radios .page-header .header-health button { padding: 1px 6px; min-height: 18px; }
+.radios .emergency-view { padding: 16px 28px; }
+.radios .em-card { padding: 14px; }
+.radios .em-field entry, .radios .em-field spinbutton { font-size: 12px; min-width: 0; }
+.radios #live-task-view button.programme-square { min-width: 24px; min-height: 24px; padding: 6px; font-size: 19px; }
+.radios #live-task-view .programme-transition-controls combobox button { min-height: 18px; padding: 4px 6px; font-size: 13px; }
+.radios .automation-fact-border { min-height: 1px; background-color: #1f363b; }
+.radios .em-step { border: 1px solid #403333; border-radius: 4px; padding: 5px 9px; font-size: 11px; color: #bbaeb0; }
+.radios .em-state { font-size: 20px; color: #e3e8ee; }
+.radios .em-chip-icon { border-radius: 4px; background-color: #6b6b6b; color: #090909; padding: 3px; }
+.radios .em-chip-icon.critical { background-color: #f2715f; }
+.radios .em-chip-icon.warn { background-color: #e8bd52; }
+.radios #dj-mixer combobox button { background-color: #080808; color: #ccc; border-color: #505050; }
+.radios #dj-mixer button { background-color: #101010; color: #ccc; border-color: #505050; }
+.radios #dj-mixer button.dj-auto-level-button { min-width: 58px; padding: 4px 6px; background-image: none; background-color: #20252b; border-color: #515b64; color: #b8c4cd; font-size: 10px; font-weight: 700; }
+.radios #dj-mixer button.dj-auto-level-button:checked { background-color: #174d58; border-color: #5cb8ca; color: #e0faff; }
+.radios #dj-mixer button.dj-auto-level-button:checked.is-applying { background-color: #155343; border-color: #62d4ac; color: #e3fff3; }
+.radios #dj-mixer button.dj-auto-level-button:checked.is-suspended { background-color: #3a3527; border-color: #8a7b52; color: #d0c5a2; }
+.radios #dj-mixer button.dj-auto-level-button:disabled { background-color: #222; border-color: #444; color: #777; }
+.radios #dj-mixer .fx-table-row { border-color: #333; background-color: #101010; }
+
+/* Native dialog nodes retain the original editor classes and IDs. */
+.radios.qwf-dialog, .radios.transition-editor-dialog,
+.radios.programme-dialog, .radios.task-dialog { background-color: #091016; color: #becbd5; }
+.radios.qwf-dialog entry, .radios.transition-editor-dialog entry,
+.radios.programme-dialog entry, .radios.task-dialog entry {
+    background-color: #080e14; color: #d0dce6; border: 1px solid #354955; min-height: 26px;
+}
+.radios.qwf-dialog button, .radios.transition-editor-dialog button {
+    background-color: #11202a; color: #c1d0dc; border: 1px solid #36505e; padding: 6px 10px;
+}
+.radios .qwf-status, .radios .transition-editor-status { padding: 10px; color: #9accc5; }
+.radios .qwf-status.error, .radios .transition-editor-status.error { color: #f39783; }
+.radios#queue-waveform-dialog .qwf-status.error { color: #f39783; }
+.radios .transition-source { padding: 12px; border: 1px solid #304352; border-radius: 6px; }
+.radios .qwf-help { color: #91a3b0; font-size: 12px; }
+
+/* Interactive native audio flow, following the supplied turquoise block design. */
+.radios .routing-workspace { background-color: #303234; border-radius: 10px; padding: 20px; color: #eaf9fc; }
+.radios .routing-title { font-size: 27px; font-weight: 300; color: #f3fbfd; }
+.radios .routing-subtitle { font-size: 12px; color: #c0c9cd; }
+.radios .routing-toolbar button { background-color: #3d4346; color: #eef7fa; border-color: #657279; }
+.radios .routing-card { background-color: #0bb0cf; border: 1px solid #098eac; border-radius: 12px; color: #fff; }
+.radios .routing-card-heading { background-color: #098ead; color: #fff; border-radius: 11px 11px 0 0;
+    padding: 9px 12px; font-size: 14px; font-weight: 600; }
+.radios .routing-card-body { padding: 14px 12px; }
+.radios .routing-card image { color: #fff; }
+.radios .routing-card combobox button, .radios .routing-card button { background-color: #098aa9;
+    color: #fff; border-color: #08788f; border-radius: 6px; min-height: 23px; padding: 5px 7px; font-size: 12px; }
+.radios .routing-card button:hover { background-color: #05778f; border-color: #b0f0ff; }
+.radios .routing-card button:disabled { background-color: #1c96ad; color: #b2dfe7; border-color: #2aa1b7; }
+.radios .routing-card checkbutton { color: #fff; font-size: 11px; }
+.radios .routing-card checkbutton check { background-color: #0785a0; border-color: #c2edf5; }
+.radios .routing-card checkbutton check:checked { color: #fff; background-color: #056b83; }
+.radios .routing-card scale { padding: 7px 0; }
+.radios .routing-card scale trough { background-color: #087f98; min-height: 4px; }
+.radios .routing-card scale highlight { background-color: #d1f7ff; }
+.radios .routing-card scale slider { background-color: #fff; border-color: #a5d8e2; min-width: 10px; min-height: 10px; }
+.radios .routing-card scale value { color: #fff; font-size: 10px; }
+.radios .routing-card-caption { color: #effbff; font-size: 11px; }
+.radios .routing-meter-caption { color: #ecfcff; font-size: 10px; }
+.radios .routing-record-state { color: #e0f8ff; font-size: 10px; letter-spacing: 1px; }
+.radios .routing-record-time { color: #ffdb67; font-size: 29px; font-weight: 500; }
+.radios .routing-record-size { color: #fff1b0; font-size: 12px; }
+.radios #routing-record-start { background-color: #ffe084; border-color: #e8c36a; color: #354348; font-weight: 600; }
+.radios #routing-record-start:disabled { background-color: #83c9d4; border-color: #70b5c1; color: #267384; }
+.radios .routing-status { color: #e7eef1; font-size: 13px; background-color: #25292c; border-radius: 6px; padding: 12px; }
+.radios .routing-current-file { color: #afc7d1; font-size: 11px; }
+
+/* Broadcast flow: event rows (programme-blocks.css, broadcast-workspace.css, readability.css). */
+.radios #live-task-view .programme-queue-list { border: 1px solid #333; border-radius: 4px; background-color: #050505; }
+.radios #live-task-view .programme-queue-list.is-drop-target { border-color: #ddd; }
+.radios #live-task-view .programme-queue-navigation { padding: 6px 8px; border-bottom: 1px solid #333; background-color: #101010; }
+.radios #live-task-view .programme-queue-navigation button { padding: 5px 10px; }
+.radios #live-task-view .programme-queue-navigation label.ld-item-title { color: #ededed; font-size: 15px; font-weight: 600; }
+.radios #live-task-view .programme-queue-head { padding: 8px 0; border-bottom: 1px solid #333; background-color: #0b0b0b; }
+.radios #live-task-view .programme-queue-head label { padding: 0 9px; color: #b5b5b5; font-size: 13px; font-weight: 600; }
+.radios #live-task-view .programme-queue-list list { background-color: #050505; }
+.radios #live-task-view .programme-queue-list row { padding: 0; border-bottom: 1px solid #262626; }
+.radios #live-task-view .programme-queue-list row.ld-row { background-image: linear-gradient(#151515, #090909); }
+.radios #live-task-view .programme-queue-list row.ld-row:hover { background-image: none; background-color: #101010; }
+.radios #live-task-view .programme-queue-list row.ld-row:selected,
+.radios #live-task-view .programme-queue-list row.ld-row.is-selected { background-image: linear-gradient(#333, #202020); box-shadow: inset 3px 0 #ddd; }
+.radios #live-task-view .programme-queue-list row.programme-child-row { background-image: none; background-color: #080808; }
+.radios #live-task-view .programme-queue-list row.programme-child-row:selected,
+.radios #live-task-view .programme-queue-list row.programme-child-row.is-selected { background-image: none; background-color: #282828; }
+.radios #live-task-view .programme-queue-list row.is-playing { box-shadow: inset 3px 0 #d3b563; }
+.radios #live-task-view .programme-queue-list row.is-drop-before { border-top: 3px solid #d7bd79; }
+.radios #live-task-view .programme-queue-list row.is-drop-after { border-bottom: 3px solid #d7bd79; }
+.radios #live-task-view .programme-queue-list row.is-drop-into { background-image: none; background-color: #29241a; }
+.radios #live-task-view .broadcast-queue-number { padding: 6px 5px; border-right: 1px solid #333; background-color: #141414; }
+.radios #live-task-view row.is-selected .broadcast-queue-number { background-color: #353535; }
+.radios #live-task-view button.programme-block-number { min-height: 40px; padding: 1px 0; border: 1px solid #636363; border-radius: 3px; background-image: linear-gradient(#3a3a3a, #202020); }
+.radios #live-task-view row.is-expanded button.programme-block-number { border-color: #aaa; background-image: none; background-color: #484848; }
+.radios #live-task-view button.programme-block-number label { color: #fff; font-size: 26px; font-weight: 400; }
+.radios #live-task-view button.programme-leaf-number { min-height: 28px; padding: 1px 0; border: 1px solid #444; background-image: none; background-color: #101010; }
+.radios #live-task-view button.programme-leaf-number label { color: #aaa; font-size: 14px; }
+.radios #live-task-view .broadcast-queue-time { color: #9c9c9c; font-size: 12px; }
+.radios #live-task-view .programme-row-content { padding: 6px 10px; }
+.radios #live-task-view row.programme-child-row .programme-row-content { margin-left: 0; }
+.radios #live-task-view .programme-row-content .broadcast-queue-artist { color: #b5b5b5; font-size: 13px; }
+.radios #live-task-view .programme-row-content .ld-item-title { color: #ededed; font-size: 18px; font-weight: 600; }
+.radios #live-task-view row.programme-child-row .ld-item-title { font-size: 16px; font-weight: 500; }
+.radios #live-task-view .programme-row-content .ld-item-meta { color: #8f8f8f; font-size: 13px; }
+.radios #live-task-view .programme-row .broadcast-queue-duration { padding: 0 10px; color: #e2e2e2; font-size: 17px; font-weight: 600; }
+.radios #live-task-view .programme-row .broadcast-queue-state { padding: 6px 8px; }
+.radios #live-task-view .programme-row .broadcast-row-actions button { min-width: 30px; min-height: 26px; padding: 0 4px; font-size: 13px; }
+.radios #live-task-view .programme-row .broadcast-row-actions button.remove { color: #e9a49b; }
+.radios #live-task-view .programme-row .broadcast-row-actions button.play.is-pressed { border-color: #d1b06b; color: #ffce69; background-image: none; background-color: #302616; }
+.radios #live-task-view .programme-row .ld-state { color: #a8a8a8; font-size: 12px; }
+.radios #live-task-view .programme-row .ld-state--ready { color: #8fdcae; }
+.radios #live-task-view .programme-row .ld-state--missing { color: #f39a8e; }
+.radios #live-task-view .programme-row .ld-state--playing { color: #ffce69; }
+.radios #live-task-view .programme-row .ld-state--paused { color: #d7bd79; }
+.radios #live-task-view .programme-empty-block-row label, .radios #live-task-view .programme-empty-row label { padding: 14px; color: #909090; font-size: 14px; }
+.radios #live-task-view .programme-placement { color: #b1b1b1; font-size: 13px; }
+.radios #live-task-view .ld-head-meta { color: #9c9c9c; font-size: 13px; }
+/* Catalogue kinds and selected-content details (track-library design). */
+.radios #live-task-view button.broadcast-catalog-kind, .radios #live-task-view radiobutton.broadcast-catalog-kind { min-height: 30px; font-size: 14px; }
+.radios #live-task-view .broadcast-catalog-kind:checked { border-color: #929292; background-color: #303030; color: #fff; }
+.radios #live-task-view .broadcast-catalog-header .broadcast-catalog-kind { padding: 5px 7px; font-size: 13px; }
+.radios #live-task-view .broadcast-programme-toolbar { border-left: 1px solid #333; padding-left: 8px; }
+.radios #live-task-view .broadcast-programme-toolbar button { min-width: 18px; padding: 4px 6px; font-size: 12px; }
+.radios #live-task-view .broadcast-programme-toolbar .ld-prog-name { color: #ddd; font-size: 13px; }
+.radios #live-task-view .broadcast-programme-toolbar .ld-prog-meta { color: #8f8f8f; font-size: 11px; }
+popover#programme-controls { background-color: #101010; color: #b5b5b5; border-color: #444; }
+.radios #live-task-view .broadcast-catalog-heading label.heading { color: #eee; font-size: 16px; }
+.radios #live-task-view .broadcast-catalog-details { padding: 2px 0 4px; }
+.radios #live-task-view .broadcast-catalog-detail-name { color: #8a8a8a; font-size: 11px; }
+.radios #live-task-view .broadcast-catalog-detail-value { color: #ddd; font-size: 14px; }
+/* Live player card inputs (live-player-gui.css) and the playlist loader. */
+.radios #live-task-view .lp-card.is-drop-target { border-color: #ddd; background-color: #1a1a1a; }
+.radios #live-task-view .lp-source-row button.lp-add-input { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+.radios #live-task-view .lp-input-list { margin: 6px 0; }
+.radios #live-task-view .lp-input { padding: 4px 2px; border-bottom: 1px solid #292929; }
+.radios #live-task-view .lp-input.is-current { background-color: #1d1d1d; }
+.radios #live-task-view .lp-input-title { color: #d8d8d8; font-size: 13px; }
+.radios #live-task-view .lp-input.is-current .lp-input-title { color: #fff; font-weight: 600; }
+.radios #live-task-view .lp-input-meta { color: #8a8a8a; font-size: 11px; }
+.radios #live-task-view .lp-input-empty { color: #858585; font-size: 12px; }
+.radios #live-task-view button.lp-input-remove { min-width: 22px; min-height: 22px; padding: 0 4px; color: #e9a49b; }
+.radios #live-task-view .lp-next { color: #a7a7a7; font-size: 12px; }
+.radios #live-task-view .lp-current-meta { color: #a7a7a7; font-size: 12px; }
+/* Native player cards use their available width, including compact windows. */
+.radios #live-task-view .live-player-list { margin: 0; padding: 0; }
+.radios #live-task-view .live-player-list > flowboxchild { margin: 0; padding: 0; }
+.radios #live-task-view .lp-card { margin: 0; padding: 8px; font-size: 12px; }
+.radios #live-task-view .lp-card-heading { margin: 0; padding: 0; }
+.radios #live-task-view .lp-card .heading { font-size: 13px; }
+.radios #live-task-view .lp-state { font-size: 11px; }
+.radios #live-task-view .lp-current-title { font-size: 14px; }
+.radios #live-task-view .lp-card .lp-transport button { min-width: 0; min-height: 28px; font-size: 15px; }
+.radios #live-task-view .lp-volume-line-control { font-size: 11px; }
+.radios #live-task-view .lp-card combobox { min-width: 0; }
+.radios #live-task-view .lp-card combobox button { min-width: 0; padding: 3px 5px; }
+.radios #live-task-view .lp-compact-card { padding: 6px; }
+.radios #live-task-view .lp-compact-card .lp-source-row button { padding: 3px 5px; font-size: 11px; }
+.radios #live-task-view.live-stacked .broadcast-right-tabs { padding: 4px 6px 0; }
+.radios #live-task-view.live-stacked .broadcast-right-tabs button { padding: 6px 9px; font-size: 12px; }
+.radios #player-loader-dialog .player-loader-tabs button { min-height: 26px; padding: 6px 16px; font-size: 14px; }
+.radios #player-loader-dialog treeview { font-size: 13px; }
+.radios #player-loader-status { color: #9fb3bd; font-size: 12px; }
+
+/* Playlist and Automation profiles follow playlist-workspace.css and
+ * automation-workspace.css: design margins only, underlined automation tabs. */
+.radios .playlist-workspace .pw-sidebar, .radios .playlist-workspace .pw-content,
+.radios .automation-workspace .automation-layout > * { margin: 0; }
+.radios .pw-summary label { color: #7896a0; font-size: 12px; }
+.radios .task-view .automation-tabs button { border-radius: 5px 5px 0 0; border-color: transparent; background-color: transparent;
+    background-image: none; color: #7a9ca6; padding: 10px 17px; }
+.radios .task-view .automation-tabs button:checked { border-color: #31534f; border-bottom-color: #0b2420; background-color: #0b2420;
+    color: #b2d8ca; box-shadow: inset 0 2px #65bfa9; }
+
+/* Broadcast "Playlist yönetimi" (live-desk ld-library). */
+.radios #live-task-view .ld-library-body { padding: 0; }
+.radios #live-task-view .ld-playlists, .radios #live-task-view .ld-track-list { border: 1px solid #333; border-radius: 4px; background-color: #080808; }
+.radios #live-task-view .ld-library-item { padding: 6px 9px; }
+.radios #live-task-view .ld-library-title { color: #e2e2e2; font-size: 14px; }
+.radios #live-task-view .ld-library-meta { color: #8f8f8f; font-size: 12px; }
+.radios #live-task-view .ld-subhead label.heading { color: #ddd; font-size: 15px; }
+.radios #live-task-view .ld-to-programme { padding-top: 4px; }
+
+/* prompt5: relocated health information and broadcast queue controls. */
+.radios .header-navigation {
+    border-left: 1px solid #252d35; border-top: 1px solid #1d252d;
+    padding: 9px 20px 0; }
+.radios .header-transport button { font-size: 17px; min-width: 24px; padding: 4px 8px; }
+.radios #header-next-playlist { font-size: 12px; min-height: 20px; padding: 4px 8px; }
+.radios .footer-health { font-size: 11px; }
+.radios .footer-health .header-behavior-text,
+.radios .footer-health .header-health-value { font-size: 11px; color: #9eacb9; }
+.radios .footer-health button { font-size: 11px; min-height: 18px; padding: 2px 5px; }
+.radios .footer-health .broadcast-health-link { border: 0; background-color: transparent; }
+
+/* Compact status strips leave room for the broadcast workspace. */
+.radios .page-header.header-compact { padding: 8px 12px; }
+.radios .header-compact .brand-name { font-size: 24px; }
+.radios .header-compact .brand-letter { font-size: 34px; }
+.radios .header-compact .brand-subtitle { font-size: 9px; }
+.radios .header-compact .header-onair,
+.radios .header-compact .header-time,
+.radios .header-compact .header-navigation { padding: 4px 8px; }
+.radios .header-compact .broadcast-content { font-size: 16px; }
+.radios .header-compact .header-clock-time { font-size: 22px; }
+.radios .header-compact .header-calendar { font-size: 11px; }
+.radios .header-compact .header-meter { padding-left: 0; border-left: 0; }
+.radios .header-compact .header-navigation button { min-height: 22px; padding: 3px 5px; }
+.radios .header-compact #header-next-playlist { padding: 3px 5px; }
+.radios .status-footer.footer-compact { padding: 4px 12px; }
+.radios .footer-compact button { min-height: 20px; padding: 3px 6px; }
+
+/* Let the native panes scroll within the visible broadcast area. The design
+ * reference's fixed 604px minimum otherwise hides player controls below it. */
+.radios #live-task-view .broadcast-workspace,
+.radios #live-task-view.broadcast-workspace { min-height: 0; }

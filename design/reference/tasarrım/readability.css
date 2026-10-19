@@ -1,0 +1,133 @@
+/* Okunabilirlik ölçeği — 5 Ekim 2026.
+   Yayın çalışma alanı RadioDJ benzeri büyük, okunur yazı kullanır. Bu dosya en son yüklenir;
+   ölçüler em olduğu için Teknik yönetimdeki Kompakt / Standart / Büyük tercihi aynı oranla çalışır. */
+
+/* Temel ölçü: 13px → 16px */
+#live-task-view .live-desk { font-size: 16px; }
+#live-task-view[data-task-text-size="compact"] .live-desk { font-size: 14px; }
+#live-task-view[data-task-text-size="large"] .live-desk { font-size: 18px; }
+
+/* Boş durum ve geri bildirim satırları yer kaplamaz */
+:is(.ld-status, .ld-timed-note, .ops-status, .advert-status, .technical-status, .task-feedback,
+    .transition-editor-status, .qwf-status, .dj-effects-status, .dj-mixer-status, .advert-inline-summary,
+    .programme-placement):empty { display: none; }
+
+/* Panel başlıkları */
+#live-task-view .ld-head h2 { font-size: 1.05em; }
+#live-task-view .ld-head-meta { font-size: .85em; color: #c8c8c8; font-variant-numeric: tabular-nums; }
+#live-task-view .broadcast-right-tabs button { font-size: .9em; }
+
+/* Yayın sırası */
+#live-task-view .ld-table th { font-size: .8em; padding: 9px 10px; }
+#live-task-view .ld-item-title { font-size: 1.12em; font-weight: 550; line-height: 1.3; }
+#live-task-view .programme-block-row .ld-item-title { font-weight: 600; }
+#live-task-view .ld-item-meta { font-size: .8em; }
+#live-task-view .broadcast-queue-artist { font-size: .85em; }
+#live-task-view .broadcast-queue-duration { font-size: 1em; font-weight: 550; color: #e2e2e2; font-variant-numeric: tabular-nums; }
+#live-task-view .broadcast-queue-time { font-size: .78em; }
+#live-task-view .broadcast-queue-state .ld-state { font-size: .8em; }
+#live-task-view .broadcast-row-actions { gap: 5px; }
+#live-task-view .broadcast-row-actions button { min-width: 32px; min-height: 30px; font-size: 13px; }
+#live-task-view .ld-gap { font-size: .8em; }
+#live-task-view .programme-placement { font-size: .82em; }
+#live-task-view .programme-square { min-width: 40px; min-height: 40px; font-size: 19px; }
+#live-task-view .programme-queue-side button > span { font-size: 24px; }
+#live-task-view .programme-queue-side small { font-size: 12px; }
+#live-task-view button.ld-add-btn { min-height: 36px; padding-inline: 12px; font-size: .85em; }
+#live-task-view .programme-empty-block-row td { font-size: .85em; }
+
+/* Program ve zamanlama, durum satırı */
+#live-task-view :is(.ld-status, .ld-timed-note) { font-size: .82em; }
+#live-task-view .broadcast-programme-settings > summary,
+#live-task-view .broadcast-playlist-tools > summary { font-size: .88em; padding-block: 9px; }
+
+/* Katalog */
+#live-task-view [data-broadcast-catalog-kind] { min-height: 36px; padding: 6px 13px; font-size: .88em; }
+#live-task-view .broadcast-catalog-source-row label:not(.ld-sr) { font-size: .82em; }
+#live-task-view .broadcast-library-search :is(input, select) { min-height: 38px; font-size: .9em; }
+#live-task-view .broadcast-library-toolbar { font-size: .85em; }
+#live-task-view .broadcast-library-table { font-size: .92em; }
+#live-task-view .broadcast-library-table th { font-size: .85em; }
+#live-task-view .broadcast-library-table :is(td, th) { padding-block: 9px; }
+#live-task-view .broadcast-library-select { font-size: inherit; font-weight: 550; }
+#live-task-view .broadcast-catalog-heading h3 { font-size: 1.05em; }
+#live-task-view .broadcast-catalog-inspector .ld-btn { min-height: 34px; font-size: .85em; }
+
+/* Yayın geçmişi */
+#live-task-view .broadcast-history h3 { font-size: 1em; }
+#live-task-view .broadcast-history .ops-table { font-size: .85em; }
+#live-task-view .broadcast-history button { font-size: .8em; }
+
+/* Canlı oynatıcı kartları: 7–10px sabit yazılar */
+#live-task-view .lp-card-heading h3 { font-size: 14px; }
+#live-task-view .lp-state { max-width: 120px; font-size: 11px; }
+#live-task-view .lp-card :is(button, select) { font-size: 12px; }
+#live-task-view .lp-current-title { font-size: 15px; font-weight: 550; }
+#live-task-view :is(.lp-current-meta, .lp-next) { font-size: 12px; }
+#live-task-view .lp-times { font-size: 13px; }
+#live-task-view :is(.lp-times small, .lp-times dt) { font-size: 11px; }
+#live-task-view .lp-transport button { min-height: 32px; font-size: 12px; }
+#live-task-view .lp-volume-line-control > label,
+#live-task-view .lp-volume-knob .knob-label { font-size: 10px; }
+#live-task-view .lp-volume-scale { font-size: 10px; }
+#live-task-view .lp-volume-value { font-size: 12px; }
+#live-task-view .lp-card button.lp-cue { width: 48px; height: 32px; font-size: 13px; }
+#live-task-view :is(.lp-inputs > summary, .lp-input-list li, .lp-clear, .lp-empty) { font-size: 12px; }
+#live-task-view .lp-input-info small { font-size: 11px; }
+#live-task-view .live-player-toolbar { font-size: .9em; }
+
+/* DJ: ikinci Kulaklık modülü kaldırıldı; üst başlıktaki Kulaklık kullanılır */
+#dj-mixer .dj-performance-tools.quick-tools { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'effects' 'speech'; }
+
+/* Alt durum çubuğu */
+.status-footer { font-size: 12px; }
+.footer-test-button { font-size: 11px; }
+
+/* Üst durum şeridi: 8–11px etiketler → 11–15px, sayaçlar büyür */
+.page-header .broadcast-label { font-size: 12px; }
+.page-header .brand-subtitle { font-size: 10px; }
+.header-onair .broadcast-content { font-size: 20px; }
+.header-onair .broadcast-target,
+.header-live-indicator,
+.header-behavior .broadcast-health,
+.header-next-advert,
+.page-header .header-programme .header-programme-end { font-size: 13px; }
+.header-behavior-text { font-size: 16px; }
+.page-header .header-detail-button { font-size: 12px; }
+.header-next-title { font-size: 18px; }
+.page-header .header-next .broadcast-countdown output { font-size: 42px; }
+.header-programme-end output { font-size: 14px; }
+.page-header .header-clock-label { font-size: 11px; }
+.page-header .header-clock-time { font-size: 26px; }
+.page-header .header-calendar { font-size: 12px; }
+.page-header .header-programme p { font-size: 15px; }
+.page-header .header-headphone-monitor .cue-module-heading h3 { font-size: 13px; }
+.page-header .header-headphone-monitor .cue-module-context { font-size: 10px; }
+.page-header .header-headphone-monitor .knob-value { font-size: 11px; }
+.header-monitor-source label { font-size: 10px; }
+.header-monitor-source select { height: 30px; font-size: 12px; }
+.header-meter .header-headphone-monitor button.header-monitor-cue-button { height: 30px; min-height: 30px; font-size: 13px; }
+.page-header .header-meter .meter-caption { font-size: 11px; }
+.page-header .header-meter .meter-scale { font-size: 10px; }
+.page-header .header-meter .mixer-strip .knob-label { font-size: 10px; }
+.page-header .header-meter .mixer-strip .knob-value { font-size: 11px; }
+
+/* Profil sekmeleri */
+.task-profile-tabs button { min-height: 46px; font-size: 15px; }
+
+/* DJ: px tabanlı mixer, efektler ve konuşma şeridi birlikte büyütülür */
+#dj-task-view .dj-mixer { zoom: 1.2; }
+
+/* Reklam ve Teknik yönetim: em tabanlı; 12px → 14px */
+#advert-task-view, #technical-task-view { font-size: calc(14px * var(--task-font-scale, 1)); }
+/* DJ: 6–8px etiketler (zoom öncesi) en az 9–10px; zoom ile ~11–12px okunur */
+#dj-mixer :is(.fx-controls .knob-label, .fx-module .knob-label, .fx-power > .knob-label, .fx-power-state,
+    .fx-lcd-label, .fx-lcd-target > span, .fx-lcd-state, .fx-lcd-badge, .fx-lcd-bus-values,
+    .dj-knob > label, .dj-channel-volume > label, .dj-master-effect-controls .dj-knob > label,
+    .dj-sampler-label, .dj-sampler-pad .dj-pad-state, .dj-sampler-pad small,
+    .dj-speech-rehearsal-clock > span, .dj-speech-status dt, .dj-speech-status dd,
+    .fx-module .cue-module-heading h3 > span) { font-size: 9px; }
+#dj-mixer :is(.fx-controls .knob-value, .fx-lcd-target, .dj-channel-source, .dj-sampler-pad span,
+    .dj-speech-bed label, .dj-speech-rehearsal button, .dj-master-effect-toggle,
+    .fx-controls :is(.fx-slot-target label, .fx-selection-details > label, .fx-routing-fields label)) { font-size: 10px; }
+#dj-mixer :is(.dj-fader-scale, .dj-meter-scale) { font-size: 8px; }

@@ -1,0 +1,191 @@
+{
+  "created_utc": "2026-10-10T23:36:48.188136+00:00",
+  "owner": "/root/theme_coordination_12",
+  "user_request": "playlist sekmesini burada program temasında yap",
+  "theme_task_state": "DELIVERED",
+  "scope": "Native playlist and reference palette only; playlist/data/analysis/transport behavior preserved",
+  "source_hashes": {
+    "src/ui/playlist.c": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+    "design/reference/tasarrım/playlist-workspace.css": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62"
+  },
+  "prompt12_style_write_claims": "RELEASED",
+  "default_write_owner": "P2 authorized installer; P12 NONE",
+  "local_acceptance": {
+    "strict_release": true,
+    "source_count": 457,
+    "before_after_equal": true,
+    "native_actual_tap_cases": 7,
+    "native_actual_passed": 7,
+    "junit_wrapper_tests": 1,
+    "junit_failures": 0,
+    "junit_skipped": 0,
+    "build_seconds": 3.172,
+    "test_wrapper_seconds": 12.85,
+    "visual_long_component": "ACCEPT",
+    "screenshot_dimensions": [
+      1280,
+      2041
+    ]
+  },
+  "actual_install": {
+    "utc": "2026-10-10T23:32:33.386276+00:00",
+    "source_input_count": 431,
+    "before_after_equal": true,
+    "two_theme_hashes_included": true,
+    "installed_sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+    "mode": "0755",
+    "new_dark_css_signature": true,
+    "installed_bytes": 2070736,
+    "old_backup_sha256": "7bef76d1b552596b3ce0db9b5cfc48fc2462847c8a7a170412aa4642af13c8c4"
+  },
+  "normal_gui_boundary": {
+    "default_exact_executable_reopen_verified": false,
+    "launch_receipt_reported_passed": true,
+    "recorded_visible_process_path": "build/prompt7-open-20261010-2332/radios",
+    "recorded_P7_binary_same_bytehash": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+    "current_process_or_window_alive_claim": false,
+    "normal_playlist_viewport_acceptance": false,
+    "private_attempts": "Internal draw allocation failure, no PID-filter frame, wrong Broadcast body, own input child unavailable, guarded XTest click unsent; historical failures preserved. Long actual native playlist screenshot acceptance and installed binary delivery are separate proof."
+  },
+  "overall_pdf12_state": "INCOMPLETE_QA04",
+  "existing_qa04": "Apple/Spotify unbound catalogue-only independent completeaudio acquisition remains open; live provider acceptance absent.",
+  "user_override": {
+    "shared_AGENT_md_writes_stopped": true,
+    "global_history_recovery_stopped": true,
+    "full_global_history_restored_claim": false
+  },
+  "evidence_count": 21,
+  "evidence": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/src/ui/playlist.c",
+      "bytes": 182835,
+      "sha256": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/design/reference/tasarrım/playlist-workspace.css",
+      "bytes": 8878,
+      "sha256": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-source-change-20261010.json",
+      "bytes": 1703,
+      "sha256": "dfe429efb828d56f2aa15d17355bff04f454e482077c84e396cdef329c766bbd",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-validation-20261010.json",
+      "bytes": 101387,
+      "sha256": "fdd53ef2a6986334be244cd067f2fca8484ae846f0cf432521bf93472618d438",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-build-20261010.log",
+      "bytes": 1245,
+      "sha256": "0d7de5c7c4a10bded9144071ad38d64c5e9d6bddddfc019d6357a4ec67996d71",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-tests-20261010.log",
+      "bytes": 2508,
+      "sha256": "b4103be6a17a811b9dc608be9a6627cfa97410a2f693d30e35590d825db007b0",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-playlist-20261010.xml",
+      "bytes": 1485,
+      "sha256": "68e4e0178f6949627be46758c29d8a6b5b7d66cc66a2eb5dbfb7af58c99e7934",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/screenshots/theme-20261010/playlist-with-markers.png",
+      "bytes": 130370,
+      "sha256": "ac0be232b58f3fa335bf09eddf90096c28a46979db81778c89c42fa8dd811452",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-analysis-20261010.md",
+      "bytes": 16189,
+      "sha256": "b3c1669a8f07b1708db4011107c0c8350cc4951505dc0f09e445cffc9dce9048",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-visual-review-20261010.md",
+      "bytes": 16455,
+      "sha256": "9ce591f9d768b5eb695160cbdd110c5ae8ee84b5e299a564cf7aae8f9bff9c55",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-delivery-20261010/install-receipt.json",
+      "bytes": 943,
+      "sha256": "a9a9e0b69aa3b95b662b8a10a2fc3e10ffdd6b2c93fda182448d8d3f93e2782c",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-20261010T232149Z/acceptance-20261010T233151Z/validation.json",
+      "bytes": 96713,
+      "sha256": "b3e38f453dd403abe8d2e87ef13c32edda356f6698c426d2d29547ee02e060e4",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios",
+      "bytes": 2070736,
+      "sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-20261010T232149Z/radios",
+      "bytes": 2070736,
+      "sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-delivery-20261010/radios-before-20261010T233233365809Z",
+      "bytes": 2040424,
+      "sha256": "7bef76d1b552596b3ce0db9b5cfc48fc2462847c8a7a170412aa4642af13c8c4",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-delivery-20261010/launch-receipt.json",
+      "bytes": 4473,
+      "sha256": "cfc329c24dcc8f9b98631717cc8c5458d76057db4c650e7fa382e38e2df034e8",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-window-validation-20261010.json",
+      "bytes": 46763,
+      "sha256": "fa34fb429f059ac5e89129b40a239fa5e4e0cc2ac5f4700311f8041196d327ae",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-framebuffer-validation-20261010.json",
+      "bytes": 46853,
+      "sha256": "1ab774147ffdb7f78816183f0ec6ff2d203475864f1f0fb3463c70b6c33b9ccb",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-private-window-validation-20261010.json",
+      "bytes": 4078,
+      "sha256": "0d8d5b2b078c2537903049aa55dfb9e26d63318d1b3aac0c68db6b136f3512fe",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-private-window-selected-validation-20261010.json",
+      "bytes": 3003,
+      "sha256": "b98340feba27ed96ddcf68989a20f635fd46e22ac61335c5f813824dd1e45229",
+      "stat_stable": true
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-private-window-xtest-validation-20261010.json",
+      "bytes": 2995,
+      "sha256": "4354b989d4e6c95143a0a29d8e6b9dea6e2f5efc54b78c95a1f3bd02e746e87f",
+      "stat_stable": true
+    }
+  ],
+  "coordination_paths_not_self_hashed": [
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/STATUS.md",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/records/2026-10-10/23.md"
+  ],
+  "coordinator_source_test_default_writes": false
+}

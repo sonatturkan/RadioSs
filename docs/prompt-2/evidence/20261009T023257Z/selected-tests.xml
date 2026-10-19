@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="8"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="18"
+	timestamp="2026-10-09T02:32:59"
+	>
+	<testcase name="ui_preferences" classname="ui_preferences" time="0.0196391" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S756322b4aa2fd2ae8cd3d3c83cde5558
+1..11
+# Start of ui-preferences tests
+ok 1 /ui-preferences/missing
+ok 2 /ui-preferences/roundtrip-private-atomic
+ok 3 /ui-preferences/header-fields-roundtrip
+ok 4 /ui-preferences/legacy-header-defaults
+ok 5 /ui-preferences/invalid-existing-unchanged
+ok 6 /ui-preferences/invalid-save-unchanged
+ok 7 /ui-preferences/bounded-read
+ok 8 /ui-preferences/file-symlinks
+ok 9 /ui-preferences/directory-symlinks
+ok 10 /ui-preferences/missing-directory
+ok 11 /ui-preferences/relative-space-utf8-root
+# End of ui-preferences tests
+</system-out>
+	</testcase>
+	<testcase name="playout" classname="playout" time="0.0442078" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S4e7223a928f028707f003685031f09ab
+1..22
+# Start of playout tests
+ok 1 /playout/verified-identity-exact-duration
+ok 2 /playout/fractional-whole-file-and-explicit-cue
+ok 3 /playout/cue-markers-UTC-calendar
+ok 4 /playout/cycle-complete-order-decks
+ok 5 /playout/weighted-determinism-preview-isolation
+ok 6 /playout/repeat-turkish-durable-history
+ok 7 /playout/jingle-dedicated-deck-fallback
+ok 8 /playout/midnight-weekday-calendar-single-deck
+ok 9 /playout/cycle-durable-checkpoint-clock-and-revision
+ok 10 /playout/weighted-checkpoint-RNG-continuation
+ok 11 /playout/complete-consumed-eligible-unique
+ok 12 /playout/repeat-overlap-actual-start
+ok 13 /playout/boundary-cue-real-timeline-lookahead
+ok 14 /playout/sequential-start-policy-preserved
+ok 15 /playout/jingle-metadata-checkpoint-phase
+ok 16 /playout/calendar-gap-after-existing-entry
+ok 17 /playout/repeat-history-subsecond-roundtrip
+ok 18 /playout/default-jingle-adjacent-physical-decks
+ok 19 /playout/autodj-deck-transitions-timeline...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_controls" classname="native_controls" time="2.64108" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Se0c093756f59767371522bee567d5878
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..10
+# Start of ui tests
+# Start of markers tests
+ok 1 /ui/markers/validation
+ok 2 /ui/markers/history
+ok 3 /ui/markers/cancel
+# End of markers tests
+# Start of transition tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 4 /ui/transition/validation
+# End of transition tests
+# Start of forms tests
+ok 5 /ui/forms/preserve-input
+# End of forms tests
+# Start of profiles tests
+ok 6 /ui/profiles/lifecycle
+# End of profiles tests
+# Start of playlist tests
+ok 7 /ui/playlist/session
+# End of playlist tests
+# Start of dj tests
+ok 8 /ui/dj/session
+# End of dj tests
+# Start of emergency tests
+ok 9 /ui/emergency/session
+# End of emergency tests
+# Start of preferen...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_header_status" classname="native_header_status" time="0.106554" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S9ef2265246aa4e128a9dde156c11f72b
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..8
+# Start of header tests
+ok 1 /header/unknown-main-pause-stop
+ok 2 /header/accepted-programme-cue-tempo
+ok 3 /header/playing-precedes-paused-stale-plan
+ok 4 /header/authoritative-online-no-main
+ok 5 /header/preferences-preservation
+ok 6 /header/save-failure-rollback
+ok 7 /header/lifetime-idempotent-bind
+ok 8 /header/stylesheet
+# End of header tests
+</system-out>
+	</testcase>
+	<testcase name="broadcast_header" classname="broadcast_header" time="0.0370954" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S11579b28ccacd4c4624ebd3ccf7fe1cb
+1..23
+# Start of broadcast-header tests
+ok 1 /broadcast-header/genuine-main-playing
+ok 2 /broadcast-header/manual-source-actual-cue-out
+ok 3 /broadcast-header/retiring-owned-source-actual-cue-out
+ok 4 /broadcast-header/playing-precedes-paused-programme
+ok 5 /broadcast-header/all-paused-no-audible-multiple
+ok 6 /broadcast-header/owned-runner-pause-playing-decoder
+ok 7 /broadcast-header/verified-cue-out-tempo-plan-preference
+ok 8 /broadcast-header/unowned-cached-plan-ignored
+ok 9 /broadcast-header/selected-source-clears-stale-programme
+ok 10 /broadcast-header/unknown-null-clears-previous
+ok 11 /broadcast-header/tempo-fallback-bounded-utf8
+# Start of reject tests
+ok 12 /broadcast-header/reject/cue-driver-main-routing-flag
+ok 13 /broadcast-header/reject/closed-main-gate
+ok 14 /broadcast-header/reject/main-device-offline
+ok 15 /broadcast-header/reject/unmapped-deck
+ok 16 /broadcast-header/reject/not-main-routed
+ok 17 /broadcast-header/reject/missin...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="header_online_status" classname="header_online_status" time="0.0239918" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sb46225c09cfaefb672d997340dd4d4e7
+1..4
+# Start of header-online tests
+ok 1 /header-online/official-catalogue-published-duration
+ok 2 /header-online/official-invalid-duration-fallback-identity
+ok 3 /header-online/official-card-published-duration
+ok 4 /header-online/no-current-provider-duration-cleared
+# End of header-online tests
+</system-out>
+	</testcase>
+	<testcase name="native_header_private_programme" classname="native_header_private_programme" time="6.6212" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S274bdbbed9030595d2508a56977f8530
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of prompt2-header tests
+# Seeded programme prerequisite: queue contents ready=0, acknowledged identity/revision ready=0
+ok 1 /prompt2-header/private-programme-PCM-pause-priority-stop
+# slow test /prompt2-header/private-programme-PCM-pause-priority-stop executed in 4.74 secs
+# End of prompt2-header tests
+1..1
+</system-out>
+	</testcase>
+	<testcase name="native_header_private_wait" classname="native_header_private_wait" time="9.45533" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S608de860f6f70c09b27ec3e258ca93c0
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of prompt2-header tests
+# Seeded programme prerequisite: queue contents ready=0, acknowledged identity/revision ready=0
+ok 1 /prompt2-header/private-manual-wait-preserves-programme
+# slow test /prompt2-header/private-manual-wait-preserves-programme executed in 7.06 secs
+# End of prompt2-header tests
+1..1
+</system-out>
+	</testcase>
+</testsuite>

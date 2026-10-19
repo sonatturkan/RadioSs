@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-11T12:28:44.617878+00:00",
+  "agent": "/root",
+  "installed_binary": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/build/radios",
+  "expected_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "installed_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "previous_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "backup": null,
+  "product_guard_count": 319,
+  "current_source_drift": [],
+  "cli_checks": [
+    {
+      "name": "version",
+      "exit_code": 0
+    },
+    {
+      "name": "configuration",
+      "exit_code": 0
+    }
+  ],
+  "distinct_acceptance_cases_passed": 88,
+  "passed": true
+}

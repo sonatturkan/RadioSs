@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-10 23:32:51 UTC",
+  "owner": "/root/theme_coordination_12",
+  "shared": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/AGENT.md",
+  "shared_inode": 14791,
+  "snapshot_bytes": 19537,
+  "snapshot_sha256": "f1e63488a98a13cd43b5d6dc4821e6b68c853e7782aa8bec27c69c583097928d",
+  "snapshot_path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/shared-integrity-20261010T233251Z/AGENT.truncated-preserved.md",
+  "observed_233152_bytes": 9660,
+  "observed_233152_lines": 38,
+  "prior_observed_231713_bytes": 933588,
+  "actor": "UNKNOWN",
+  "source_test_default_writes": false,
+  "restoration_performed": false
+}

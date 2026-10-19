@@ -1,0 +1,170 @@
+{
+  "recorded_at_utc": "2026-10-09T02:08:25.179660+00:00",
+  "responsible_agent": "/root/media_audit",
+  "purpose": "Scoped prompt-7 live-player transport v18 regression proof",
+  "test_case_count": 18,
+  "passed_case_count": 18,
+  "passed_cases": [
+    "/live-players/replacement-late-reply",
+    "/live-players/stop-invalidates-lookup",
+    "/live-players/stopped-next-loads-current",
+    "/live-players/stopped-next-invalidates-old-lookup",
+    "/live-players/current-removal-loads-current",
+    "/live-players/pending-lookup-keeps-current-on-old-EOF",
+    "/live-players/failed-lookup-retries-current",
+    "/live-players/lookup-version-mismatch-rejected",
+    "/live-players/lookup-media-mismatch-rejected",
+    "/live-players/clear-after-stop-retires-lookup",
+    "/live-players/direct-library-retires-queue-lookup",
+    "/live-players/external-library-load-preserves-direct-selection",
+    "/live-players/external-library-load-retires-pending-lookup",
+    "/live-players/repeated-media-next-requires-fresh-lookup",
+    "/live-players/pending-online-match-ignores-old-failure",
+    "/live-players/pending-online-match-ignores-old-finish",
+    "/live-players/managed-takeover-retires-local-lookup",
+    "/live-players/managed-takeover-retires-provider-match"
+  ],
+  "execution": {
+    "started_at_utc": "2026-10-09T02:07:37.885248+00:00",
+    "completed_at_utc": "2026-10-09T02:07:50.855589+00:00",
+    "command": [
+      "build/prompt-7-validation/isolated/after-v18/test_live_players_ui-v18"
+    ],
+    "environment": {
+      "DISPLAY": ":0",
+      "G_DEBUG": "fatal-warnings"
+    },
+    "returncode": 0,
+    "stdout": "TAP version 14\n# random seed: R02S5bc427505712d271ae476d6276bc6526\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n1..18\n# Start of live-players tests\nok 1 /live-players/replacement-late-reply\n# slow test /live-players/replacement-late-reply executed in 0.70 secs\nok 2 /live-players/stop-invalidates-lookup\n# slow test /live-players/stop-invalidates-lookup executed in 0.61 secs\nok 3 /live-players/stopped-next-loads-current\n# slow test /live-players/stopped-next-loads-current executed in 0.84 secs\nok 4 /live-players/stopped-next-invalidates-old-lookup\n# slow test /live-players/stopped-next-invalidates-old-lookup executed in 0.79 secs\nok 5 /live-players/current-removal-loads-current\n# slow test /live-players/current-removal-loads-current executed in 1.10 secs\nok 6 /live-players/pending-lookup-keeps-current-on-old-EOF\n# slow test /live-players/pending-lookup-keeps-current-on-old-EOF executed in 0.88 secs\nok 7 /live-players/failed-lookup-retries-current\n# slow test /live-players/failed-lookup-retries-current executed in 0.60 secs\nok 8 /live-players/lookup-version-mismatch-rejected\n# slow test /live-players/lookup-version-mismatch-rejected executed in 0.75 secs\nok 9 /live-players/lookup-media-mismatch-rejected\n# slow test /live-players/lookup-media-mismatch-rejected executed in 0.69 secs\nok 10 /live-players/clear-after-stop-retires-lookup\n# slow test /live-players/clear-after-stop-retires-lookup executed in 0.89 secs\nok 11 /live-players/direct-library-retires-queue-lookup\n# slow test /live-players/direct-library-retires-queue-lookup executed in 0.67 secs\nok 12 /live-players/external-library-load-preserves-direct-selection\n# slow test /live-players/external-library-load-preserves-direct-selection executed in 0.91 secs\nok 13 /live-players/external-library-load-retires-pending-lookup\n# slow test /live-players/external-library-load-retires-pending-lookup executed in 0.53 secs\nok 14 /live-players/repeated-media-next-requires-fresh-lookup\n# slow test /live-players/repeated-media-next-requires-fresh-lookup executed in 0.71 secs\nok 15 /live-players/pending-online-match-ignores-old-failure\n# slow test /live-players/pending-online-match-ignores-old-failure executed in 0.76 secs\nok 16 /live-players/pending-online-match-ignores-old-finish\n# slow test /live-players/pending-online-match-ignores-old-finish executed in 0.73 secs\nok 17 /live-players/managed-takeover-retires-local-lookup\nok 18 /live-players/managed-takeover-retires-provider-match\n# End of live-players tests\n",
+    "stderr": ""
+  },
+  "test_compile_link_command": [
+    "cc",
+    "-std=c11",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror",
+    "tests/test_live_players_ui.c",
+    "-Iinclude",
+    "-I/usr/include/gtk-3.0",
+    "-I/usr/include/pango-1.0",
+    "-I/usr/include/cairo",
+    "-I/usr/include/gdk-pixbuf-2.0",
+    "-I/usr/include/webp",
+    "-I/usr/include/at-spi2-atk/2.0",
+    "-I/usr/include/at-spi-2.0",
+    "-I/usr/include/atk-1.0",
+    "-I/usr/include/dbus-1.0",
+    "-I/usr/lib/x86_64-linux-gnu/dbus-1.0/include",
+    "-I/usr/include/fribidi",
+    "-I/usr/include/pixman-1",
+    "-I/usr/include/harfbuzz",
+    "-I/usr/include/freetype2",
+    "-I/usr/include/libpng16",
+    "-I/usr/include/gio-unix-2.0",
+    "-I/usr/include/json-glib-1.0",
+    "-pthread",
+    "-I/usr/include/glib-2.0",
+    "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+    "-I/usr/include/libmount",
+    "-I/usr/include/blkid",
+    "-Wl,--wrap=radios_media_library_get",
+    "-Wl,--wrap=radios_media_library_open_for_deck",
+    "-Wl,--wrap=radios_player_loader_open",
+    "-Wl,--wrap=radios_audio_ui_get_snapshot",
+    "-Wl,--wrap=radios_audio_ui_load_media",
+    "-Wl,--wrap=radios_audio_ui_play",
+    "-Wl,--wrap=radios_audio_ui_pause",
+    "-Wl,--wrap=radios_audio_ui_stop",
+    "-Wl,--wrap=radios_broadcast_online_match",
+    "-Wl,--wrap=radios_broadcast_online_card_state",
+    "-Wl,--wrap=radios_broadcast_online_card_play",
+    "-Wl,--wrap=radios_broadcast_online_card_stop",
+    "-Wl,--wrap=radios_playout_ui_deck_metadata",
+    "-o",
+    "build/prompt-7-validation/isolated/after-v18/test_live_players_ui-v18",
+    "build/prompt-7-validation/isolated/after-v18/libradios_ui-v18.a",
+    "build/libradios_playout.a",
+    "build/libradios_audio.a",
+    "build/libradios_core.a",
+    "-lgtk-3",
+    "-lgdk-3",
+    "-lpangocairo-1.0",
+    "-lcairo-gobject",
+    "-lgdk_pixbuf-2.0",
+    "-latk-1.0",
+    "-lpango-1.0",
+    "-lcairo",
+    "-ljson-glib-1.0",
+    "-lgio-2.0",
+    "-lgobject-2.0",
+    "-lcurl",
+    "-lfontconfig",
+    "-lharfbuzz",
+    "-lglib-2.0",
+    "-lavfilter",
+    "-lavformat",
+    "-lavcodec",
+    "-lswresample",
+    "-lavutil",
+    "-lpulse",
+    "-pthread",
+    "-lm"
+  ],
+  "build_procedure": [
+    "Root supplied strictly compiled broadcast-after-v18.o and its scoped source. The source contains the current prompt-7 transport/ownership fixes transplanted into the exact captured preimage.",
+    "A private copy of build/libradios_ui.a was made under isolated/after-v18/libradios_ui-v18.a. Root object was copied as broadcast.c.o, and ar r replaced only that member in the private archive.",
+    "The final 18-case test source was strictly compiled in C11 with -Wall -Wextra -Wpedantic -Werror and linked against that private UI archive plus existing audio/playout/core archives.",
+    "All 18 cases ran as one GTK suite under G_DEBUG=fatal-warnings and exited successfully. The 11-case historical artifacts were kept separately and not overwritten."
+  ],
+  "artifacts": {
+    "tests/test_live_players_ui.c": {
+      "sha256": "e11ebbdd5e4ee73ac198ff4c23acee93ce85356bb27ce879d92a9eb419cd7d1c",
+      "size_bytes": 26445
+    },
+    "docs/prompt-7/backups/test_live_players_ui.c.e11ebbdd5e4ee73a.v18-proof": {
+      "sha256": "e11ebbdd5e4ee73ac198ff4c23acee93ce85356bb27ce879d92a9eb419cd7d1c",
+      "size_bytes": 26445
+    },
+    "build/prompt-7-validation/isolated/broadcast-after-v18.c": {
+      "sha256": "4d4e09cd9d8f23de1514d2e202da774fadea5da956a949f4f8aca0f9e38b935c",
+      "size_bytes": 285102
+    },
+    "build/prompt-7-validation/isolated/broadcast-after-v18.o": {
+      "sha256": "87e5609934954609c67e4f8f248b6313b9d8444b4dbb60ccf3a81610dbef9ce4",
+      "size_bytes": 514680
+    },
+    "build/prompt-7-validation/isolated/after-v18/broadcast.c.o": {
+      "sha256": "87e5609934954609c67e4f8f248b6313b9d8444b4dbb60ccf3a81610dbef9ce4",
+      "size_bytes": 514680
+    },
+    "build/prompt-7-validation/isolated/after-v18/libradios_ui-v18.a": {
+      "sha256": "682fd8339ec025bb03bdf80ad7e09d42b71482f5d20703b7a955bc5591c9ce99",
+      "size_bytes": 2794948
+    },
+    "build/prompt-7-validation/isolated/after-v18/test_live_players_ui-v18": {
+      "sha256": "671b6662656d14f5cba463555d7d88411491d80f48aa11eaa42b81575ead2f13",
+      "size_bytes": 1448392
+    },
+    "build/libradios_playout.a": {
+      "sha256": "e93cbe7b8a074bbbea44a2cd756c0842fec0bb93ad66dff1ccbf0a47dda0c40f",
+      "size_bytes": 119258
+    },
+    "build/libradios_audio.a": {
+      "sha256": "2a2b8cdd2511c0f902e2b831b90423d183305cdf5070dfae88051090ee237e7b",
+      "size_bytes": 405894
+    },
+    "build/libradios_core.a": {
+      "sha256": "d79682b364a46eadb5c0f01dff15ab411f6f74615cc8ecee2ccb19de8be07dcf",
+      "size_bytes": 344632
+    }
+  },
+  "limitations": [
+    "This proves the scoped prompt-7 transport fixes for all 18 deterministic GTK regression scenarios. It is not a successful build or CTest claim for the shared current source tree.",
+    "The shared current source build was still blocked by an unrelated external engine/Pulse backend configure_output symbol linkage change at the time of this proof.",
+    "Other translation units are existing static archive artifacts and are not claimed to match exact current shared source revisions. Hashes identify the observed dependency artifacts; no shared archive or shared source rollback was performed.",
+    "Media library lookup/picker, deck state/transport, provider match/card state, and managed playout metadata are controlled linker boundaries. Actual Broadcast card GTK callbacks run; PCM decoding, real provider authorization, backend persistence, hardware and whole-application acceptance are outside this scoped suite.",
+    "The external library tests invoke the real new library-loaded helper after a controlled successful audio load; the separate current-source media integration call must also be verified by its owner/root."
+  ]
+}

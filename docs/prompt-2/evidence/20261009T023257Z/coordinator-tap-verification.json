@@ -1,0 +1,65 @@
+{
+  "verification": "Actual complete LastTest ok counts equal TAP plans; JUnit seeds/run match; no skip/failure. JUnit stdout truncation1024 detected and bypassed using original LastTest transcript.",
+  "full_tap_sha256": "019567135d643f582bf2593b25375dbd364c59e962f3d03a5399a6f6fdfc8894",
+  "targets": [
+    {
+      "target": "ui_preferences",
+      "passed_cases": 11,
+      "time_seconds": 0.0196391,
+      "skipped": false,
+      "xml_truncates_stdout": false
+    },
+    {
+      "target": "playout",
+      "passed_cases": 22,
+      "time_seconds": 0.0442078,
+      "skipped": false,
+      "xml_truncates_stdout": true
+    },
+    {
+      "target": "native_controls",
+      "passed_cases": 10,
+      "time_seconds": 2.64108,
+      "skipped": false,
+      "xml_truncates_stdout": true
+    },
+    {
+      "target": "native_header_status",
+      "passed_cases": 8,
+      "time_seconds": 0.106554,
+      "skipped": false,
+      "xml_truncates_stdout": false
+    },
+    {
+      "target": "broadcast_header",
+      "passed_cases": 23,
+      "time_seconds": 0.0370954,
+      "skipped": false,
+      "xml_truncates_stdout": true
+    },
+    {
+      "target": "header_online_status",
+      "passed_cases": 4,
+      "time_seconds": 0.0239918,
+      "skipped": false,
+      "xml_truncates_stdout": false
+    },
+    {
+      "target": "native_header_private_programme",
+      "passed_cases": 1,
+      "time_seconds": 6.6212,
+      "skipped": false,
+      "xml_truncates_stdout": false
+    },
+    {
+      "target": "native_header_private_wait",
+      "passed_cases": 1,
+      "time_seconds": 9.45533,
+      "skipped": false,
+      "xml_truncates_stdout": false
+    }
+  ],
+  "selected_total": 80,
+  "focused_online_total": 1,
+  "overall_total": 81
+}

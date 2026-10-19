@@ -1,0 +1,80 @@
+<!-- OPERATIONS STRIP START -->
+<section class="operations-strip" aria-label="Yayın davranışı ve acil hazırlık">
+    <div class="operations-mode">
+        <label for="operations-mode-request">Devam tercihi <span class="ops-badge">Taslak</span></label>
+        <select id="operations-mode-request"><option value="auto">Parça sonunda otomatik devam</option><option value="hold">Parça sonunda operatörü bekle</option></select>
+        <small>Gerçek motor durumu bekleniyor</small>
+    </div>
+    <dl class="operations-readiness"><div><dt>Aktif motor</dt><dd>—</dd></div><div><dt>Yedek hazırlığı</dt><dd>Bilinmiyor</dd></div><div><dt>Çevrimdışı kapasite</dt><dd>—</dd></div></dl>
+    <button type="button" class="ops-emergency-button" data-open-emergency><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20zM12 9v5M12 17h.01"/></svg><span>Acil yayın<small>Devralma ve hazır liste</small></span></button>
+</section>
+<!-- OPERATIONS STRIP END -->
+
+<!-- OPERATIONS PANELS START -->
+<section class="operations-panels" aria-label="Geçici sıra, konuşma ve yayın geçmişi">
+    <section class="ops-card" id="temporary-queue" aria-labelledby="temporary-queue-title">
+        <div class="ops-card-heading"><h2 id="temporary-queue-title">Geçici yayın sırası</h2><span class="ops-badge">Taslak</span></div>
+        <p class="ops-help">Playlist veya parçayı buraya sürükle. Programdan bağımsız hazırlanır.</p>
+        <div class="ops-action-row"><button type="button" data-queue-from-selected>+ Seçili öğe</button><button type="button" data-queue-new>+ Yeni öğe</button><span class="ops-count" data-queue-count>0 öğe</span></div>
+        <ol class="ops-queue-list" data-temporary-queue-list></ol>
+        <div class="ops-action-row"><button type="button" data-queue-action="up">↑</button><button type="button" data-queue-action="down">↓</button><button type="button" data-queue-action="edit">Düzenle</button><button type="button" data-queue-action="remove">Kaldır</button></div>
+        <button class="ops-primary" type="button" data-queue-transfer>Sırayı program taslağına aktar</button>
+        <p class="ops-status" role="status" data-queue-status>Geçici sıra hazır.</p>
+    </section>
+    <section class="ops-card" aria-labelledby="speech-card-title">
+        <div class="ops-card-heading"><h2 id="speech-card-title">Konuşma · Canlı kaynak</h2><span class="ops-badge">Taslak</span></div>
+        <dl class="ops-data-list"><div><dt>Aktif mikrofon / kaynak</dt><dd>Veri bekleniyor</dd></div><div><dt>Yayın çıkışı</dt><dd>—</dd></div><div><dt>Konuşma süresi</dt><dd>—:—</dd></div></dl>
+        <label class="ops-field-label" for="speech-source">Tercih edilen kaynak</label>
+        <select id="speech-source"><option value="microphone">Mikrofon</option><option value="remote">Dış bağlantı</option><option value="bed">Müzik yatağı</option></select>
+        <div class="ops-speech-controls"><label for="speech-bed">Müzik yatağı <output for="speech-bed" data-speech-bed-value>−18 dB</output></label><input id="speech-bed" type="range" min="-36" max="0" step="1" value="-18"><label class="ops-check"><input id="speech-ducking" type="checkbox" checked> Konuşmada müziği kıs <span class="ops-badge">Taslak</span></label></div>
+        <div class="ops-rehearsal"><div><small>Prova süresi</small><output data-rehearsal-time>00:00</output></div><button type="button" data-rehearsal-toggle>Prova başlat</button><button type="button" data-rehearsal-reset aria-label="Prova süresini sıfırla">↺</button></div>
+        <p class="ops-help">Prova sayacı mikrofonu veya yayın çıkışını açmaz.</p>
+    </section>
+    <section class="ops-card ops-history" aria-labelledby="history-card-title">
+        <div class="ops-card-heading"><h2 id="history-card-title">Yayın geçmişi</h2><button type="button" data-audit-download>Kaydı indir</button></div>
+        <div class="ops-history-tabs" role="tablist" aria-label="Geçmiş türü"><button id="actual-history-tab" type="button" role="tab" aria-selected="true" aria-controls="actual-history-panel" data-history-tab="actual">Gerçek yayın</button><button id="draft-history-tab" type="button" role="tab" aria-selected="false" aria-controls="draft-history-panel" tabindex="-1" data-history-tab="draft">Düzenleme kaydı</button></div>
+        <div id="actual-history-panel" role="tabpanel" aria-labelledby="actual-history-tab"><div class="ops-table-scroll"><table class="ops-table"><thead><tr><th>Saat</th><th>İçerik</th><th>Çıkış</th><th>Sonuç</th></tr></thead><tbody><tr><td colspan="4" class="ops-empty-cell">Gerçekleşen yayın kaydı bekleniyor.</td></tr></tbody></table></div><p class="ops-help">Başladı · Tamamlandı · Kesildi · Atlandı · Başarısız · Belirsiz</p></div>
+        <div id="draft-history-panel" role="tabpanel" aria-labelledby="draft-history-tab" hidden><ol class="ops-audit-list" data-audit-list></ol><p class="ops-help">Yerel taslak işlemleri; gerçekleşen yayın kanıtı değildir.</p></div>
+    </section>
+</section>
+<!-- OPERATIONS PANELS END -->
+
+<!-- OPERATIONS DIALOGS START -->
+<dialog class="ops-dialog" id="emergency-dialog" aria-labelledby="emergency-dialog-title">
+    <form data-emergency-form><div class="ops-dialog-heading"><h2 id="emergency-dialog-title">Acil yayın · Devralma</h2><button type="button" data-close-ops-dialog aria-label="Acil yayın penceresini kapat">×</button></div>
+        <p class="ops-help">Devralma hazırlığını kontrol et ve davranış taslağını belirle.</p>
+        <dl class="ops-data-list"><div><dt>Hedef çıkış</dt><dd>Veri bekleniyor</dd></div><div><dt>Aktif / yedek motor</dt><dd>Bilinmiyor</dd></div><div><dt>Doğrulanmış yerel ses / plan</dt><dd>Doğrulanmadı</dd></div><div><dt>Çevrimdışı çalışma süresi</dt><dd>—</dd></div><div><dt>Son geri dönüş testi</dt><dd>—</dd></div></dl>
+        <label for="emergency-strategy">Devralma davranışı <span class="ops-badge">Taslak</span></label><select id="emergency-strategy" name="strategy"><option value="playlist">Acil listeyi başlat</option><option value="next">Sıradaki olaya geç</option><option value="continue">Çalan öğeyi sürdür</option></select>
+        <label for="emergency-list-name">Acil liste adı</label><input id="emergency-list-name" name="name" maxlength="100" placeholder="Hazırlanacak acil listenin adı">
+        <label class="ops-check"><input type="checkbox" name="confirmed"> Devralmanın hedef çıkışı etkileyeceğini anlıyorum.</label>
+        <p class="ops-help" id="emergency-connection-status">Devralma için yayın motoru ve çıkış bağlantısı bekleniyor.</p>
+        <div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Hazırlık taslağını kaydet</button><button type="button" class="ops-emergency-button" disabled aria-describedby="emergency-connection-status">Devralmayı başlat</button></div>
+    </form>
+</dialog>
+<dialog class="ops-dialog" id="temporary-queue-editor" aria-labelledby="temporary-queue-editor-title">
+    <form data-queue-form><div class="ops-dialog-heading"><h2 id="temporary-queue-editor-title">Geçici sıra öğesi</h2><button type="button" data-close-ops-dialog aria-label="Sıra düzenleyicisini kapat">×</button></div><p class="ops-help">Bu öğe yalnız geçici sıra taslağında düzenlenir.</p>
+        <label for="temporary-item-title">Başlık</label><input id="temporary-item-title" name="title" required maxlength="160">
+        <div class="ops-form-columns"><div><label for="temporary-item-artist">Sanatçı</label><input id="temporary-item-artist" name="artist" maxlength="120"></div><div><label for="temporary-item-album">Albüm</label><input id="temporary-item-album" name="album" maxlength="120"></div></div>
+        <div class="ops-form-columns"><div><label for="temporary-item-type">Tür</label><select id="temporary-item-type" name="type"><option value="music">Müzik</option><option value="announcement">Anons</option><option value="advert">Reklam</option></select></div><div><label for="temporary-item-duration">Süre (dk:sn)</label><input id="temporary-item-duration" name="duration" pattern="[0-9]{1,3}:[0-5][0-9]" maxlength="6" placeholder="03:30"></div></div>
+        <div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Kaydet</button></div>
+    </form>
+</dialog>
+<dialog class="ops-dialog" id="diagnostic-details-dialog" aria-labelledby="diagnostic-details-title">
+    <div class="ops-dialog-heading"><h2 id="diagnostic-details-title">Hata ayrıntıları</h2><button type="button" data-close-ops-dialog aria-label="Hata ayrıntılarını kapat">×</button></div>
+    <dl class="ops-data-list"><div><dt>Etkilenen hedef</dt><dd>Veri bekleniyor</dd></div><div><dt>Yayın etkisi</dt><dd>Bilinmiyor</dd></div><div><dt>Sistemin uyguladığı davranış</dt><dd>Bilinmiyor</dd></div><div><dt>Son güncelleme</dt><dd>—</dd></div></dl>
+    <p class="ops-help">Bağlantı doğrulandığında olay, yayın etkisi ve yapılabilecek işlem burada gösterilir.</p><div class="ops-dialog-actions"><button type="button" data-open-support-note>Yöneticiye bildir</button><button type="button" disabled title="Kabul edilecek doğrulanmış bir uyarı bulunmuyor">Uyarıyı kabul et</button></div>
+</dialog>
+<dialog class="ops-dialog" id="support-note-dialog" aria-labelledby="support-note-title">
+    <form data-support-note-form><div class="ops-dialog-heading"><h2 id="support-note-title">Yöneticiye bildirim taslağı</h2><button type="button" data-close-ops-dialog aria-label="Bildirim taslağını kapat">×</button></div><label for="support-note">Sorun / gözlem</label><textarea id="support-note" name="note" rows="5" required maxlength="1500" placeholder="Sorunu ve etkilenen işlemi açıklayabilirsin."></textarea><p class="ops-help">Gönderim hedefi tanımlı değil. Hazırladığın not indirilebilir.</p><div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Bildirim taslağını indir</button></div></form>
+</dialog>
+<dialog class="ops-dialog" id="pad-assignment-dialog" aria-labelledby="pad-assignment-title">
+    <form data-pad-assignment-form><div class="ops-dialog-heading"><h2 id="pad-assignment-title">Ped ataması</h2><button type="button" data-close-ops-dialog aria-label="Ped atamasını kapat">×</button></div>
+        <p class="ops-help">Atanan yerel ses, tarayıcı ses çıkışında ön dinlenebilir.</p>
+        <div class="ops-form-columns"><div><label for="pad-bank-choice">Banka</label><select id="pad-bank-choice" name="bank"><option value="sampler">Sampler</option><option value="jingle">Jingle</option></select></div><div><label for="pad-slot-choice">Ped</label><select id="pad-slot-choice" name="slot"><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option></select></div></div>
+        <label for="pad-assignment-name">Ses adı</label><input id="pad-assignment-name" name="title" maxlength="100" placeholder="Dosya adı kullanılır">
+        <label for="pad-assignment-file">Yerel ses dosyası</label><input id="pad-assignment-file" name="file" type="file" accept="audio/*">
+        <label for="pad-trigger">Tetikleme</label><select id="pad-trigger" name="trigger"><option value="once">Tek sefer</option><option value="hold">Basılı tut</option><option value="toggle">Aç / kapat</option><option value="loop">Döngü</option></select>
+        <div class="ops-dialog-actions"><button type="button" data-pad-clear>Atamayı kaldır</button><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Atamayı kaydet</button></div><p class="ops-status" role="status" data-pad-assignment-status>Ön dinleme için yerel dosya seç.</p>
+    </form>
+</dialog>
+<!-- OPERATIONS DIALOGS END -->

@@ -1,0 +1,288 @@
+<section class="task-view" id="emergency-task-view" role="tabpanel" aria-labelledby="profile-emergency-tab" data-emergency-workspace hidden>
+  <p class="em-sr-only" role="status" aria-live="polite" data-em-live></p>
+
+  <header class="em-command" data-em-command data-level="unknown" aria-labelledby="em-state-title">
+    <div class="em-command-state">
+      <p class="task-eyebrow">ACİL YAYIN</p>
+      <h2 class="em-state" id="em-state-title"><span class="em-state-icon" data-em-state-icon aria-hidden="true">?</span><span data-em-state-label>Durum bilinmiyor</span></h2>
+    </div>
+    <ol class="em-steps" aria-label="Acil yayın aşamaları">
+      <li data-em-step="normal">Normal</li>
+      <li data-em-step="ready">Hazır</li>
+      <li data-em-step="active">Acil yayında</li>
+      <li data-em-step="return">Dönüş</li>
+    </ol>
+    <p class="em-behavior" data-em-behavior aria-label="Devralma davranışı"></p>
+    <div class="em-command-actions">
+      <button type="button" class="em-takeover" data-open-emergency aria-haspopup="dialog" aria-controls="emergency-dialog">Devralmayı başlat…</button>
+      <button type="button" data-em-return disabled>Normal yayına dön</button>
+      <button type="button" data-em-abort disabled>Devralmayı iptal et</button>
+    </div>
+  </header>
+
+  <ul class="em-chips" aria-label="Hazırlık">
+    <li><button type="button" class="em-chip" data-em-chip="ownership" data-em-goto="takeover"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Sahiplik</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="coverage" data-em-goto="list"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Yerel kapsam</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="silence" data-em-goto="silence"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Sessizlik</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="chain" data-em-goto="chain" aria-controls="em-chain"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Yayın zinciri</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="alert" data-em-goto="alert"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Duyuru</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="drill" data-em-goto="handover"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Tatbikat</span><span class="em-chip-value">—</span></button></li>
+    <li><span class="em-chip" data-em-chip="fresh"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Son bilgi</span><span class="em-chip-value">—</span></span></li>
+  </ul>
+
+  <section class="em-chain" id="em-chain" aria-label="Yayın zinciri" data-em-chain hidden>
+    <ul class="em-chain-grid" data-em-chain-rows></ul>
+  </section>
+
+  <div class="em-desk">
+    <div class="em-main">
+      <section class="em-card em-queue-card" aria-label="Acil liste ve geçici sıra">
+        <div class="em-seg" role="tablist" aria-label="Sıra">
+          <button type="button" role="tab" id="em-left-tab-list" aria-controls="em-left-list" aria-selected="true" data-em-left-tab="list">Acil liste <span class="em-count" data-emergency-list-count>0</span></button>
+          <button type="button" role="tab" id="em-left-tab-queue" aria-controls="temporary-queue" aria-selected="false" tabindex="-1" data-em-left-tab="queue">Geçici sıra <span class="em-count" data-em-queue-count>0</span></button>
+        </div>
+
+        <div class="em-left-panel emergency-list-card" id="em-left-list" role="tabpanel" aria-labelledby="em-left-tab-list" data-em-left-panel="list">
+          <div class="em-source-row">
+            <label class="em-sr-only" for="emergency-source">Program veya playlist</label>
+            <select id="emergency-source" data-emergency-source><option value="">Program / playlist</option></select>
+            <button type="button" data-emergency-add-source>Ekle</button>
+            <button type="button" data-emergency-add-selected>+ Seçili parça</button>
+          </div>
+          <ol class="em-track-list" data-emergency-track-list aria-label="Acil yayın sırası"></ol>
+          <div class="em-row">
+            <button type="button" data-emergency-list-action="up" aria-label="Yukarı taşı">↑</button>
+            <button type="button" data-emergency-list-action="down" aria-label="Aşağı taşı">↓</button>
+            <button type="button" data-emergency-new-item>+ Yeni öğe</button>
+            <button type="button" data-emergency-list-action="remove">Kaldır</button>
+          </div>
+          <dl class="em-metrics" data-em-coverage>
+            <div><dt>Süre</dt><dd data-em-metric="total">—</dd></div>
+            <div><dt>Şimdi devralınırsa</dt><dd data-em-metric="until">—</dd></div>
+            <div><dt>Doğrulanan dosya</dt><dd data-em-metric="verified">—</dd></div>
+            <div><dt><label for="em-coverage-target">Hedef</label></dt><dd><select id="em-coverage-target" data-em-setting="coverageTarget"><option value="30">30 dk</option><option value="60">1 sa</option><option value="120">2 sa</option><option value="240">4 sa</option><option value="480">8 sa</option></select></dd></div>
+          </dl>
+        </div>
+
+        <section class="em-left-panel ops-card" id="temporary-queue" role="tabpanel" aria-labelledby="em-left-tab-queue" data-em-left-panel="queue" hidden>
+          <div class="ops-action-row"><button type="button" data-queue-from-selected>+ Seçili öğe</button><button type="button" data-queue-new>+ Yeni öğe</button></div>
+          <ol class="ops-queue-list" data-temporary-queue-list aria-label="Geçici yayın sırası"></ol>
+          <div class="ops-action-row"><button type="button" data-queue-action="up" aria-label="Yukarı taşı">↑</button><button type="button" data-queue-action="down" aria-label="Aşağı taşı">↓</button><button type="button" data-queue-action="edit">Düzenle</button><button type="button" data-queue-action="remove">Kaldır</button><span class="ops-count em-sr-only" data-queue-count>0 öğe</span></div>
+          <button class="ops-primary" type="button" data-queue-transfer>Program taslağına aktar</button>
+        </section>
+      </section>
+
+      <section class="em-card em-editor" aria-labelledby="em-editor-title">
+        <header class="em-card-head"><h3 id="em-editor-title" data-em-editor-title>Yeni öğe</h3><span class="em-head-note" data-em-file-info></span></header>
+        <form class="em-item-form" data-emergency-item-form>
+          <div class="em-fields em-fields--item">
+            <label class="em-span-2">İçerik adı<input name="title" maxlength="160" required></label>
+            <label>Sanatçı / kaynak<input name="artist" maxlength="120"></label>
+            <label>Albüm / program<input name="album" maxlength="120"></label>
+            <label>Tür<select name="type"><option value="music">Müzik</option><option value="announcement">Anons</option><option value="jingle">Jingle · kimlik</option><option value="apology">Arıza anonsu</option><option value="advert">Reklam</option></select></label>
+            <label>Süre<input name="duration" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+          </div>
+          <div class="em-wave" data-em-wave>
+            <canvas width="1200" height="112" data-em-wave-canvas aria-label="Dalga biçimi"></canvas>
+            <div class="em-wave-markers" data-em-markers>
+              <button type="button" class="em-marker" data-em-marker="cueStart" data-letter="A" aria-label="Cue başlangıcı" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="vocal" data-letter="V" aria-label="Vokal girişi" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="segue" data-letter="S" aria-label="Sonraki başlangıç" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="cueOut" data-letter="B" aria-label="Çıkış noktası" hidden></button>
+            </div>
+            <div class="em-wave-scale" aria-hidden="true"><span>00:00</span><span data-em-wave-end></span></div>
+          </div>
+          <div class="em-fields em-fields--cue">
+            <label><span><b class="em-mark">A</b> Cue başlangıcı</span><input name="cueStart" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">V</b> Vokal girişi</span><input name="vocal" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">S</b> Sonraki başlangıç</span><input name="segue" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">B</b> Çıkış noktası</span><input name="cueOut" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label>Fade · ms<input name="fadeMs" type="number" min="0" max="20000" step="10"></label>
+          </div>
+          <div class="em-row em-editor-actions">
+            <label class="em-file-button">Ses dosyası<input type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-em-file></label>
+            <button type="button" class="em-cue" data-emergency-cue aria-pressed="false">CUE ▶</button>
+            <label class="em-gain">Kulaklık<input type="range" name="previewGain" min="-60" max="6" step="0.5" value="-12" data-emergency-preview-volume><output data-emergency-preview-volume-value>−12 dB</output></label>
+            <button type="submit" class="em-primary" data-emergency-item-save>Sıraya ekle</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="em-side">
+      <section class="em-card em-settings" aria-label="Acil ayarlar">
+        <div class="em-seg em-seg--fill" role="tablist" aria-label="Ayar bölümleri">
+          <button type="button" role="tab" id="em-tab-takeover" aria-controls="em-panel-takeover" aria-selected="true" data-em-tab="takeover">Devralma</button>
+          <button type="button" role="tab" id="em-tab-silence" aria-controls="em-panel-silence" aria-selected="false" tabindex="-1" data-em-tab="silence">Sessizlik</button>
+          <button type="button" role="tab" id="em-tab-alert" aria-controls="em-panel-alert" aria-selected="false" tabindex="-1" data-em-tab="alert">Duyuru</button>
+          <button type="button" role="tab" id="em-tab-access" aria-controls="em-panel-access" aria-selected="false" tabindex="-1" data-em-tab="access">Erişim</button>
+          <button type="button" role="tab" id="em-tab-handover" aria-controls="em-panel-handover" aria-selected="false" tabindex="-1" data-em-tab="handover">Devir</button>
+        </div>
+
+        <div class="em-panel" id="em-panel-takeover" role="tabpanel" aria-labelledby="em-tab-takeover" data-em-panel="takeover">
+          <fieldset class="em-checks"><legend>Etkilenecek çıkışlar</legend>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="studio">Stüdyo</label>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="internet">İnternet</label>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="terrestrial">Karasal</label>
+          </fieldset>
+          <div class="em-fields">
+            <label>Devralacak oynatıcı<select data-em-setting="player" data-emergency-player><option value="">Oynatıcı seç</option></select></label>
+            <label>Devralma davranışı<select data-emergency-strategy><option value="playlist">Acil listeyi başlat</option><option value="next">Sıradaki olaya geç</option><option value="continue">Çalan öğeyi sürdür</option></select></label>
+            <label data-em-name-field>Acil liste adı<input maxlength="100" data-emergency-name></label>
+            <label>Liste bitince<select data-em-setting="listEnd"><option value="hold">Operatörü bekle</option><option value="repeat">Listeyi tekrarla</option></select></label>
+            <label>Normale dönüş<select data-em-setting="returnPolicy"><option value="manual">Operatör kontrollü</option><option value="next">Öğe sonunda hazırla</option></select></label>
+            <label>Yedek zincir anahtarı · GPO<input maxlength="40" data-em-setting="gpo"></label>
+          </div>
+          <h4 class="em-sub">Sahiplik ve yalıtım</h4>
+          <dl class="em-facts" data-em-ownership></dl>
+          <h4 class="em-sub">Reklam etkisi</h4>
+          <dl class="em-facts em-facts--3" data-em-adverts></dl>
+        </div>
+
+        <div class="em-panel" id="em-panel-silence" role="tabpanel" aria-labelledby="em-tab-silence" data-em-panel="silence" hidden>
+          <label class="em-switch"><input type="checkbox" data-em-setting="silenceEnabled">Sessizlikte otomatik devralma</label>
+          <div class="em-fields em-fields--3">
+            <label>İzlenen nokta<select data-em-setting="monitor"><option value="program">Program çıkışı</option><option value="internet">İnternet dönüşü</option><option value="terrestrial">Karasal dönüş</option><option value="studio">Stüdyo dönüşü</option></select></label>
+            <label>Eşik · dB<input type="number" min="-90" max="0" step="1" data-em-setting="silenceDb"></label>
+            <label>Süre · sn<input type="number" min="1" max="3600" step="1" data-em-setting="silenceSeconds"></label>
+          </div>
+          <ol class="em-ladder" aria-label="Kademeli müdahale">
+            <li><b aria-hidden="true">1</b><label>Süre dolunca<select data-em-setting="fallback"><option value="player">İkinci deck · yedek oynatıcı</option><option value="playlist">Acil liste</option><option value="alarm">Yalnız alarm</option></select></label></li>
+            <li><b aria-hidden="true">2</b><label>Sürerse · sn<input type="number" min="5" max="3600" step="1" data-em-setting="escalateSeconds"></label><label>Sonra<select data-em-setting="escalateTo"><option value="playlist">Acil liste</option><option value="alarm">Yalnız alarm</option><option value="none">Ek işlem yok</option></select></label></li>
+            <li><b aria-hidden="true">3</b><span class="em-ladder-text">İletişim zinciri · <span data-em-contacts-count>0 kişi</span></span></li>
+          </ol>
+          <div class="em-observe">
+            <div class="em-meter" role="meter" aria-label="Ölçülen seviye" aria-valuemin="-90" aria-valuemax="0" data-em-meter><span data-em-meter-bar></span></div><output data-em-meter-value>— dB</output>
+          </div>
+          <dl class="em-facts em-facts--4" data-em-obs></dl>
+          <div class="em-fields">
+            <label>Ses dönünce eşik · dB<input type="number" min="-90" max="0" step="1" data-em-setting="restoreDb"></label>
+            <label>Dönüş süresi · sn<input type="number" min="1" max="600" step="1" data-em-setting="restoreSeconds"></label>
+            <label>Sessiz sayılması<select data-em-setting="channels"><option value="both">İki kanal da</option><option value="any">Herhangi bir kanal</option></select></label>
+            <label>Ölçüm<select data-em-setting="measure"><option value="rms">RMS</option><option value="peak">Tepe</option></select></label>
+            <label>Harici dedektör · GPI<input maxlength="40" data-em-setting="gpi"></label>
+            <div class="em-field-action"><button type="button" disabled>Çıkış provası</button></div>
+          </div>
+          <h4 class="em-sub">Planlı sessizlik</h4>
+          <form class="em-inline-form" data-em-quiet-form>
+            <label>Başlangıç<input type="datetime-local" name="start" required></label>
+            <label>Dakika<input type="number" name="minutes" min="1" max="240" step="1" required></label>
+            <label>Gerekçe<input name="reason" maxlength="80" required></label>
+            <button type="submit">Ekle</button>
+          </form>
+          <ul class="em-mini-list" data-em-quiet-list></ul>
+        </div>
+
+        <div class="em-panel" id="em-panel-alert" role="tabpanel" aria-labelledby="em-tab-alert" data-em-panel="alert" hidden>
+          <ul class="em-mini-list em-alert-list" data-em-alert-list></ul>
+          <form class="em-alert-form" data-em-alert-form>
+            <fieldset class="em-checks"><legend>Amaç</legend>
+              <label class="em-check"><input type="radio" name="purpose" value="test" checked>Test</label>
+              <label class="em-check"><input type="radio" name="purpose" value="actual">Gerçek</label>
+            </fieldset>
+            <div class="em-fields">
+              <label>Başlangıç<input type="datetime-local" name="startsAt" required></label>
+              <label>Bitiş<input type="datetime-local" name="endsAt" required></label>
+              <label>Bölge kodları<input name="geoCodes" maxlength="300" placeholder="TR-34, TR-06"></label>
+              <label>Tekrar · dk<input type="number" name="repeatMinutes" min="0" max="1440" step="1" value="0"></label>
+            </div>
+            <fieldset class="em-checks"><legend>Çıkışlar</legend>
+              <label class="em-check"><input type="checkbox" name="outputs" value="studio" checked>Stüdyo</label>
+              <label class="em-check"><input type="checkbox" name="outputs" value="internet" checked>İnternet</label>
+              <label class="em-check"><input type="checkbox" name="outputs" value="terrestrial" checked>Karasal</label>
+            </fieldset>
+            <label class="em-block">Okunacak metin · TTS<textarea name="text" rows="3" maxlength="4000"></textarea></label>
+            <div class="em-fields">
+              <label>Metin dili<input name="language" maxlength="35" value="tr-TR" pattern="[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}"></label>
+              <label>Ses dosyası / medya kimliği<input name="media" maxlength="120"></label>
+            </div>
+            <div class="em-row"><button type="submit" class="em-primary" data-em-alert-save>Taslağı kaydet</button><button type="button" data-em-alert-new>Yeni</button><button type="button" disabled>Yayına gönder</button></div>
+          </form>
+          <h4 class="em-sub">Haber flaşı · zorunlu kesme</h4>
+          <div class="em-fields em-fields--3">
+            <label>Kesme<select data-em-setting="breakMode"><option value="fade">Kısa fade</option><option value="cut">Anında</option><option value="wait">Öğe bitince</option></select></label>
+            <label>Fade · ms<input type="number" min="0" max="10000" step="50" data-em-setting="breakFadeMs"></label>
+            <label>Sonra<select data-em-setting="breakAfter"><option value="resume">Akışa dön</option><option value="hold">Operatörü bekle</option></select></label>
+          </div>
+        </div>
+
+        <div class="em-panel" id="em-panel-access" role="tabpanel" aria-labelledby="em-tab-access" data-em-panel="access" hidden>
+          <div class="em-fields">
+            <label>Kilitli mod<select data-em-setting="protection"><option value="confirmation">Onaylı pencere</option><option value="password">Parola</option><option value="usb">USB anahtarı</option></select></label>
+            <label>Devralma yetkisi<select data-em-setting="takeoverRole"><option value="shift">Vardiya sorumlusu ve üstü</option><option value="technical">Yalnız teknik yönetici</option></select></label>
+            <label>Ayar yetkisi<select data-em-setting="configRole"><option value="technical">Teknik yönetici</option><option value="shift">Vardiya sorumlusu ve üstü</option></select></label>
+            <div class="em-fact"><span>Bu oturum</span><strong data-em-session-role>—</strong></div>
+          </div>
+          <h4 class="em-sub">USB anahtarları</h4>
+          <form class="em-inline-form" data-em-key-form>
+            <label>Etiket<input name="label" maxlength="60" required></label>
+            <label>Sahibi<input name="owner" maxlength="80" required></label>
+            <button type="submit">Anahtar ekle</button>
+          </form>
+          <ul class="em-mini-list" data-em-key-list></ul>
+          <h4 class="em-sub">Kilit açılamazsa</h4>
+          <div class="em-fields">
+            <label>İkinci yetkili<input maxlength="100" data-em-setting="breakGlassContact"></label>
+            <label>Mühürlü kod yeri<input maxlength="120" data-em-setting="breakGlassLocation"></label>
+          </div>
+        </div>
+
+        <div class="em-panel" id="em-panel-handover" role="tabpanel" aria-labelledby="em-tab-handover" data-em-panel="handover" hidden>
+          <div class="em-fields">
+            <label>Devreden<input maxlength="100" data-em-setting="responsible"></label>
+            <label>Devralan<input maxlength="100" data-em-setting="receiver"></label>
+          </div>
+          <div class="em-fields em-fields--3">
+            <label>Son durum<textarea rows="2" maxlength="600" data-em-setting="lastState"></textarea></label>
+            <label>Yapılan işlem<textarea rows="2" maxlength="600" data-em-setting="actions"></textarea></label>
+            <label>Kalan risk<textarea rows="2" maxlength="600" data-em-setting="risk"></textarea></label>
+          </div>
+          <div class="em-row"><button type="button" class="em-primary" data-em-handover>Devri kaydet</button></div>
+          <h4 class="em-sub">İletişim zinciri</h4>
+          <form class="em-inline-form" data-em-contact-form>
+            <label>Ad<input name="name" maxlength="80" required></label>
+            <label>Görev<input name="role" maxlength="60"></label>
+            <label>Telefon<input name="phone" type="tel" maxlength="30" required></label>
+            <label class="em-check"><input type="checkbox" name="offHours">Mesai dışı</label>
+            <button type="submit">Ekle</button>
+          </form>
+          <ol class="em-mini-list" data-em-contact-list></ol>
+          <h4 class="em-sub">Tatbikat</h4>
+          <dl class="em-facts em-facts--4" data-em-drill-last></dl>
+          <form class="em-drill-form" data-em-drill-form>
+            <div class="em-fields em-fields--4">
+              <label>Tarih<input type="datetime-local" name="at" required></label>
+              <label>Senaryo<select name="scenario"><option value="silence">Sessizlik</option><option value="engine">Motor arızası</option><option value="database">Veritabanı kaybı</option><option value="network">Ağ kaybı</option><option value="audio">Ses çıkışı arızası</option><option value="power">Elektrik kesintisi</option></select></label>
+              <label>Çift ses<select name="double"><option value="no">Yok</option><option value="yes">Var</option></select></label>
+              <label>Sonuç<select name="result"><option value="pass">Başarılı</option><option value="partial">Kısmi</option><option value="fail">Başarısız</option></select></label>
+              <label>Algılama · sn<input type="number" name="detect" min="0" max="86400" step="1" required></label>
+              <label>Karar · sn<input type="number" name="decide" min="0" max="86400" step="1" required></label>
+              <label>Devralma · sn<input type="number" name="takeover" min="0" max="86400" step="1" required></label>
+              <label>Toparlanma · sn<input type="number" name="recover" min="0" max="86400" step="1" required></label>
+              <label>Boşluk · ms<input type="number" name="gapMs" min="0" max="600000" step="1" required></label>
+              <label class="em-span-3">Not<input name="note" maxlength="200"></label>
+            </div>
+            <button type="submit">Tatbikatı kaydet</button>
+          </form>
+          <h4 class="em-sub">Kurtarma hedefleri</h4>
+          <div class="em-fields em-fields--4">
+            <label>Oynatma RTO · sn<input type="number" min="1" max="86400" step="1" data-em-setting="rto"></label>
+            <label>Yayın günlüğü RPO · dk<input type="number" min="0" max="1440" step="1" data-em-setting="rpoLog"></label>
+            <label>Katalog RPO · dk<input type="number" min="0" max="10080" step="1" data-em-setting="rpoCatalog"></label>
+            <label>Ses arşivi RPO · sa<input type="number" min="0" max="720" step="1" data-em-setting="rpoAudio"></label>
+          </div>
+          <h4 class="em-sub">Lisans</h4>
+          <div class="em-fields">
+            <div class="em-fact"><span>Yedek makinede</span><strong data-em-license>—</strong></div>
+            <label>Taşıma / destek dışı saat<textarea rows="2" maxlength="600" data-em-setting="licenseNote"></textarea></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="em-card em-log" aria-labelledby="em-log-title">
+        <header class="em-card-head"><h3 id="em-log-title">İşlem kaydı</h3><div class="em-row"><button type="button" data-emergency-save>Kaydet</button><button type="button" data-emergency-download>İndir</button></div></header>
+        <ol class="em-log-list" data-emergency-audit-list aria-label="İşlem kaydı"></ol>
+      </section>
+    </div>
+  </div>
+</section>

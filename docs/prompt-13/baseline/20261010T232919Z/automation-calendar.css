@@ -1,0 +1,11 @@
+.automation-calendar .automation-workspace { margin:0; }
+.automation-calendar .automation-heading { margin:0 0 8px; }
+.automation-calendar .automation-card { padding:8px; margin:0 0 8px; }
+.automation-calendar .automation-card-heading { margin:0 0 8px; }
+.automation-calendar .automation-rule-bar { margin:0 0 10px; }
+.automation-calendar .automation-fields { margin:8px 0 0; }
+.automation-calendar .automation-help { margin:8px 0 0; }
+.automation-calendar .automation-empty { padding:12px; margin:6px 0; }
+.automation-calendar .automation-preview-table { min-width:0; }
+.automation-calendar .automation-calendar-programme { padding:8px; border:1px solid #21383f; border-radius:6px; }
+.automation-calendar .automation-calendar-autodj { border-left:1px solid #21383f; padding-left:10px; }

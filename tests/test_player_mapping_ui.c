@@ -1,0 +1,325 @@
+#define _POSIX_C_SOURCE 200809L
+#include "radios/window.h"
+#include "radios/audio.h"
+#include "radios/audio_ui.h"
+#include "radios/audio_runner.h"
+#include "radios/media_jobs.h"
+#include "radios/playout_ui.h"
+#include <glib/gstdio.h>
+#include <math.h>
+#include <string.h>
+#include <sys/stat.h>
+
+/* Genuine GTK, authenticated private DB and PCM outputs. No linker wrappers.
+ * The last mixer strip deliberately maps the last normal deck; stereo sample
+ * channels are not the source routing table. */
+static RadioSConfig config;
+static GtkApplication *application;
+static RadioSDataClient *reader;
+typedef struct {
+    RadioSWindow *window;
+    RadioSRuntime *runtime;
+    RadioSViewContext *ctx;
+    GtkWidget *root;
+    RadioSAudioEngine *engine;
+} Window;
+typedef gboolean (*Condition)(gpointer);
+static void pump(void)
+{ while (g_main_context_iteration(NULL, FALSE)) {} g_usleep(1000); }
+static void run_for(guint milliseconds)
+{
+    gint64 deadline = g_get_monotonic_time() + milliseconds * 1000;
+    while (g_get_monotonic_time() < deadline) pump();
+}
+static void wait_until(Condition condition, gpointer value, const gchar *description)
+{
+    gint64 deadline = g_get_monotonic_time() + 15 * G_TIME_SPAN_SECOND;
+    while (!condition(value) && g_get_monotonic_time() < deadline) pump();
+    if (!condition(value)) g_error("Native player mapping timed out: %s", description);
+}
+static gboolean documents_ready(GtkWidget *root)
+{
+    GPtrArray *documents = g_object_get_data(G_OBJECT(root), "radios-data-documents");
+    for (guint i = 0; documents && i < documents->len; ++i)
+        if (!radios_data_document_ready(g_ptr_array_index(documents, i))) return FALSE;
+    if (!GTK_IS_CONTAINER(root)) return TRUE;
+    GList *children = gtk_container_get_children(GTK_CONTAINER(root)); gboolean ready = TRUE;
+    for (GList *item = children; item && ready; item = item->next) ready = documents_ready(item->data);
+    g_list_free(children); return ready;
+}
+static gboolean window_ready(gpointer value)
+{
+    Window *window = value; RadioSAudioSnapshot actual;
+    radios_audio_engine_snapshot(window->engine, &actual);
+    const gchar *names[] = {"RADIOS_TEST_MAIN_SINK", "RADIOS_TEST_CUE_SINK", "RADIOS_TEST_MONITOR_SINK"};
+    for (guint bus = 0; bus < G_N_ELEMENTS(names); ++bus)
+        if (!actual.buses[bus].ready || g_strcmp0(actual.buses[bus].device, g_getenv(names[bus]))) return FALSE;
+    return radios_data_connected(window->ctx) && documents_ready(window->root);
+}
+static Window window_open(void)
+{
+    Window window = {0}; GError *error = NULL;
+    window.runtime = radios_runtime_new(64, 128);
+    window.window = radios_window_new(application, &config, window.runtime, FALSE, NULL, &error);
+    g_assert_no_error(error); g_assert_nonnull(window.window);
+    window.ctx = radios_window_view_context(window.window); g_assert_nonnull(window.ctx);
+    window.root = GTK_WIDGET(window.ctx->parent); radios_window_present(window.window);
+    window.engine = radios_audio_ui_engine_acquire(window.ctx); g_assert_nonnull(window.engine);
+    wait_until(window_ready, &window, "private DB and exact owned null output readiness");
+    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(window.engine, &audio);
+    for (guint deck = 0; deck < RADIOS_AUDIO_DECKS; ++deck)
+        g_assert_cmpint(audio.decks[deck].state, ==, RADIOS_AUDIO_EMPTY);
+    return window;
+}
+static void window_close(Window *window)
+{
+    radios_audio_engine_unref(window->engine);
+    radios_window_free(window->window); radios_runtime_free(window->runtime);
+    while (g_main_context_iteration(NULL, FALSE)) {}
+}
+static void require_call(gboolean result, GError **error)
+{ g_assert_no_error(*error); g_assert_true(result); }
+typedef struct { JsonNode *body, *result; GError *error; const gchar *path; gint done; } Request;
+static gpointer request_work(gpointer value)
+{
+    Request *request = value;
+    request->result = radios_data_client_request_sync(reader, "POST", request->path, request->body, NULL, &request->error);
+    g_atomic_int_set(&request->done, 1); return NULL;
+}
+static gboolean request_done(gpointer value)
+{ return g_atomic_int_get(&((Request *)value)->done) != 0; }
+static JsonNode *request(const gchar *path, JsonNode *body)
+{
+    Request job = {.body = body, .path = path}; GThread *thread = g_thread_new("mapping-DB", request_work, &job);
+    wait_until(request_done, &job, "authenticated DB response"); g_thread_join(thread);
+    g_assert_no_error(job.error); g_assert_nonnull(job.result); return job.result;
+}
+static JsonNode *body_new(void)
+{
+    JsonNode *body = json_node_new(JSON_NODE_OBJECT); json_node_take_object(body, json_object_new());
+    json_object_set_string_member(json_node_get_object(body), "station_id", radios_data_client_station_id(reader)); return body;
+}
+static void write_u16(guchar *bytes, guint16 value)
+{ value = GUINT16_TO_LE(value); memcpy(bytes, &value, sizeof value); }
+static void write_u32(guchar *bytes, guint32 value)
+{ value = GUINT32_TO_LE(value); memcpy(bytes, &value, sizeof value); }
+typedef struct { JsonNode *result; GError *error; guint callbacks, destroyed; } Import;
+static void imported(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    (void)ctx; (void)owner; Import *output = value; ++output->callbacks;
+    if (result) output->result = json_node_copy(result);
+    if (error) output->error = g_error_copy(error);
+}
+static void import_destroyed(gpointer value) { ++((Import *)value)->destroyed; }
+static gboolean import_done(gpointer value) { return ((Import *)value)->destroyed != 0; }
+static JsonNode *media_import(Window *window)
+{
+    guint frames = 48000 * 6 + 31, bytes = frames * 4; guchar *wav = g_malloc(44 + bytes);
+    memcpy(wav, "RIFF", 4); write_u32(wav + 4, 36 + bytes); memcpy(wav + 8, "WAVEfmt ", 8);
+    write_u32(wav + 16, 16); write_u16(wav + 20, 1); write_u16(wav + 22, 2);
+    write_u32(wav + 24, 48000); write_u32(wav + 28, 48000 * 4); write_u16(wav + 32, 4);
+    write_u16(wav + 34, 16); memcpy(wav + 36, "data", 4); write_u32(wav + 40, bytes);
+    for (guint i = 0; i < frames; ++i) {
+        gint16 sample = (gint16)lrint(sin(2 * G_PI * 600 * i / 48000) * 0.25 * 32767);
+        write_u16(wav + 44 + i * 4, (guint16)sample); write_u16(wav + 46 + i * 4, (guint16)sample);
+    }
+    gchar *uuid = g_uuid_string_random(), *name = g_strconcat(uuid, ".wav", NULL);
+    gchar *path = g_build_filename(config.project_root, name, NULL); g_free(uuid); g_free(name);
+    g_assert_true(g_file_set_contents(path, (const gchar *)wav, 44 + bytes, NULL)); g_free(wav);
+    Import output = {0}; GCancellable *handle = radios_media_import_async(window->ctx, window->root, path,
+        "music", "Last strip genuine PCM", imported, &output, import_destroyed);
+    g_assert_nonnull(handle); wait_until(import_done, &output, "verified PCM import");
+    g_assert_no_error(output.error); g_assert_nonnull(output.result); g_assert_cmpuint(output.callbacks, ==, 1);
+    JsonObject *media = json_object_get_object_member(json_node_get_object(output.result), "media");
+    JsonNode *body = body_new(); json_object_set_string_member(json_node_get_object(body), "media_id", radios_json_string(media, "_id", ""));
+    JsonNode *detail = request("/v1/workflows/desktop-media/get", body); json_node_free(body); json_node_free(output.result);
+    JsonObject *version = json_object_get_object_member(json_node_get_object(detail), "version");
+    g_assert_true(json_object_get_boolean_member(version, "verified")); g_assert_true(json_object_get_boolean_member(version, "object_available"));
+    g_assert_cmpint(radios_json_int(version, "duration_ms", 0), ==, 6001);
+    g_assert_true(g_file_test(radios_json_string(version, "managed_path", ""), G_FILE_TEST_IS_REGULAR));
+    g_assert_cmpint(g_unlink(path), ==, 0); g_free(path); g_object_unref(handle); return detail;
+}
+static JsonNode *programme_prepare(JsonNode *detail)
+{
+    JsonObject *media = json_object_get_object_member(json_node_get_object(detail), "media");
+    JsonObject *version = json_object_get_object_member(json_node_get_object(detail), "version");
+    JsonObject *config_json = json_object_new(), *event = json_object_new(); JsonArray *events = json_array_new();
+    gchar *uuid = g_uuid_string_random(); json_object_set_string_member(event, "id", uuid); g_free(uuid);
+    json_object_set_string_member(event, "kind", "music"); json_object_set_string_member(event, "title", "Last strip genuine PCM");
+    json_object_set_string_member(event, "artist", radios_json_string(media, "artist", ""));
+    json_object_set_string_member(event, "album", radios_json_string(media, "album", ""));
+    json_object_set_string_member(event, "start_time", "");
+    json_object_set_string_member(event, "version_label", "Yerel taslak");
+    json_object_set_string_member(event, "primary_file", "");
+    json_object_set_string_member(event, "backup_file", "");
+    json_object_set_string_member(event, "note", "");
+    json_object_set_string_member(event, "media_id", radios_json_string(media, "_id", ""));
+    json_object_set_string_member(event, "version_id", radios_json_string(version, "_id", ""));
+    json_object_set_string_member(event, "media_file_id", radios_json_string(version, "media_file_id", ""));
+    json_object_set_string_member(event, "media_sha256", radios_json_string(version, "sha256", ""));
+    json_object_set_int_member(event, "duration_ms", radios_json_int(version, "duration_ms", 0));
+    json_array_add_object_element(events, event); json_object_set_array_member(config_json, "events", events);
+    json_object_set_string_member(config_json, "title", "High deck routing regression");
+    json_object_set_string_member(config_json, "note", "Native high-deck isolated PCM regression");
+    GDateTime *now = g_date_time_new_now_utc(); gchar *date = g_date_time_format(now, "%Y-%m-%d");
+    json_object_set_string_member(config_json, "date", date); g_free(date); g_date_time_unref(now);
+    JsonNode *body = body_new(); JsonObject *object = json_node_get_object(body);
+    json_object_set_string_member(object, "kind", "programme"); json_object_set_object_member(object, "config", config_json);
+    JsonNode *result = request("/v1/workflows/desktop-playout/prepare", body); json_node_free(body);
+    g_assert_cmpstr(radios_json_string(json_node_get_object(result), "kind", ""), ==, "programme"); return result;
+}
+static void last_strip_only(Window *window)
+{
+    RadioSAudioMixerConfig mixer; GError *error = NULL;
+    g_assert_true(radios_audio_ui_get_mixer(window->ctx, &mixer, NULL, NULL));
+    for (guint channel = 0; channel < G_N_ELEMENTS(mixer.channels); ++channel) {
+        mixer.channels[channel].source_deck = -1; mixer.channels[channel].mute = FALSE;
+        mixer.channels[channel].solo = mixer.channels[channel].pfl = FALSE;
+    }
+    mixer.channels[31].source_deck = 31; mixer.channels[31].gain_db = 0; mixer.channels[31].pan = 0;
+    mixer.channels[31].crossfade_group = 0; mixer.channels[31].fx_slot = -1;
+    require_call(radios_audio_ui_set_mixer(window->ctx, &mixer, &error), &error);
+    for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS; ++deck)
+        require_call(radios_audio_ui_set_deck_main(window->ctx, deck, deck == 31, &error), &error);
+    RadioSAudioSnapshot actual; radios_audio_engine_snapshot(window->engine, &actual);
+    g_assert_cmpint(actual.mixer.channels[31].source_deck, ==, 31);
+    g_assert_true(actual.decks[31].main_routed);
+}
+static goffset capture_offset(void)
+{
+    const gchar *path = g_getenv("RADIOS_TEST_MAIN_CAPTURE"); struct stat status;
+    g_assert_nonnull(path); g_assert_cmpint(g_stat(path, &status), ==, 0); return status.st_size - status.st_size % 8;
+}
+static gdouble measure_main(void)
+{
+    goffset offset = capture_offset(); run_for(300); gchar *bytes = NULL; gsize size = 0;
+    g_assert_true(g_file_get_contents(g_getenv("RADIOS_TEST_MAIN_CAPTURE"), &bytes, &size, NULL));
+    g_assert_cmpuint(size, >, (gsize)offset + 4800 * 8); gdouble peak = 0;
+    for (gsize i = (gsize)offset; i + sizeof(gfloat) <= size; i += sizeof(gfloat)) {
+        gfloat sample; memcpy(&sample, bytes + i, sizeof sample); g_assert_true(isfinite(sample)); peak = MAX(peak, fabs(sample));
+    }
+    g_free(bytes); return peak;
+}
+typedef struct { Window *window; gboolean private; RadioSAudioRunState state; guint64 position; } Run;
+static gboolean run_matches(gpointer value)
+{
+    Run *condition = value; RadioSAudioRunSnapshot actual;
+    if (condition->private) radios_audio_engine_player_runner_snapshot(condition->window->engine, 31, &actual);
+    else radios_audio_engine_runner_snapshot(condition->window->engine, &actual);
+    return actual.state == condition->state && actual.actual_current_frame >= condition->position;
+}
+static RadioSAudioRunSnapshot run_wait(Window *window, gboolean private, RadioSAudioRunState state, guint64 position)
+{
+    Run condition = {window, private, state, position}; wait_until(run_matches, &condition, "actual high-deck runner PCM state");
+    RadioSAudioRunSnapshot actual;
+    if (private) radios_audio_engine_player_runner_snapshot(window->engine, 31, &actual);
+    else radios_audio_engine_runner_snapshot(window->engine, &actual);
+    return actual;
+}
+static void test_private_last_strip(void)
+{
+    Window window = window_open(); JsonNode *detail = media_import(&window), *prepared = programme_prepare(detail);
+    last_strip_only(&window); RadioSViewContext private = *window.ctx;
+    private.playout = radios_playout_ui_new_player(&private, 31, window.root); g_assert_nonnull(private.playout);
+    wait_until(window_ready, &window, "new private history document"); GError *error = NULL;
+    require_call(radios_playout_ui_start_prepared(&private, window.root, json_node_get_object(prepared), 0, &error), &error);
+    RadioSAudioRunSnapshot actual = run_wait(&window, TRUE, RADIOS_AUDIO_RUN_PLAYING, 4800);
+    g_assert_cmpint(actual.deck_current, ==, 31); g_assert_true(actual.owned[31]); g_assert_cmpfloat(measure_main(), >, 0.05);
+    RadioSAudioRunSnapshot global; radios_audio_engine_runner_snapshot(window.engine, &global);
+    g_assert_cmpint(global.state, ==, RADIOS_AUDIO_RUN_IDLE);
+    require_call(radios_playout_ui_action(&private, RADIOS_PLAYOUT_PAUSE, &error), &error);
+    run_wait(&window, TRUE, RADIOS_AUDIO_RUN_PAUSED, 0); run_for(100); g_assert_cmpfloat(measure_main(), <, 0.0001);
+    require_call(radios_playout_ui_action(&private, RADIOS_PLAYOUT_RESUME, &error), &error);
+    run_wait(&window, TRUE, RADIOS_AUDIO_RUN_PLAYING, actual.actual_current_frame + 4800); g_assert_cmpfloat(measure_main(), >, 0.05);
+    require_call(radios_playout_ui_action(&private, RADIOS_PLAYOUT_STOP, &error), &error);
+    run_for(100); g_assert_cmpfloat(measure_main(), <, 0.0001);
+    radios_playout_ui_close(private.playout); radios_playout_ui_unref(private.playout);
+    json_node_free(prepared); json_node_free(detail); window_close(&window);
+}
+static void ensure_last_player_card(Window *window)
+{
+    radios_window_select_profile(window->window, "broadcast");
+    GQueue widgets = G_QUEUE_INIT; g_queue_push_tail(&widgets, window->root); GtkWidget *add = NULL;
+    while (!g_queue_is_empty(&widgets)) {
+        GtkWidget *widget = g_queue_pop_head(&widgets);
+        if (GTK_IS_BUTTON(widget) && !g_strcmp0(gtk_button_get_label(GTK_BUTTON(widget)), "+ Oynatıcı ekle")) add = widget;
+        if (GTK_IS_CONTAINER(widget)) {
+            GList *children = gtk_container_get_children(GTK_CONTAINER(widget));
+            for (GList *item = children; item; item = item->next) g_queue_push_tail(&widgets, item->data);
+            g_list_free(children);
+        }
+    }
+    g_assert_true(GTK_IS_BUTTON(add));
+    for (guint count = 0; !g_object_get_data(G_OBJECT(window->ctx->parent), "radios-deck-owner-31") && count < 32; ++count)
+        g_signal_emit_by_name(add, "clicked");
+    g_assert_nonnull(g_object_get_data(G_OBJECT(window->ctx->parent), "radios-deck-owner-31"));
+}
+static void test_general_last_strip(void)
+{
+    Window window = window_open(); JsonNode *detail = media_import(&window), *prepared = programme_prepare(detail);
+    ensure_last_player_card(&window); last_strip_only(&window); GError *error = NULL;
+    require_call(radios_playout_ui_start_prepared(window.ctx, window.root, json_node_get_object(prepared), 0, &error), &error);
+    RadioSAudioRunSnapshot actual = run_wait(&window, FALSE, RADIOS_AUDIO_RUN_PLAYING, 4800);
+    g_assert_cmpint(actual.deck_current, ==, 31); g_assert_true(actual.owned[31]); g_assert_cmpfloat(measure_main(), >, 0.05);
+    require_call(radios_playout_ui_action(window.ctx, RADIOS_PLAYOUT_STOP, &error), &error);
+    run_for(100); g_assert_cmpfloat(measure_main(), <, 0.0001);
+    json_node_free(prepared); json_node_free(detail); window_close(&window);
+}
+typedef struct { Window *window; RadioSAudioUiState state; guint64 position; } Deck;
+static gboolean deck_matches(gpointer value)
+{
+    Deck *condition = value; RadioSAudioUiSnapshot actual;
+    return radios_audio_ui_get_snapshot(condition->window->ctx, 31, &actual) &&
+        actual.state == condition->state && actual.position_ms >= condition->position;
+}
+static RadioSAudioUiSnapshot deck_wait(Window *window, RadioSAudioUiState state, guint64 position)
+{
+    Deck condition = {window, state, position}; wait_until(deck_matches, &condition, "last manual deck PCM state");
+    RadioSAudioUiSnapshot actual; g_assert_true(radios_audio_ui_get_snapshot(window->ctx, 31, &actual)); return actual;
+}
+static void test_handover_preserves_manual_last_strip(void)
+{
+    Window window = window_open(); JsonNode *detail = media_import(&window), *prepared = programme_prepare(detail);
+    last_strip_only(&window); GError *error = NULL; RadioSAudioMixerConfig mixer;
+    /* A spare low strip makes the old two-strip scan wrongly accept takeover:
+     * rejection must observe the manually playing last strip, not an empty pool. */
+    g_assert_true(radios_audio_ui_get_mixer(window.ctx, &mixer, NULL, NULL));
+    mixer.channels[0].source_deck = 0;
+    require_call(radios_audio_ui_set_mixer(window.ctx, &mixer, &error), &error);
+    require_call(radios_audio_ui_set_deck_main(window.ctx, 0, TRUE, &error), &error);
+    require_call(radios_audio_ui_load_media(window.ctx, window.root, json_node_get_object(detail), 31, FALSE, &error), &error);
+    deck_wait(&window, RADIOS_AUDIO_UI_READY, 0);
+    require_call(radios_audio_ui_play(window.ctx, 31, &error), &error);
+    RadioSAudioUiSnapshot before = deck_wait(&window, RADIOS_AUDIO_UI_PLAYING, 100); RadioSPlayoutResume *resume = NULL;
+    g_assert_false(radios_playout_ui_interrupt_prepared(window.ctx, window.root, json_node_get_object(prepared), &resume, &error));
+    g_assert_error(error, G_IO_ERROR, G_IO_ERROR_FAILED); g_assert_nonnull(strstr(error->message, "MAIN'de elle çalınan kaynak"));
+    g_clear_error(&error); g_assert_null(resume);
+    RadioSAudioUiSnapshot after = deck_wait(&window, RADIOS_AUDIO_UI_PLAYING, before.position_ms + 100);
+    g_assert_cmpuint(after.generation, ==, before.generation); g_assert_cmpstr(after.media_id, ==, before.media_id);
+    g_assert_cmpstr(after.version_id, ==, before.version_id); g_assert_cmpfloat(measure_main(), >, 0.05);
+    require_call(radios_audio_ui_stop(window.ctx, 31, &error), &error);
+    require_call(radios_audio_engine_unload(window.engine, 31, &error), &error); deck_wait(&window, RADIOS_AUDIO_UI_EMPTY, 0);
+    ensure_last_player_card(&window); last_strip_only(&window);
+    require_call(radios_playout_ui_interrupt_prepared(window.ctx, window.root, json_node_get_object(prepared), &resume, &error), &error);
+    g_assert_nonnull(resume); RadioSAudioRunSnapshot actual = run_wait(&window, FALSE, RADIOS_AUDIO_RUN_PLAYING, 4800);
+    g_assert_cmpint(actual.deck_current, ==, 31); g_assert_cmpfloat(measure_main(), >, 0.05);
+    require_call(radios_playout_ui_action(window.ctx, RADIOS_PLAYOUT_STOP, &error), &error);
+    radios_playout_ui_resume_free(resume); json_node_free(prepared); json_node_free(detail); window_close(&window);
+}
+int main(int argc, char **argv)
+{
+    g_assert_cmpint(argc, >=, 2); gchar *root = g_strdup(argv[1]);
+    for (gint i = 1; i < argc; ++i) argv[i] = argv[i + 1];
+    --argc;
+    g_test_init(&argc, &argv, NULL); gtk_init(&argc, &argv);
+    const gchar *main_sink = g_getenv("RADIOS_TEST_MAIN_SINK"); g_assert_nonnull(main_sink);
+    g_assert_true(g_str_has_prefix(main_sink, "radios_gui_")); GError *error = NULL;
+    g_assert_true(radios_config_load(root, NULL, &config, &error)); g_assert_no_error(error); g_free(root);
+    application = gtk_application_new("org.radios.NativePlayerMapping", G_APPLICATION_NON_UNIQUE);
+    g_assert_true(g_application_register(G_APPLICATION(application), NULL, &error)); g_assert_no_error(error);
+    reader = radios_data_client_new(&config, &error); g_assert_no_error(error); g_assert_nonnull(reader);
+    g_test_add_func("/player-mapping/private-last-strip-PCM-pause-resume-stop", test_private_last_strip);
+    g_test_add_func("/player-mapping/general-last-strip-PCM", test_general_last_strip);
+    g_test_add_func("/player-mapping/handover-manual-last-strip-preserved", test_handover_preserves_manual_last_strip);
+    gint result = g_test_run(); radios_data_client_unref(reader); g_object_unref(application); radios_config_clear(&config); return result;
+}

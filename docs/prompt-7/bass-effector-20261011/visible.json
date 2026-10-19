@@ -1,0 +1,23 @@
+{
+  "host_pid": 48395,
+  "exe": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios (deleted)",
+  "process_sha256": "968254fa3b5eadc78e77edfd74c98817ec89f33f640ffea1c30152798473ed10",
+  "x11_backend": true,
+  "window": "0x1600004",
+  "is_viewable": true,
+  "profile": "dj",
+  "utc": "2026-10-11T11:59:52.832276+00:00",
+  "installed_sha256": "968254fa3b5eadc78e77edfd74c98817ec89f33f640ffea1c30152798473ed10",
+  "matches_new_build": true,
+  "window_association": "XResQueryClientIds / XRES_CLIENT_ID_PID_MASK",
+  "xres_client_records": [
+    {
+      "pid": 48395,
+      "client_base": "0x1600000",
+      "mask": 2
+    }
+  ],
+  "xres_status": 0,
+  "requested_profile": "dj",
+  "layout_capture_verification": "private native GTK widget render pending; screen capture obscured or user changed active tab"
+}

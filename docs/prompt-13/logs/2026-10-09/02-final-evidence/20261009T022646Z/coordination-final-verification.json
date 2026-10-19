@@ -1,0 +1,53 @@
+{
+  "recorded_at_utc": "2026-10-09 02:28:32 UTC",
+  "responsible_agent": "/root/p13_coordination_final",
+  "native_current_source_status": "PASS",
+  "native_target_count": 1,
+  "native_case_count": 2,
+  "native_ctest_seconds": "2.52446",
+  "source_sha256_after": {
+    "src/ui/automation_calendar.c": "641b68c93e015fc347ef8248e1ccdfacb58ccd5a8ce6e64db5448ea83dd38a0e",
+    "src/ui/automation.c": "4524d7fbcd3ce84d1064dca329574fc72116ba28503aaaa49e0798fb7d7ee86b",
+    "include/radios/automation_calendar.h": "16e3ec19da6d0dae2ee5b45586b7d11807561a0880023ad2df38bfe3bee846e1",
+    "src/core/automation_calendar_plan.c": "abbddc2a3afe8dc0f8ed04ba42b3b4b4a15bee2ae49220966bd86f350c18b389",
+    "include/radios/automation_calendar_plan.h": "d2a9b67acaa2b3d88709ebdb5da7c10100c3cfdc1f009bb2dafec95c66e2a486",
+    "database/SDBASE/src/sdbase/desktop_automation_calendar.py": "9f2c6235d994c2246aff8a15f0d0eea48ae418eb81de888f32e374d38467ae3c",
+    "database/SDBASE/src/sdbase/desktop_api.py": "827b770ea3c6b1af5167b485f5cc70b42d3caa910ab27db9e528fb0a8e435324",
+    "tests/test_automation_calendar.c": "45c4a130add45fc49d13ea9d0bf8c5b0faf50d3c600c50802a9878ed7307a9df",
+    "tests/run_automation_calendar_ui.py": "4e6177c193aed75d6cb467e48e9df8a24f476e50f1a54d6907a7f361f1baec66",
+    "tests/test_automation_calendar_plan.c": "3a7c628157a7c1b795c0659e6c2b0862b105d60cd52728c5ea61dc75411596db",
+    "tests/test_desktop_automation_calendar.py": "b780b30121dfd8ee4de7ad59e2d16f8884774f93aac21ccd9074ed4213485e65",
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+    "build/prompt13/test_automation_calendar": "87d20298e277552985e6d878ce1eefa28a3f14b5d34b963fa56ff5c98e797c4e"
+  },
+  "observed_current_drift": {},
+  "source_material_sha256": {
+    "prompt/13/13.pdf": "b115f26839f34ff97fb84b885c4d24c0016062aee17b9ee4a7cd1d3a5ac6288a",
+    "prompt/13/figures/sema_1.png": "55a90850dc40b3b137c720831ecd6e20a64437d7767ac9f8c3764ab7657a39ad"
+  },
+  "archived_evidence_sha256": {
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/native-calendar-final-acceptance.json": "0c07be366be53e6caefc2308c68968d4c39842d18393e331fcb73476601c6466",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/p13-native-calendar-final.xml": "c64d185e04153326a23afb226753b712d521e80132872fa3da0819562c6eb181",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/p13-native-calendar-final.log": "e7b2b1130833dcb5fea412ea34d889b5c049e0c4112a9d74c68b292089e99280",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/p13-regression.xml": "d03e44c9b39fa1626115af76f30ae27b6e5c297709067e222e0c4d0acfe49dc3",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/adapter-acceptance.json": "aa9d4fbefc68fe2392ca6acc59fd218f4ef4bee85693023e9e90b64a7e7a02fe",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/legacy-automation-preview-acceptance.json": "efed2a97239e2f81409ea68a9cbd098b0edbc07a0c78ae702a0332817efe3e56",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/legacy-autodj-deck-acceptance.json": "420128dce84696fa223d095d09c3cc2c13196b372f9477b1545d7646bf616827",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/native-calendar.png": "f92dc7330a46824705424ccfd5bac2258d009e6e1e2eaa30c226d2b5eaf97b3b",
+    "docs/prompt-13/logs/2026-10-09/02-final-evidence/20261009T022646Z/production-build-final.json": "e30f6373daad68ae2f88247e1e6b7f0bfb0cf5513cf6c9f2d75a50046c08f025"
+  },
+  "limitations": [
+    "New calendar media preparation and existing planner are tested; physical/new-calendar PCM transport is not tested.",
+    "Adapter ASan/UBSan instruments only new adapter/test translation units.",
+    "Five-target regression and two legacy PCM fixture cases are separate historical evidence; no full-project acceptance is claimed."
+  ],
+  "production_build": {
+    "started_utc": "2026-10-09T02:27:09.681837+00:00",
+    "finished_utc": "2026-10-09T02:27:10.368370+00:00",
+    "exit_code": 0,
+    "binary_sha256": "3683f36b862664e619e9a73b6846683d7963a12e30b8ddecc8af4b7f125e9d61",
+    "scope": "Isolated strict Debug main application build; runtime acceptance is separately recorded."
+  },
+  "final_checkpoint_utc": "2026-10-09 02:29:25 UTC",
+  "post_build_checkpoint_drift": {}
+}

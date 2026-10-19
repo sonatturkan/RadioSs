@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "reviewer_agent": "/root/validation_resume",
+  "scope": "Prompt7 source conformance; no new runtime execution",
+  "review_time_agent_reported_utc": "2026-10-09T02:43:49.603707+00:00",
+  "review_time_agent_reported_context": "Original independently reported source audit preserved as historical audit time; this JSON is recorded later.",
+  "root_clock_record_utc": "2026-10-09T02:46:43Z",
+  "root_clock_record_context": "clock__curr_time tool reading before this evidence recording; distinct from original review time and precise recorded_utc.",
+  "recheck_started_utc": "2026-10-09T02:48:23.523350+00:00",
+  "recheck_completed_utc": "2026-10-09T02:48:23.555141+00:00",
+  "recorded_utc": "2026-10-09T02:48:23.555160+00:00",
+  "project_root": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+  "snapshot_source_root": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/source",
+  "runtime_acceptance_reference": "docs/prompt-7/test-evidence/final-acceptance.json",
+  "current_files": [
+    {
+      "path": "src/ui/broadcast.c",
+      "current_sha256": "658917509c2c95845e8ab48acdec889b11470ca97d7ad77c311d27dce19dfcc8",
+      "snapshot_sha256": "658917509c2c95845e8ab48acdec889b11470ca97d7ad77c311d27dce19dfcc8",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "src/ui/playout_ui.c",
+      "current_sha256": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28",
+      "snapshot_sha256": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "src/ui/media.c",
+      "current_sha256": "2c9f810e39bff907857f61550fd9618737817ef8a5548c71233db097510d7a06",
+      "snapshot_sha256": "2c9f810e39bff907857f61550fd9618737817ef8a5548c71233db097510d7a06",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "src/ui/dj.c",
+      "current_sha256": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "snapshot_sha256": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "include/radios/player_transport.h",
+      "current_sha256": "5dfa88f49f17f79f01bbe152cc9431356c6d732c55943eb27958a9e21ef4c3ba",
+      "snapshot_sha256": "5dfa88f49f17f79f01bbe152cc9431356c6d732c55943eb27958a9e21ef4c3ba",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "src/ui/player_loader.c",
+      "current_sha256": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+      "snapshot_sha256": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+      "whole_file_equal_snapshot": true
+    },
+    {
+      "path": "tests/test_player_mapping_ui.c",
+      "current_sha256": "dcf8641951446bf54a3b8291e75523247c7d581b7e9ffd33a625f05aeb6f0192",
+      "snapshot_sha256": "d417264acb65539758dfe79c9d8f06c5d5b9f603d3bce753254f081a72b12aec",
+      "whole_file_equal_snapshot": false
+    },
+    {
+      "path": "tests/run_player_mapping_ui.py",
+      "current_sha256": "6d326401e290e3361e04a79d84439c5ecc5ac851a6c5425a5fc4b201ed2aecf1",
+      "snapshot_sha256": null,
+      "whole_file_equal_snapshot": null
+    }
+  ],
+  "transport_function_extraction": {
+    "current_file": "src/ui/broadcast.c",
+    "snapshot_file": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/source/src/ui/broadcast.c",
+    "method": "Unique beginning-of-line void/gboolean definition; balanced C braces with string/comment/escape handling; SHA covers exact full definition substring.",
+    "count": 11,
+    "all_byte_equal": true,
+    "functions": [
+      {
+        "function": "player_input_invalidate",
+        "current_sha256": "4aef57f6af095838d92cd23dfb5c2f5bea2f179008818986aecac390f5f9d76d",
+        "snapshot_sha256": "4aef57f6af095838d92cd23dfb5c2f5bea2f179008818986aecac390f5f9d76d",
+        "byte_equal": true
+      },
+      {
+        "function": "player_input_loaded",
+        "current_sha256": "4897ff03c662853b89846a20bd373debdcc6c4d00631f548d4f6dca688bf906c",
+        "snapshot_sha256": "4897ff03c662853b89846a20bd373debdcc6c4d00631f548d4f6dca688bf906c",
+        "byte_equal": true
+      },
+      {
+        "function": "radios_broadcast_player_library_loaded",
+        "current_sha256": "c3e82b5dc11686f04ab7238e1c02bbf7b9ded7146aee9ca3b3e2ca2054b7e4be",
+        "snapshot_sha256": "c3e82b5dc11686f04ab7238e1c02bbf7b9ded7146aee9ca3b3e2ca2054b7e4be",
+        "byte_equal": true
+      },
+      {
+        "function": "player_input_remove",
+        "current_sha256": "d53792f47ac8b7da361038f07798f54116c45d60e8833abc1fe9ed237a18c843",
+        "snapshot_sha256": "d53792f47ac8b7da361038f07798f54116c45d60e8833abc1fe9ed237a18c843",
+        "byte_equal": true
+      },
+      {
+        "function": "player_matched",
+        "current_sha256": "9f6f2f411f9767a3a7391536aa657df04c141ea8b2111c43d740023b4eaddec9",
+        "snapshot_sha256": "9f6f2f411f9767a3a7391536aa657df04c141ea8b2111c43d740023b4eaddec9",
+        "byte_equal": true
+      },
+      {
+        "function": "player_media_ready",
+        "current_sha256": "86941846b2302651a45a6cde7fa79ef0edb4210e7008300ef9fe03d1d2efca10",
+        "snapshot_sha256": "86941846b2302651a45a6cde7fa79ef0edb4210e7008300ef9fe03d1d2efca10",
+        "byte_equal": true
+      },
+      {
+        "function": "player_input_start",
+        "current_sha256": "1c94c9ae948862b9c5e935adfcb878cd8bfaccdd80b56382bdf022dd3719b198",
+        "snapshot_sha256": "1c94c9ae948862b9c5e935adfcb878cd8bfaccdd80b56382bdf022dd3719b198",
+        "byte_equal": true
+      },
+      {
+        "function": "player_audio_action",
+        "current_sha256": "878e290cb779818c3d6d27b096001ac4442eaa63e730a6339d38607f91cf35cd",
+        "snapshot_sha256": "878e290cb779818c3d6d27b096001ac4442eaa63e730a6339d38607f91cf35cd",
+        "byte_equal": true
+      },
+      {
+        "function": "player_loaded",
+        "current_sha256": "6a5329cf92ba465c8347ae5c78e1774fb5dba336c29f5b8381e0a07998903077",
+        "snapshot_sha256": "6a5329cf92ba465c8347ae5c78e1774fb5dba336c29f5b8381e0a07998903077",
+        "byte_equal": true
+      },
+      {
+        "function": "player_clear",
+        "current_sha256": "be8e124e2788df3adb56d7385992d06778cd210756c5990ca24c28bc5f40b5ac",
+        "snapshot_sha256": "be8e124e2788df3adb56d7385992d06778cd210756c5990ca24c28bc5f40b5ac",
+        "byte_equal": true
+      },
+      {
+        "function": "player_metadata_render",
+        "current_sha256": "12e0b35f8cbdf657aadcf4cd5bb0f39a50ceaf00d2ca84e26c9ee5e2e12d271c",
+        "snapshot_sha256": "12e0b35f8cbdf657aadcf4cd5bb0f39a50ceaf00d2ca84e26c9ee5e2e12d271c",
+        "byte_equal": true
+      }
+    ]
+  },
+  "transport_guard_checks": {
+    "pending_eof_loaded_identity_guard": true,
+    "online_finished_not_starting_guard": true,
+    "online_failed_not_starting_guard": true,
+    "invalidation_serial_increment": true,
+    "loaded_current_identity_guard": true,
+    "managed_context_guard_matched": true,
+    "managed_context_guard_media_ready": true
+  },
+  "mixer_mapping_bounds": {
+    "current_file": "src/ui/playout_ui.c",
+    "mixer_channels_32_loop_count": 4,
+    "stereo_channels_2_loop_count": 0,
+    "context": "Three corrected mapping bounds plus the originally correct AutoDJ bound.",
+    "passed": true
+  },
+  "successful_library_load_hooks": {
+    "media_transport_header": true,
+    "media_successful_load_hook": true,
+    "dj_transport_header": true,
+    "dj_successful_load_nonmaster_first_statement_hook": true
+  },
+  "frozen_source_hashes": {
+    "src/ui/player_loader.c": {
+      "expected_sha256": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+      "current_sha256": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+      "equal": true
+    },
+    "tests/test_player_mapping_ui.c": {
+      "expected_sha256": "dcf8641951446bf54a3b8291e75523247c7d581b7e9ffd33a625f05aeb6f0192",
+      "current_sha256": "dcf8641951446bf54a3b8291e75523247c7d581b7e9ffd33a625f05aeb6f0192",
+      "equal": true
+    },
+    "tests/run_player_mapping_ui.py": {
+      "expected_sha256": "6d326401e290e3361e04a79d84439c5ecc5ac851a6c5425a5fc4b201ed2aecf1",
+      "current_sha256": "6d326401e290e3361e04a79d84439c5ecc5ac851a6c5425a5fc4b201ed2aecf1",
+      "equal": true
+    }
+  },
+  "current_read_before_after_equal": true,
+  "audit_tool_corrections": [
+    {
+      "stage": "Original 02:43 source audit",
+      "detail": "Broad extractor matched call lines; corrected to unique definition lines plus lexical brace parsing. Then 11 body comparisons passed."
+    },
+    {
+      "stage": "Final JSON preparation before any output write",
+      "detail": "First assertion-only attempt named RADIOS_BROADCAST_ONLINE_FINISHED/FAILED and radios_playout_context_is_managed, which do not exist in this source. Four guard checks failed. Corrected to actual RADIOS_YOUTUBE_MUSIC_FINISHED/FAILED and player_managed_context(player); all seven guard checks passed. No C/test/source or JSON was written by failed attempt."
+    }
+  ],
+  "all_own_source_test_and_adapter_writes_released": true,
+  "production_source_changed_by_this_record": false,
+  "this_record_only_new_output": "docs/prompt-7/test-evidence/final-source-review.json",
+  "current_mutable_others_not_accepted": true,
+  "acceptance_limits": [
+    "Named Prompt7 bodies, guards, hooks and frozen fixture hashes only; unrelated current shared files are not accepted.",
+    "Runtime evidence is 31 plus corrected 3 on the same captured production archives in two phases; not a single successful four-target CTest run.",
+    "No physical audio hardware, live online provider, production database, deployment or installed binary validation claim."
+  ],
+  "passed": true,
+  "issues": []
+}

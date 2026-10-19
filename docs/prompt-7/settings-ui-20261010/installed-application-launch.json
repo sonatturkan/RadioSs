@@ -1,0 +1,14 @@
+{
+  "launcher_pid": 111659,
+  "new_window_ids": [
+    "0x1600004"
+  ],
+  "processes": [
+    {
+      "host_pid": 111676,
+      "exe": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios",
+      "sha256": "5becacf9f998120c890d729793a3d1bc5b788e0beb76de13a7df701b9075306b"
+    }
+  ],
+  "utc": "2026-10-10T23:55:20.422582+00:00"
+}

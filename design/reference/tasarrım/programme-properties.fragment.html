@@ -1,0 +1,14 @@
+<!-- PROGRAMME PROPERTIES: programme-item-editor formunda öğe notundan önce -->
+<fieldset class="programme-preparation-fields">
+    <legend>Sürüm ve hazırlık · Yerel beyan</legend>
+    <p class="programme-dialog-note">Bu seçimler taslak içindir. Ana ve yedek sistemde dosya doğrulaması henüz yapılmaz.</p>
+    <div class="programme-dialog-fields">
+        <div><label for="programme-item-version">İçerik sürümü</label><input id="programme-item-version" name="version" type="text" maxlength="32" required autocomplete="off" placeholder="v1"></div>
+        <div><label for="programme-item-readiness">Hazırlık durumu</label><select id="programme-item-readiness" name="readiness"><option value="pending">Kontrol bekliyor</option><option value="ready">Hazır · yerel beyan</option><option value="missing">Dosya eksik</option><option value="approval">Onay bekliyor</option><option value="invalid">Geçersiz reklam</option><option value="locked">Kilitli</option></select></div>
+    </div>
+    <div class="programme-dialog-fields">
+        <div><label for="programme-item-primary">Ana sistem dosyası</label><select id="programme-item-primary" name="primaryState"><option value="unknown">Bilinmiyor</option><option value="present">Mevcut · yerel beyan</option><option value="missing">Eksik</option></select></div>
+        <div><label for="programme-item-backup">Yedek sistem dosyası</label><select id="programme-item-backup" name="backupState"><option value="unknown">Bilinmiyor</option><option value="present">Mevcut · yerel beyan</option><option value="missing">Eksik</option></select></div>
+    </div>
+</fieldset>
+<!-- /PROGRAMME PROPERTIES -->

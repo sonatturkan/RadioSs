@@ -1,0 +1,29 @@
+# C derleme ve paket çıktıları
+/build/*
+!/build/.gitkeep
+/dist/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Çalışma verileri kaynak kodla sürümlenmez
+/data/**
+!/data/README.md
+!/data/*/
+!/data/*/.gitkeep
+
+# Yerel kullanıcı ayarı ve kimlik bilgileri
+/config/radios.ini
+/config/ui-preferences.ini
+/config/*.local.ini
+/config/credentials*
+/.env
+
+# Python yalnız SDBASE ve geliştirme araçlarında kullanılır
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/

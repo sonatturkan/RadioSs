@@ -1,0 +1,118 @@
+{
+  "session": "prompt6",
+  "updated_at_utc": "2026-10-09 02:57:33 UTC",
+  "status": "COMPLETE",
+  "all_required_scope6_work_complete": true,
+  "active_agents_at_final_audit": 4,
+  "max_concurrent_agents": 4,
+  "requirements": {
+    "P6-R1": "ACCEPTED: four usable effects; legacy fifth neutralized",
+    "P6-R2": "ACCEPTED: restrained equal pedal boxes, existing controls preserved",
+    "P6-R3": "ACCEPTED: Bas konuş, real PCM and keyboard/lifecycle/ownership"
+  },
+  "latest_native_dj": {
+    "actual_exit": 0,
+    "seconds": 65.92,
+    "tap_plan": 9,
+    "positive_cases": 9,
+    "bad_or_skip_cases": 0,
+    "display": "127.0.0.1:199",
+    "test_sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "all_nine_hashes_stable_during_test": true,
+    "current_source_and_private_test_binary_eight_hashes_equal": true,
+    "tap": "build/prompt6-acceptance/evidence/final-ack-native-dj-tap.log",
+    "manifest": "build/prompt6-acceptance/evidence/final-ack-test-after.json"
+  },
+  "other_verification": {
+    "post_guard_native_audio": "8/8 actual per-case CLI PASS",
+    "post_guard_asan_ubsan": "2/2 actual PASS migration7.57s/PTT14.32s; GUI global leak check disabled, halt_on_error on",
+    "dsp_window": "2/2 PASS3.70s fatal-warnings",
+    "private_release_config_app": "Strict build/config/privateDB-Pulse-assets app smoke PASS; repeated after guard",
+    "production_cursor_invariants": "Actual function4/6 controls PASS after ROOT1 fix; not full thread timing replay"
+  },
+  "visual": {
+    "status": "PASS",
+    "pdf_ui_at_utc": "2026-10-09 02:50:29 UTC",
+    "root_review": "PASS",
+    "latest_idle_utc": "2026-10-09T02:49:19.147873+00:00",
+    "latest_held_utc": "2026-10-09T02:49:32.125226+00:00",
+    "source_figures_match": true
+  },
+  "independent_data_core_audit": {
+    "at_utc": "2026-10-09 02:50:53 UTC",
+    "status": "PASS exactTAP9/PCM/before-after-current9 at audit"
+  },
+  "cleanup": {
+    "utc": "2026-10-09T02:50:41.516680+00:00",
+    "responsible": "/root",
+    "status": "COMPLETE",
+    "owned_resources": {
+      "Xvfb196_197": "already absent when resumed02:19; verified earlier",
+      "Xvfb198_exec92567": "naturally timeout124, gone02:41",
+      "Xvfb199_old_exec11631": "CTRL-C exit0; hostabsence verified before restart",
+      "Xvfb199_final_exec58909": "CTRL-C exit0; hostabsence independently verified"
+    },
+    "host199_ps_exit": 1,
+    "host199_ps_output": "",
+    "scope": "Only session-owned display and private test fixtures. No unrelated display/Pulse service termination."
+  },
+  "ownership": {
+    "dj_css": "RELEASED2026-10-09 02:50:29 UTC",
+    "test_dj_ui": "RELEASED2026-10-09 02:50:53 UTC",
+    "audio_ui": "Serial handoff scope11 accepted01:59:04; no later P6writes",
+    "default_binary": "Serial handoff P5 ACK02:19:22; no P6writes",
+    "engine": "ROOT1 authored guard02:28:57; no P6sourcewrites",
+    "records": "docs/prompt-6 solewriter /root/coordination"
+  },
+  "validated_default_deployment": {
+    "writer": "P5/root",
+    "installed_at_utc": "2026-10-09 02:35:19 UTC",
+    "sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "ui_css_source_inclusion_verified": true,
+    "scope": "Dated install receipt and stable finaltest snapshot"
+  },
+  "post_test_default_binary_observation": {
+    "observed_at_utc": "2026-10-09 02:55:41 UTC",
+    "path": "build/radios",
+    "sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "mtime_utc": "2026-10-09T02:52:11.489118+00:00",
+    "tested_default_sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "changed_after_verified_test": true,
+    "writer_attribution": "RESOLVED authorized PROMPT12/root atomicinstall after P5release; verifiedroot02:54:36",
+    "effect_on_scope6_acceptance": "Does not change dated stable9 test proof or current unchanged8 source/private-test-binary evidence"
+  },
+  "pending": [],
+  "current_blockers": [],
+  "next": [],
+  "scope_limits": [
+    "Only RadioS prompt6 PDF and figures requirements closed",
+    "No claim all RadioS/other14PDF sessions/allCTest tested or completed",
+    "Historical failures/interrupted/wrong-display/zero-test outputs preserved and excluded",
+    "Later authorized P12 defaultinstall verified separately; dated nativeDJ test still references b157"
+  ],
+  "history": [
+    "history/",
+    "events.jsonl",
+    "logs/2026-10-09-01.md",
+    "logs/2026-10-09-02.md"
+  ],
+  "current_default_installation": {
+    "writer": "PROMPT12/root after P5 serialrelease",
+    "installed_at_utc": "2026-10-09 02:52:11 UTC",
+    "sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "status": "VERIFIED PASS",
+    "proof": "build/prompt6-acceptance/evidence/final-current-default-verification.json",
+    "proof_at_utc": "2026-10-09 02:54:36 UTC",
+    "receipt": "docs/prompt-12/review/default-install-receipt.json",
+    "receipt_sha256": "10abc23851b7271d50ed991005be61a189635718194193dc6cb65905bce07e9d",
+    "p6_primary_source_release_install_current_match": true,
+    "dated_previous_b157_test_proof_retained": true
+  },
+  "ptt_test_scope": "Real PCM/key/focus/grab/unmap/lifetime and unavailable MAIN output press denial; no physical Pulse/server disconnect while held claimed",
+  "final_durable_record_consistency": {
+    "data_core": "PASS final02:56:20 records",
+    "pdf_ui": "PASS2026-10-09 02:57:00 UTC records",
+    "coordination": "PASS JSON/JSONL/currentstates/scope/provenance",
+    "stale_pending_claims": false
+  }
+}

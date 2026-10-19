@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-11T11:53:37.614422+00:00",
+  "installed_binary": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios",
+  "binary_sha256": "968254fa3b5eadc78e77edfd74c98817ec89f33f640ffea1c30152798473ed10",
+  "previous_sha256": "388227f4681b703f7e9893758cc332ff45476aad5b7cccefadcd27fba406643d",
+  "backup": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios.before-microphone-fx-20261011-115337",
+  "source_count": 448,
+  "matches_verified_candidate": true
+}

@@ -1,0 +1,288 @@
+/* Native GTK3 styles for the calendar playlist builder and Properties panel. */
+.radios .automation-calendar {
+    padding: 0;
+    background-color: #202529;
+    color: #dce8ec;
+    font-size: 13px;
+}
+.radios .automation-calendar .automation-calendar-workspace {
+    background-color: #202529;
+    border: 1px solid #3c4a52;
+    border-radius: 8px;
+}
+.radios .automation-calendar .ac-calendar-bar,
+.radios .automation-calendar .ac-selection-bar {
+    background-color: #292f34;
+    padding: 10px 12px;
+    border-bottom: 1px solid #3d4951;
+}
+.radios .automation-calendar .ac-selection-bar { background-color: #242b30; }
+.radios .automation-calendar .ac-selection-bar label { color: #bcdae3; font-size: 12px; }
+.radios .automation-calendar .ac-side-panel {
+    background-color: #252c31;
+    border: 1px solid #43525b;
+    border-radius: 8px;
+}
+.radios .automation-calendar .ac-programme-editor { padding: 12px 14px; }
+.radios .automation-calendar .ac-panel-heading {
+    padding: 10px 14px;
+    border-bottom: 1px solid #455159;
+}
+.radios .automation-calendar #automation-calendar-detail-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f0f9fc;
+}
+.radios .automation-calendar #automation-calendar-detail-subtitle {
+    font-size: 12px;
+    color: #9fb7c2;
+}
+.radios .automation-calendar .ac-programme-identity { padding: 4px 0; }
+.radios .automation-calendar .ac-panel-facts {
+    background-color: #20282d;
+    border: 1px solid #414e57;
+    border-radius: 5px;
+    padding: 10px;
+    color: #a9c5d0;
+}
+.radios .automation-calendar .ac-rotation-heading {
+    padding: 6px 0 3px;
+    color: #d9f5fc;
+    font-size: 14px;
+    font-weight: 600;
+}
+.radios .automation-calendar #automation-calendar-rotation-count {
+    font-size: 11px;
+    font-weight: 400;
+    color: #85bbc8;
+}
+.radios .automation-calendar .ac-rotation-actions { padding: 5px 0; }
+.radios .automation-calendar .ac-panel-footer {
+    padding-top: 8px;
+    border-top: 1px solid #43535b;
+}
+.radios .automation-calendar .ac-empty-state { padding: 28px 18px; }
+.radios .automation-calendar .ac-empty-state label { color: #a3bcc7; }
+.radios .automation-calendar .ac-empty-icon { color: #42c5df; font-size: 34px; }
+.radios .automation-calendar button {
+    background-image: none;
+    background-color: #34434c;
+    color: #dcebf0;
+    border-color: #546670;
+    min-height: 22px;
+    padding: 6px 9px;
+    font-size: 12px;
+}
+.radios .automation-calendar button:hover {
+    background-color: #3a5260;
+    border-color: #78b9ca;
+}
+.radios .automation-calendar button:disabled {
+    background-color: #2b3338;
+    border-color: #3b4850;
+    color: #778f9a;
+}
+.radios .automation-calendar button.task-primary,
+.radios .automation-calendar #automation-calendar-save-selection,
+.radios .automation-calendar #automation-calendar-define-rotation {
+    background-color: #097f99;
+    border-color: #13b2d0;
+    color: #effcff;
+}
+.radios .automation-calendar button.task-primary:hover,
+.radios .automation-calendar #automation-calendar-save-selection:hover,
+.radios .automation-calendar #automation-calendar-define-rotation:hover {
+    background-color: #0a99b4;
+}
+.radios .automation-calendar button.task-primary:disabled,
+.radios .automation-calendar #automation-calendar-save-selection:disabled,
+.radios .automation-calendar #automation-calendar-define-rotation:disabled {
+    background-color: #274854;
+    border-color: #3b626f;
+    color: #86a7b4;
+}
+.radios .automation-calendar entry,
+.radios .automation-calendar spinbutton,
+.radios .automation-calendar combobox button {
+    background-color: #192127;
+    color: #deedf3;
+    border-color: #536570;
+    min-height: 24px;
+}
+.radios .automation-calendar entry:focus,
+.radios .automation-calendar spinbutton:focus {
+    border-color: #35bfdc;
+}
+.radios .automation-calendar combobox { padding: 0; }
+.radios .automation-calendar checkbutton { color: #c6dce5; font-size: 12px; }
+.radios .automation-calendar checkbutton check:checked {
+    background-color: #0b93ae;
+    border-color: #42c8e0;
+    color: #f6fcff;
+}
+.radios .automation-calendar treeview {
+    background-color: #1a2329;
+    color: #cce0e8;
+    font-size: 12px;
+}
+.radios .automation-calendar treeview header button {
+    background-color: #33414a;
+    color: #a7c6d2;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: 0;
+    font-size: 11px;
+}
+.radios .automation-calendar treeview:selected {
+    background-color: #146b7d;
+    color: #f1fcff;
+}
+.radios .automation-calendar .automation-status,
+.radios .automation-calendar #automation-calendar-status {
+    color: #a8c8d4;
+    padding: 8px 10px;
+    font-size: 11px;
+}
+/* Week navigation and autosave status belong to the builder toolbar. */
+.radios .automation-calendar .ac-week-range,
+.radios .automation-calendar #automation-calendar-week-range {
+    color: #d0e9f0;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 4px;
+}
+.radios .automation-calendar .ac-save-status,
+.radios .automation-calendar #automation-calendar-save-status {
+    color: #9fbec9;
+    font-size: 11px;
+    padding: 0 3px;
+}
+/* Date and start/end fields fit side by side inside the Properties panel. */
+.radios .automation-calendar .ac-time-fields {
+    padding: 4px 0;
+}
+.radios .automation-calendar .ac-time-fields label {
+    color: #a7c2ce;
+    font-size: 11px;
+}
+.radios .automation-calendar .ac-time-fields entry,
+.radios .automation-calendar .ac-time-fields spinbutton {
+    min-height: 22px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+/* GTK popups are separate widget trees, so use the explicit menu classes. */
+.radios.automation-calendar-menu {
+    background-color: #20292f;
+    color: #dcebf0;
+    border: 1px solid #4c626d;
+    border-radius: 5px;
+    padding: 5px;
+    font-size: 12px;
+}
+.radios.automation-calendar-menu menuitem {
+    background-color: transparent;
+    color: #dcebf0;
+    border-radius: 3px;
+    padding: 7px 12px;
+}
+.radios.automation-calendar-menu menuitem:hover,
+.radios.automation-calendar-menu menuitem:selected {
+    background-color: #146b7d;
+    color: #f1fcff;
+}
+.radios.automation-calendar-menu menuitem:disabled {
+    color: #78929f;
+}
+.radios.automation-calendar-menu separator {
+    background-color: #42545f;
+    min-height: 1px;
+    margin: 4px 5px;
+}
+
+
+/* Rotation selection and atomic song policies follow the calendar palette. */
+.radios .automation-calendar .re-selection-bar {
+    background-color: #2b3a42;
+    border: 1px solid #4a6875;
+    border-radius: 5px;
+    padding: 8px;
+}
+.radios .automation-calendar .re-policy-panel {
+    background-color: #252f35;
+    border: 1px solid #425b67;
+    border-radius: 5px;
+    padding: 9px;
+}
+.radios .automation-calendar .re-heading { color: #d7f4fc; font-weight: 600; }
+.radios .automation-calendar .re-caption { color: #a9c6d2; font-size: 12px; }
+
+/* Keep the route and rule controls visibly reachable in short dialogs. */
+.radios .automation-calendar #rotation-editor-scroll scrollbar {
+    background-color: #1b252b;
+}
+.radios .automation-calendar #rotation-editor-scroll scrollbar slider {
+    background-color: #558897;
+    min-width: 10px;
+    min-height: 10px;
+}
+
+#automation-calendar-tabs > header { background-color: #20292e; border-bottom: 1px solid #3e5964; }
+#automation-calendar-tabs > header tabs tab { min-width: 100px; min-height: 32px; padding: 6px 12px; color: #b9cfd8; }
+#automation-calendar-tabs > header tabs tab:checked { background-color: #263942; border-bottom: 2px solid #00c7e5; color: #edf9fd; }
+#weekly-programme-workspace { background-color: #1a262c; padding: 8px; }
+
+/* The programme inspector has three short tasks; secondary fields stay closed. */
+.radios .automation-calendar .ac-programme-editor { padding: 12px; }
+.radios .automation-calendar .ac-simple-section {
+    background-color: #1d292f;
+    border: 1px solid #3a4c56;
+    border-radius: 8px;
+    padding: 11px;
+}
+.radios .automation-calendar .ac-section-title {
+    color: #e4f4f8;
+    font-size: 14px;
+    font-weight: 600;
+    padding-bottom: 2px;
+}
+.radios .automation-calendar .ac-rotation-heading { padding: 0; }
+.radios .automation-calendar .ac-programme-identity { padding: 0; }
+.radios .automation-calendar .ac-simple-section .ac-panel-footer {
+    border: 0;
+    padding-top: 0;
+}
+.radios .automation-calendar .ac-simple-section treeview header button {
+    background-color: #2b3a42;
+    padding: 7px;
+}
+.radios .automation-calendar .ac-simple-section entry {
+    border-radius: 5px;
+    min-height: 26px;
+}
+.radios .automation-calendar .ac-simple-section expander {
+    color: #9fb9c4;
+    font-size: 12px;
+}
+.radios .automation-calendar .ac-details-body { padding-top: 10px; }
+.radios .automation-calendar .ac-library-expander {
+    border-top: 1px solid #3a4c56;
+    color: #b8d3dc;
+    padding: 12px 14px;
+}
+.radios .automation-calendar .ac-library-picker { padding-top: 10px; }
+.radios .automation-calendar .ac-inline-settings {
+    background-color: #20292f;
+    border: 1px solid #40545f;
+    border-radius: 8px;
+}
+.radios .automation-calendar .ac-inline-heading {
+    background-color: #26363e;
+    border-bottom: 1px solid #40545f;
+    padding: 12px 14px;
+}
+.radios .automation-calendar .ac-inline-heading .heading {
+    color: #e4f4f8;
+    font-size: 18px;
+    font-weight: 600;
+}

@@ -1,0 +1,16 @@
+{
+  "started_utc": "2026-10-09T02:07:23.060117+00:00",
+  "finished_utc": "2026-10-09T02:07:29.585183+00:00",
+  "command": [
+    "cmake",
+    "--build",
+    "build-prompt-14",
+    "--target",
+    "radios",
+    "test_online_services_ui",
+    "test_youtube_music_ui",
+    "--parallel",
+    "2"
+  ],
+  "exit_code": 0
+}

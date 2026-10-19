@@ -1,0 +1,4165 @@
+#include "radios/views.h"
+#include "radios/widgets.h"
+#include "radios/editors.h"
+#include "radios/data.h"
+#include "radios/media_ui.h"
+#include "radios/audio_ui.h"
+#include "radios/playout_ui.h"
+#include "radios/broadcast_output_ui.h"
+#include "radios/programme_lifecycle.h"
+#include "radios/broadcast_online.h"
+#include "radios/online_services_ui.h"
+#include "radios/youtube_music_client.h"
+#include "radios/programme_model.h"
+#include "radios/programme_queue.h"
+#include "radios/player_loader.h"
+#include "radios/player_waveform.h"
+#include "radios/official_player.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+/* Where catalogue content goes (design: "Seçili içeriğin sonrasına ekle",
+ * "Seçili içeriği değiştir", "Event sonuna ekle"). */
+typedef enum { QUEUE_INSERT, QUEUE_REPLACE, QUEUE_APPEND } QueueMode;
+
+typedef struct BroadcastView BroadcastView;
+typedef struct {
+    BroadcastView *view;
+    RadioSViewContext context;
+    RadioSDocument *document;
+    JsonNode *config;
+    gchar *selected;
+    guint slot, transition;
+    gdouble overlap;
+    gboolean initialized;
+} PlayerQueue;
+
+struct BroadcastView {
+    RadioSViewContext *ctx;
+    GtkWidget *players;
+    GtkWidget *player_count;
+    GtkWidget *query;
+    GtkWidget *right_stack, *catalog_content, *playlist_panel;
+    guint player_sequence;
+    GtkWidget *page, *queue_table, *catalog_table, *catalog_count, *catalog_field, *catalog_edit;
+    GtkWidget *catalog_insert, *catalog_replace, *catalog_status, *programme_archive;
+    GtkWidget *programme_library, *programme_library_load, *programme_archive_dialog;
+    GtkWidget *catalog_source, *catalog_title, *catalog_details[4], *catalog_all, *catalog_music, *queue_count, *queue_duration, *placement;
+    GtkWidget *catalog_sources[4], *catalog_source_summary;
+    guint catalog_source_mask, catalog_pending;
+    gboolean catalog_unified;
+    GCancellable *catalog_cancel;
+    JsonNode *catalog_results[4];
+    gchar *catalog_errors[4];
+    gboolean catalog_switching;
+    QueueMode queue_mode;
+    RadioSBroadcastOnline *online;
+    JsonNode *catalog_records;
+    JsonNode *programme_library_records;
+    guint catalogue_intent, programme_library_generation;
+    gboolean catalogue_busy;
+    const gchar *catalog_kind;
+    guint catalog_generation;
+    RadioSDocument *programme_document, *channel_document;
+    JsonNode *programme_config;
+    gchar *selected_event;
+    gboolean loading, rendering;
+    GtkWidget *transition_mode, *transition_overlap, *playout_status, *schedule;
+    GtkWidget *transport[5];
+    GtkWidget *programme_title, *programme_date, *timing_title, *timing_target, *timing_policy;
+    guint playout_timer;
+    guint history_timer, history_count;
+    GtkWidget *queue_player;
+    PlayerQueue queues[33];
+    RadioSViewContext lifecycle_context;
+    guint queue_slot, queue_timer;
+    gboolean queue_switching;
+    GtkWidget *history_table;
+    gchar *history_latest;
+    gboolean disposed;
+};
+
+static void programme_render(BroadcastView *view);
+static void programme_save(GtkButton *button_widget, gpointer data);
+static void broadcast_refresh(RadioSViewContext *ctx, GtkWidget *owner);
+static void programme_transport(GtkButton *button, gpointer data);
+static void programme_schedule(GtkButton *button, gpointer data);
+static gboolean programme_playout_tick(gpointer data);
+static void catalog_actions_update(BroadcastView *view);
+static void programme_library_refresh(GtkWidget *widget, gpointer data);
+static void playlist_refresh(BroadcastView *view);
+static gboolean playlist_drop(BroadcastView *view, const gchar *payload, RadioSProgrammePlacement placement);
+static void playlist_open(BroadcastView *view, const gchar *id);
+static void catalog_playlist_open(BroadcastView *view, JsonObject *playlist);
+static void queue_selector_refresh(BroadcastView *view);
+
+static RadioSViewContext *programme_context(BroadcastView *view)
+{ return view->queue_slot ? &view->queues[view->queue_slot].context : view->ctx; }
+
+static void queue_binding(BroadcastView *view, JsonObject *config)
+{
+    if (view->queue_slot) {
+        json_object_set_int_member(config, "queue_player", view->queue_slot);
+        json_object_set_int_member(config, "queue_transition", MAX(0, gtk_combo_box_get_active(GTK_COMBO_BOX(view->transition_mode))));
+        json_object_set_double_member(config, "queue_overlap", 0);
+    } else {
+        json_object_remove_member(config, "queue_player");
+        json_object_remove_member(config, "queue_transition");
+        json_object_remove_member(config, "queue_overlap");
+    }
+}
+
+static JsonNode *programme_copy(JsonNode *node)
+{
+    JsonGenerator *generator = json_generator_new(); json_generator_set_root(generator, node);
+    gchar *text = json_generator_to_data(generator, NULL); JsonParser *parser = json_parser_new();
+    JsonNode *copy = json_parser_load_from_data(parser, text, -1, NULL) ? json_node_copy(json_parser_get_root(parser)) : NULL;
+    g_free(text); g_object_unref(generator); g_object_unref(parser); return copy;
+}
+static void programme_media_picked(RadioSViewContext *ctx, GtkWidget *dialog, JsonObject *detail, gpointer data)
+{
+    (void)data; JsonObject *media = json_object_get_object_member(detail, "media"), *version = json_object_get_object_member(detail, "version");
+    GtkWidget *status = g_object_get_data(G_OBJECT(dialog), "broadcast-status");
+    if (!media || !version || !g_str_equal(radios_json_string(media, "station_id", ""), radios_data_station_id(ctx)) ||
+        !json_object_get_boolean_member(version, "verified") || !json_object_get_boolean_member(version, "object_available")) {
+        gtk_label_set_text(GTK_LABEL(status), "Erişilebilir ve doğrulanmış kütüphane medyası seçin."); return;
+    }
+    JsonObject *binding = json_object_new(); const gchar *keys[] = {"media_id", "version_id", "media_file_id", "media_sha256"};
+    const gchar *values[] = {radios_json_string(media, "_id", ""), radios_json_string(version, "_id", ""),
+        radios_json_string(version, "media_file_id", ""), radios_json_string(version, "sha256", "")};
+    for (guint i = 0; i < G_N_ELEMENTS(keys); ++i) json_object_set_string_member(binding, keys[i], values[i]);
+    g_object_set_data_full(G_OBJECT(dialog), "programme-media-binding", binding, (GDestroyNotify)json_object_unref);
+    const gchar *metadata[] = {"title", "artist", "album"}, *fields[] = {"programme-item-title", "programme-item-artist", "programme-item-album"};
+    for (guint i = 0; i < G_N_ELEMENTS(fields); ++i)
+        gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), fields[i])), radios_json_string(media, metadata[i], ""));
+    gint64 *milliseconds = g_new(gint64, 1); *milliseconds = radios_json_int(version, "duration_ms", 0);
+    gchar *duration = g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, *milliseconds / 60000, (*milliseconds / 1000) % 60);
+    g_object_set_data_full(G_OBJECT(dialog), "programme-original-duration-ms", milliseconds, g_free);
+    g_object_set_data_full(G_OBJECT(dialog), "programme-original-duration", g_strdup(duration), g_free);
+    GtkWidget *input = g_object_get_data(G_OBJECT(dialog), "programme-item-duration"); gtk_entry_set_text(GTK_ENTRY(input), duration); gtk_widget_set_sensitive(input, FALSE); g_free(duration);
+    const gchar *kinds[] = {"music", "announcement", "advertisement", "jingle", "program", "sweeper", "news", "effect", "voice_track", "other"};
+    for (guint i = 0; i < G_N_ELEMENTS(kinds); ++i) if (g_str_equal(kinds[i], radios_json_string(media, "kind", "")))
+        gtk_combo_box_set_active(GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "programme-item-type")), (gint)i);
+    gtk_label_set_text(GTK_LABEL(status), "Doğrulanmış medya seçildi. Kaydet ile program öğesine bağlayın.");
+}
+static void programme_media_open(GtkButton *button, gpointer data)
+{
+    (void)button; GtkWidget *dialog = data; BroadcastView *view = g_object_get_data(G_OBJECT(dialog), "programme-view");
+    if (!view->disposed) radios_media_library_pick(view->ctx, dialog, programme_media_picked, NULL);
+}
+
+static void programme_notice(BroadcastView *view, const gchar *message)
+{ if (view->ctx->notify) view->ctx->notify(view->ctx->notify_data, message); }
+
+static RadioSProgrammeTree *programme_tree(BroadcastView *view)
+{ return radios_programme_tree_new(json_node_get_object(view->programme_config)); }
+
+/* Playback index of the selected content, or of the selected event's first content. */
+static gint programme_selected(BroadcastView *view)
+{
+    if (!view->selected_event || !view->programme_config) return -1;
+    RadioSProgrammeTree *tree = programme_tree(view);
+    gint index = radios_programme_tree_leaf_index(tree, view->selected_event);
+    radios_programme_tree_free(tree); return index;
+}
+/* The selected flow item: its event and content (-1 for the event itself). */
+static gboolean programme_item(BroadcastView *view, RadioSProgrammeTree *tree, guint *block, gint *leaf)
+{ return view->selected_event && radios_programme_tree_find(tree, view->selected_event, block, leaf); }
+static gboolean programme_leaf_selected(BroadcastView *view)
+{
+    if (!view->selected_event || !view->programme_config) return FALSE;
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    gboolean selected = programme_item(view, tree, &block, &leaf) && leaf >= 0;
+    radios_programme_tree_free(tree); return selected;
+}
+
+static gboolean catalogue_save(BroadcastView *view, JsonNode *next);
+/* Inserts leaves (the tree takes references) at placement; a new event takes
+ * kind, else the shared kind of its contents ("program" when mixed). Returns its index. */
+static guint programme_place(RadioSProgrammeTree *tree, RadioSProgrammePlacement placement, GPtrArray *leaves,
+    const gchar *kind, const gchar *title)
+{
+    guint block = placement.block >= 0 ? (guint)placement.block : G_MAXUINT, position = placement.position;
+    if (block >= tree->blocks->len) {
+        if (!kind) kind = leaves->len ? radios_json_string(g_ptr_array_index(leaves, 0), "kind", "music") : "music";
+        for (guint i = 1; i < leaves->len; ++i)
+            if (g_strcmp0(kind, radios_json_string(g_ptr_array_index(leaves, i), "kind", "music"))) kind = "program";
+        block = MIN(position, tree->blocks->len);
+        radios_programme_tree_add_block(tree, block, kind, title);
+        position = 0;
+    }
+    for (guint i = 0; i < leaves->len; ++i)
+        radios_programme_tree_insert(tree, block, position + i, json_object_ref(g_ptr_array_index(leaves, i)));
+    return block;
+}
+/* Saves an edited tree (consumed) as the draft; select stays selected. */
+static gboolean programme_commit(BroadcastView *view, RadioSProgrammeTree *tree, const gchar *select)
+{
+    gchar *keep = g_strdup(select);
+    JsonNode *next = radios_programme_tree_config(tree, json_node_get_object(view->programme_config));
+    radios_programme_tree_free(tree);
+    if (keep && g_strcmp0(keep, view->selected_event)) { g_free(view->selected_event); view->selected_event = g_strdup(keep); }
+    g_free(keep);
+    return catalogue_save(view, next);
+}
+/* Where catalogue content goes in the current mode: after the selected
+ * content, at the end of the selected event, or as a new event at the end. */
+static RadioSProgrammePlacement programme_target(BroadcastView *view, RadioSProgrammeTree *tree)
+{
+    RadioSProgrammePlacement placement = {-1, tree->blocks->len}; guint block = 0; gint leaf = -1;
+    if (!programme_item(view, tree, &block, &leaf)) return placement;
+    placement.block = (gint)block;
+    placement.position = view->queue_mode == QUEUE_INSERT && leaf >= 0 ? (guint)leaf + 1 :
+        ((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->leaves->len;
+    return placement;
+}
+
+static void placement_update(BroadcastView *view);
+static void queue_selected(gpointer data, const gchar *id)
+{
+    BroadcastView *view = data;
+    if (view->disposed) return;
+    if (g_strcmp0(view->selected_event, id)) { g_free(view->selected_event); view->selected_event = g_strdup(id); }
+    placement_update(view); catalog_actions_update(view);
+    /* ▶ starts at the selection: a YouTube Music content there is prepared now. */
+    RadioSProgrammeTree *tree = programme_tree(view); gint index = id ? radios_programme_tree_leaf_index(tree, id) : -1;
+    JsonObject *leaf = index >= 0 ? radios_programme_tree_leaf_at(tree, (guint)index, NULL) : NULL;
+    if (leaf && json_object_has_member(leaf, "online_id")) radios_broadcast_online_prepare(view->online, radios_json_string(leaf, "online_id", ""), FALSE);
+    radios_programme_tree_free(tree);
+}
+
+static gboolean programme_can_change(BroadcastView *view)
+{
+    if (!view->programme_document || !radios_data_connected(view->ctx) || !radios_data_document_ready(view->programme_document)) {
+        programme_notice(view, "Program kaydı ve veri bağlantısı hazır değil; seçiminiz ve girdileriniz korunuyor."); return FALSE;
+    }
+    return TRUE;
+}
+
+RadioSDocument *radios_broadcast_programme_document(RadioSViewContext *ctx)
+{
+    if (!ctx || !ctx->parent) return NULL;
+    BroadcastView *view = g_object_get_data(G_OBJECT(ctx->parent), "radios-broadcast-context");
+    return view && !view->disposed ? view->programme_document : NULL;
+}
+
+gboolean radios_broadcast_append_playlist(RadioSViewContext *ctx, JsonArray *tracks, GError **error)
+{ return radios_broadcast_append_event(ctx, tracks, NULL, error); }
+
+/* Verified tracks become one new event at the end of the flow. */
+static gboolean append_tracks(RadioSViewContext *ctx, JsonArray *tracks, const RadioSProgrammePlacement *placement,
+    const gchar *title, GError **error);
+gboolean radios_broadcast_append_event(RadioSViewContext *ctx, JsonArray *tracks, const gchar *title, GError **error)
+{ return append_tracks(ctx, tracks, NULL, title, error); }
+/* Verified tracks (prepare rows) enter the flow at placement, or as one new
+ * event at the end when placement is NULL. */
+static gboolean append_tracks(RadioSViewContext *ctx, JsonArray *tracks, const RadioSProgrammePlacement *placement,
+    const gchar *title, GError **error)
+{
+    BroadcastView *view = g_object_get_data(G_OBJECT(ctx->parent), "radios-broadcast-context");
+    if (!view || view->disposed || !programme_can_change(view)) {
+        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "Program kaydı ve veri bağlantısı hazır değil."); return FALSE;
+    }
+    if (!tracks || !json_array_get_length(tracks)) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "Aktarılacak doğrulanmış öğe seçilmedi."); return FALSE; }
+    RadioSProgrammeTree *tree = programme_tree(view);
+    if (radios_programme_tree_leaf_count(tree) + json_array_get_length(tracks) > 5000) {
+        radios_programme_tree_free(tree); g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NO_SPACE, "Program en fazla 5000 öğe içerebilir."); return FALSE;
+    }
+    GPtrArray *leaves = g_ptr_array_new_with_free_func((GDestroyNotify)json_object_unref);
+    const gchar *binding_keys[] = {"media_id", "version_id", "media_file_id", "media_sha256"};
+    for (guint i = 0; i < json_array_get_length(tracks); ++i) {
+        JsonObject *row = json_array_get_object_element(tracks, i);
+        JsonObject *metadata = json_object_has_member(row, "metadata") ? json_object_get_object_member(row, "metadata") : row;
+        JsonNode *detail_node = json_object_get_member(row, "detail"); JsonObject *detail = detail_node && JSON_NODE_HOLDS_OBJECT(detail_node) ? json_node_get_object(detail_node) : NULL;
+        JsonObject *media = detail ? json_object_get_object_member(detail, "media") : NULL, *version = detail ? json_object_get_object_member(detail, "version") : NULL;
+        const gchar *binding[] = {media ? radios_json_string(media, "_id", "") : radios_json_string(row, "media_id", ""),
+            version ? radios_json_string(version, "_id", "") : radios_json_string(row, "version_id", ""),
+            version ? radios_json_string(version, "media_file_id", "") : radios_json_string(row, "media_file_id", ""),
+            version ? radios_json_string(version, "sha256", "") : radios_json_string(row, "media_sha256", "")};
+        gboolean valid = g_uuid_string_is_valid(binding[0]) && g_uuid_string_is_valid(binding[1]) && g_uuid_string_is_valid(binding[2]) && strlen(binding[3]) == 64;
+        for (guint j = 0; valid && binding[3][j]; ++j) valid = g_ascii_isdigit(binding[3][j]) || (binding[3][j] >= 'a' && binding[3][j] <= 'f');
+        if (json_object_has_member(row, "eligible") && !json_object_get_boolean_member(row, "eligible")) valid = FALSE;
+        if (media && !g_str_equal(radios_json_string(media, "station_id", ""), radios_data_station_id(ctx))) valid = FALSE;
+        if (version && (!json_object_get_boolean_member(version, "verified") || !json_object_get_boolean_member(version, "object_available"))) valid = FALSE;
+        if (!valid) {
+            g_ptr_array_unref(leaves); radios_programme_tree_free(tree);
+            g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "Seçilen öğelerden biri doğrulanmış medyaya bağlı değil; önce kütüphaneden medya seçin."); return FALSE;
+        }
+        JsonObject *event = json_object_new(); gchar *id = g_uuid_string_random(); json_object_set_string_member(event, "id", id); g_free(id);
+        const gchar *keys[] = {"title", "artist", "album"}; const glong limits[] = {160,120,120};
+        for (guint j = 0; j < G_N_ELEMENTS(keys); ++j) {
+            const gchar *value = radios_json_string(metadata, keys[j], ""); gchar *text = g_utf8_substring(value, 0, MIN(g_utf8_strlen(value, -1), limits[j]));
+            json_object_set_string_member(event, keys[j], text); g_free(text);
+        }
+        const gchar *kind = radios_json_string(media, "kind", radios_json_string(metadata, "kind", "music"));
+        json_object_set_string_member(event, "kind", radios_programme_kind_valid(kind) ? kind : "music");
+        json_object_set_int_member(event, "duration_ms", version ? radios_json_int(version, "duration_ms", 0) : radios_json_int(metadata, "duration_ms", 0));
+        json_object_set_string_member(event, "start_time", ""); json_object_set_string_member(event, "version_label", "Taslak");
+        json_object_set_string_member(event, "primary_file", ""); json_object_set_string_member(event, "backup_file", ""); json_object_set_string_member(event, "note", "");
+        for (guint j = 0; j < G_N_ELEMENTS(binding_keys); ++j) json_object_set_string_member(event, binding_keys[j], binding[j]);
+        g_ptr_array_add(leaves, event);
+    }
+    RadioSProgrammePlacement end = {-1, tree->blocks->len};
+    programme_place(tree, placement ? *placement : end, leaves, NULL, title);
+    gchar *first = placement && placement->block >= 0 ? g_strdup(radios_json_string(g_ptr_array_index(leaves, 0), "id", "")) : NULL;
+    g_ptr_array_unref(leaves);
+    gboolean queued = programme_commit(view, tree, first); g_free(first);
+    if (!queued) g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY, "Program kaydı tamamlanamadı; mevcut sıra korunuyor.");
+    return queued;
+}
+
+static BroadcastView *broadcast_context(RadioSViewContext *ctx)
+{ return g_object_get_data(G_OBJECT(ctx->parent), "radios-broadcast-context"); }
+static gchar *field_value(GtkWidget *dialog, const gchar *id)
+{
+    GtkWidget *field = g_object_get_data(G_OBJECT(dialog), id);
+    if (!field) return g_strdup("");
+    if (GTK_IS_TEXT_VIEW(field)) {
+        GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(field)); GtkTextIter a, b;
+        gtk_text_buffer_get_bounds(buffer, &a, &b); return gtk_text_buffer_get_text(buffer, &a, &b, FALSE);
+    }
+    return g_strdup(GTK_IS_ENTRY(field) ? gtk_entry_get_text(GTK_ENTRY(field)) : "");
+}
+static void object_field(JsonObject *object, const gchar *key, GtkWidget *dialog, const gchar *id)
+{ gchar *value = field_value(dialog, id); json_object_set_string_member(object, key, value); g_free(value); }
+static void programme_apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer data)
+{
+    (void)ctx; (void)owner; PlayerQueue *queue = data; BroadcastView *view = queue->view;
+    if (view->disposed) return;
+    if (queue->slot && radios_json_int(config, "queue_player", 0) != queue->slot) {
+        programme_notice(view, "Oynatıcı sırasının kayıt kimliği uyuşmuyor; kayıt yüklenmedi."); return;
+    }
+    g_clear_pointer(&queue->config, json_node_free);
+    queue->config = json_node_new(JSON_NODE_OBJECT); json_node_set_object(queue->config, config);
+    if (queue->slot) { queue->transition = (guint)radios_json_int(config, "queue_transition", 0); queue->overlap = 0; }
+    if (queue->slot != view->queue_slot) return;
+    g_clear_pointer(&view->programme_config, json_node_free);
+    view->programme_config = programme_copy(queue->config);
+    view->queue_switching = TRUE;
+    gtk_combo_box_set_active(GTK_COMBO_BOX(view->transition_mode), (gint)queue->transition);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(view->transition_overlap), queue->overlap);
+    view->queue_switching = FALSE;
+    programme_render(view);
+}
+static void broadcast_free(gpointer data)
+{
+    BroadcastView *view = data;
+    g_clear_pointer(&view->programme_config, json_node_free); g_clear_pointer(&view->catalog_records, json_node_free);
+    g_clear_pointer(&view->programme_library_records, json_node_free); g_clear_object(&view->catalog_cancel);
+    for (guint index = 0; index < 4; ++index) { g_clear_pointer(&view->catalog_results[index], json_node_free); g_free(view->catalog_errors[index]); }
+    for (guint index = 0; index < G_N_ELEMENTS(view->queues); ++index) {
+        g_clear_pointer(&view->queues[index].config, json_node_free); g_free(view->queues[index].selected);
+    }
+    g_free(view->selected_event); g_free(view->history_latest); g_free(view);
+}
+static void programme_render(BroadcastView *view)
+{
+    if (!view->queue_table || !view->programme_config) return;
+    view->rendering = TRUE;
+    JsonObject *config = json_node_get_object(view->programme_config);
+    JsonArray *events = json_object_get_array_member(config, "events");
+    if (view->programme_title) {
+        gtk_label_set_text(GTK_LABEL(view->programme_title), radios_json_string(config, "title", ""));
+        gtk_widget_set_tooltip_text(view->programme_title, radios_json_string(config, "title", ""));
+    }
+    if (view->programme_date) gtk_label_set_text(GTK_LABEL(view->programme_date), radios_json_string(config, "date", ""));
+    if (view->timing_target) {
+        JsonObject *timing = json_object_has_member(config, "timing") ? json_object_get_object_member(config, "timing") : NULL;
+        gchar *target = g_strdup_printf("Hedef saat  %s", radios_json_string(timing, "target_time", "—:—")); gtk_label_set_text(GTK_LABEL(view->timing_target), target); g_free(target);
+        const gchar *title = "Kesin saatli olay  —";
+        for (guint i = 0; timing && events && i < json_array_get_length(events); ++i) {
+            JsonObject *event = json_array_get_object_element(events, i);
+            if (g_str_equal(radios_json_string(timing, "event_id", ""), radios_json_string(event, "id", ""))) title = radios_json_string(event, "title", "");
+        }
+        gtk_label_set_text(GTK_LABEL(view->timing_title), title);
+        gchar *policy = timing ? g_strdup_printf("Davranış  %s · %.0f sn", g_str_equal(radios_json_string(timing, "policy", "cut"), "cut") ? "Hedef saatte kes" : "Bitmesini bekle", radios_json_int(timing, "max_wait_ms", 0) / 1000.0) : g_strdup("Davranış  —");
+        gtk_label_set_text(GTK_LABEL(view->timing_policy), policy); g_free(policy);
+    }
+    RadioSProgrammeTree *tree = radios_programme_tree_new(config); gint64 total = 0;
+    if (view->selected_event && !radios_programme_tree_find(tree, view->selected_event, NULL, NULL)) g_clear_pointer(&view->selected_event, g_free);
+    for (guint i = 0; i < tree->blocks->len; ++i) total += radios_programme_block_duration(g_ptr_array_index(tree->blocks, i));
+    if (view->queue_count) {
+        gchar *count = g_strdup_printf("%u event · %u içerik", tree->blocks->len, radios_programme_tree_leaf_count(tree));
+        gtk_label_set_text(GTK_LABEL(view->queue_count), count); g_free(count);
+    }
+    if (view->queue_duration) {
+        gint64 seconds = (total + 500) / 1000;
+        gchar *duration = !total ? g_strdup("—") : seconds >= 3600 ?
+            g_strdup_printf("%" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, seconds / 3600, seconds / 60 % 60, seconds % 60) :
+            g_strdup_printf("%" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, seconds / 60, seconds % 60);
+        gtk_label_set_text(GTK_LABEL(view->queue_duration), duration); g_free(duration);
+    }
+    JsonArray *prepared = json_array_new();
+    for (guint position = 0; position < radios_programme_tree_leaf_count(tree); ++position)
+        json_array_add_object_element(prepared, json_object_ref(radios_programme_tree_leaf_at(tree, position, NULL)));
+    radios_broadcast_online_prepare_items(view->online, prepared, TRUE); json_array_unref(prepared);
+    radios_programme_tree_free(tree);
+    radios_programme_queue_render(view->queue_table, config, view->selected_event);
+    view->rendering = FALSE;
+    placement_update(view);
+    catalog_actions_update(view);
+}
+
+static void placement_update(BroadcastView *view)
+{
+    if (!view->placement || !view->programme_config) return;
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1; gchar *text;
+    if (programme_item(view, tree, &block, &leaf)) {
+        const gchar *mode = view->queue_mode == QUEUE_REPLACE ? "Seçili içeriği değiştir" :
+            view->queue_mode == QUEUE_INSERT && leaf >= 0 ? "Seçili içeriğin sonrasına ekle" : "Event sonuna ekle";
+        text = g_strdup_printf("Event: %s · %s", radios_json_string(((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->block, "title", ""), mode);
+    } else text = g_strdup(view->queue_mode == QUEUE_REPLACE ? "Seçili içeriği değiştir" : "Sona yeni event olarak ekle");
+    gtk_label_set_text(GTK_LABEL(view->placement), text); g_free(text);
+    radios_programme_tree_free(tree);
+}
+static void programme_save(GtkButton *button_widget, gpointer data)
+{
+    (void)button_widget; BroadcastView *view = data;
+    if (view && view->programme_config) queue_binding(view, json_node_get_object(view->programme_config));
+    if (view && view->programme_document) radios_data_document_save(view->programme_document, view->programme_config);
+}
+/* Starts the programme flow at a playback index (▶ or a row's S). YouTube
+ * Music events and contents without audio need the part-by-part flow. */
+static void programme_start(BroadcastView *view, guint start)
+{
+    RadioSViewContext *context = programme_context(view);
+    if (view->disposed || !context->playout) return;
+    GError *error = NULL; JsonObject *config = json_node_get_object(view->programme_config);
+    guint mode = (guint)MAX(0, gtk_combo_box_get_active(GTK_COMBO_BOX(view->transition_mode)));
+    gdouble overlap = gtk_spin_button_get_value(GTK_SPIN_BUTTON(view->transition_overlap));
+    gboolean accepted;
+    if (view->queue_slot && radios_broadcast_online_flow_needed(config)) {
+        programme_notice(view, "Çevrimiçi ses ortak yayın yolunu kullanır. Bağımsız oynatıcı sırasına doğrulanmış yerel medya ekleyin; diğer sıralar durdurulmadı."); return;
+    }
+    if (radios_broadcast_online_flow_needed(config)) accepted = radios_broadcast_online_flow_start(view->online, config, start, mode, overlap, &error);
+    else {
+        if (!view->queue_slot) radios_broadcast_online_flow_stop(view->online);
+        accepted = radios_playout_ui_start_programme(context, view->page, config, start, mode, overlap, &error);
+    }
+    if (accepted) radios_programme_queue_reset_progress(view->queue_table);
+    else programme_notice(view, error ? error->message : "Yayın sırası komutu kabul edilmedi.");
+    g_clear_error(&error);
+}
+static void programme_transport(GtkButton *button, gpointer data)
+{
+    BroadcastView *view = data; RadioSViewContext *context = programme_context(view); if (view->disposed || !context->playout) return;
+    guint action = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(button), "programme-transport-action")); GError *error = NULL;
+    const RadioSPlayoutAction flow_actions[] = {RADIOS_PLAYOUT_PREVIOUS, RADIOS_PLAYOUT_RESUME, RADIOS_PLAYOUT_PAUSE, RADIOS_PLAYOUT_STOP, RADIOS_PLAYOUT_NEXT};
+    if (!view->queue_slot && radios_broadcast_online_flow_running(view->online)) {
+        RadioSBroadcastFlowStatus flow; radios_broadcast_online_flow_status(view->online, &flow);
+        if (action == 1 && !flow.paused && !flow.waiting) { programme_start(view, (guint)MAX(0, programme_selected(view))); return; }
+        if (!radios_broadcast_online_flow_action(view->online, flow_actions[action], &error))
+            programme_notice(view, error ? error->message : "Yayın sırası komutu kabul edilmedi.");
+        g_clear_error(&error); return;
+    }
+    RadioSPlayoutSnapshot snapshot = {0}; radios_playout_ui_get_snapshot(context, &snapshot); gboolean accepted;
+    if (action == 1 && snapshot.state == RADIOS_PLAYOUT_PAUSED) accepted = radios_playout_ui_action(context, RADIOS_PLAYOUT_RESUME, &error);
+    else if (action == 1) { programme_start(view, (guint)MAX(0, programme_selected(view))); return; }
+    else {
+        const RadioSPlayoutAction actions[] = {RADIOS_PLAYOUT_PREVIOUS, RADIOS_PLAYOUT_RESUME, RADIOS_PLAYOUT_PAUSE, RADIOS_PLAYOUT_STOP, RADIOS_PLAYOUT_NEXT};
+        accepted = radios_playout_ui_action(context, actions[action], &error);
+    }
+    if (!accepted) programme_notice(view, error ? error->message : "Yayın sırası komutu kabul edilmedi.");
+    g_clear_error(&error);
+}
+static void programme_schedule(GtkButton *button, gpointer data)
+{
+    (void)button; BroadcastView *view = data; RadioSViewContext *context = programme_context(view); if (view->disposed || !context->playout) return;
+    JsonObject *config = json_node_get_object(view->programme_config);
+    if (view->queue_slot && radios_broadcast_online_flow_needed(config)) {
+        programme_notice(view, "Bağımsız oynatıcıda saatli başlatma doğrulanmış yerel medya gerektirir."); return;
+    }
+    JsonObject *timing = json_object_has_member(config, "timing") ? json_object_get_object_member(config, "timing") : NULL;
+    const gchar *date = radios_json_string(config, "date", ""), *time = radios_json_string(timing, "start_time", "");
+    gchar *iso = g_strdup_printf("%sT%s:00Z", date, time); GDateTime *start = g_date_time_new_from_iso8601(iso, NULL); g_free(iso);
+    if (!start) { programme_notice(view, "Program tarihi ve UTC başlangıç saatini ayarlayın."); return; }
+    GError *error = NULL; gboolean accepted;
+    guint mode = (guint)MAX(0, gtk_combo_box_get_active(GTK_COMBO_BOX(view->transition_mode)));
+    gdouble overlap = gtk_spin_button_get_value(GTK_SPIN_BUTTON(view->transition_overlap));
+    if (radios_broadcast_online_flow_needed(config))
+        accepted = radios_broadcast_online_flow_schedule(view->online, config, g_date_time_to_unix(start) * G_USEC_PER_SEC, mode, overlap, &error);
+    else {
+        if (!view->queue_slot) radios_broadcast_online_flow_stop(view->online);
+        accepted = radios_playout_ui_schedule_programme(context, view->page, config, g_date_time_to_unix(start) * 1000, mode, overlap, &error);
+    }
+    if (accepted) radios_programme_queue_reset_progress(view->queue_table);
+    else programme_notice(view, error ? error->message : "Saatli başlatma kabul edilmedi.");
+    g_clear_error(&error); g_date_time_unref(start);
+}
+static gboolean programme_playout_tick(gpointer data)
+{
+    BroadcastView *view = data; if (view->disposed) return G_SOURCE_REMOVE;
+    RadioSBroadcastFlowStatus flow; radios_broadcast_online_flow_status(view->online, &flow);
+    if (!view->queue_slot && (flow.running || flow.text[0])) {
+        gtk_label_set_text(GTK_LABEL(view->playout_status), flow.text);
+        gtk_widget_set_sensitive(view->transport[0], flow.running && flow.can_previous);
+        gtk_widget_set_sensitive(view->transport[1], radios_data_connected(view->ctx));
+        gtk_widget_set_sensitive(view->transport[2], flow.running && flow.can_pause);
+        gtk_widget_set_sensitive(view->transport[3], flow.running);
+        gtk_widget_set_sensitive(view->transport[4], flow.running && flow.can_next);
+        radios_programme_queue_set_progress(view->queue_table, flow.running && flow.playing[0] ? flow.playing : NULL,
+            flow.next[0] ? flow.next : NULL, flow.position_ms, flow.duration_ms, flow.paused);
+        JsonArray *completed = radios_broadcast_online_flow_take_completed(view->online);
+        for (guint i = 0; i < json_array_get_length(completed); ++i)
+            radios_programme_queue_complete(view->queue_table, json_array_get_string_element(completed, i));
+        json_array_unref(completed);
+        return G_SOURCE_CONTINUE;
+    }
+    RadioSPlayoutSnapshot snapshot = {0}; if (!radios_playout_ui_get_snapshot(programme_context(view), &snapshot)) return G_SOURCE_CONTINUE;
+    gboolean sounding = snapshot.state == RADIOS_PLAYOUT_PLAYING || snapshot.state == RADIOS_PLAYOUT_OVERLAP ||
+        snapshot.state == RADIOS_PLAYOUT_PAUSED || snapshot.state == RADIOS_PLAYOUT_WAITING || snapshot.state == RADIOS_PLAYOUT_MANUAL_WAIT;
+    radios_programme_queue_set_progress(view->queue_table, sounding && snapshot.entry_id[0] ? snapshot.entry_id : NULL,
+        sounding && snapshot.next_entry_id[0] ? snapshot.next_entry_id : NULL,
+        snapshot.position_ms - MIN(snapshot.position_ms, snapshot.cue_in_ms),
+        snapshot.duration_ms - MIN(snapshot.duration_ms, snapshot.cue_in_ms), snapshot.state == RADIOS_PLAYOUT_PAUSED);
+    JsonArray *completed = radios_playout_ui_take_completed(programme_context(view));
+    for (guint i = 0; i < json_array_get_length(completed); ++i)
+        radios_programme_queue_complete(view->queue_table, json_array_get_string_element(completed, i));
+    json_array_unref(completed);
+    gchar *text = snapshot.error[0] ? g_strdup(snapshot.error) : g_strdup_printf("%s · %u/%u · %s · %02" G_GUINT64_FORMAT ":%02" G_GUINT64_FORMAT,
+        radios_playout_ui_state_name(snapshot.state), snapshot.total ? snapshot.index + 1 : 0, snapshot.total, snapshot.title,
+        snapshot.position_ms / 60000, (snapshot.position_ms / 1000) % 60);
+    gtk_label_set_text(GTK_LABEL(view->playout_status), text); g_free(text);
+    gboolean active = snapshot.state != RADIOS_PLAYOUT_IDLE && snapshot.state != RADIOS_PLAYOUT_FINISHED && snapshot.state != RADIOS_PLAYOUT_ERROR;
+    gtk_widget_set_sensitive(view->transport[2], snapshot.state == RADIOS_PLAYOUT_PLAYING || snapshot.state == RADIOS_PLAYOUT_OVERLAP);
+    gtk_widget_set_sensitive(view->transport[3], active); gtk_widget_set_sensitive(view->transport[0], active && snapshot.index > 0);
+    gtk_widget_set_sensitive(view->transport[4], active && snapshot.index + 1 < snapshot.total);
+    gtk_widget_set_sensitive(view->transport[1], radios_data_connected(view->ctx) && snapshot.state != RADIOS_PLAYOUT_PREPARING);
+    return G_SOURCE_CONTINUE;
+}
+static void programme_destroyed(GtkWidget *widget, gpointer data)
+{
+    (void)widget; BroadcastView *view = data; view->disposed = TRUE;
+    if (view->catalog_cancel) g_cancellable_cancel(view->catalog_cancel);
+    if (view->playout_timer) { g_source_remove(view->playout_timer); view->playout_timer = 0; }
+    if (view->history_timer) { g_source_remove(view->history_timer); view->history_timer = 0; }
+    if (view->queue_timer) { g_source_remove(view->queue_timer); view->queue_timer = 0; }
+    for (guint index = 1; index < G_N_ELEMENTS(view->queues); ++index) {
+        radios_playout_ui_close(view->queues[index].context.playout);
+        radios_playout_ui_unref(view->queues[index].context.playout); view->queues[index].context.playout = NULL;
+    }
+    g_object_set_data(G_OBJECT(view->ctx->parent), "radios-broadcast-context", NULL);
+}
+
+static const gchar *const programme_fields[] = {
+    "Program adı", "Program tarihi", "Program notu", NULL
+};
+static const gchar *const event_fields[] = {
+    "İçerik başlığı", "Sanatçı", "Albüm", "Öğe türü", "Başlangıç saati",
+    "Süre (mm:ss)", "İçerik sürümü", "Hazırlık durumu", "Ana sistem dosyası",
+    "Yedek sistem dosyası", "Öğe notu", NULL
+};
+static const gchar *const timing_fields[] = {
+    "Hedef olay", "Program başlangıcı (UTC)", "Hedef saat (UTC)",
+    "Hedef saatte davranış", "En fazla bekleme (saniye)", NULL
+};
+
+typedef struct {
+    RadioSViewContext *ctx;
+    gchar *title;
+    const gchar *const *fields;
+} BroadcastForm;
+
+static void broadcast_form_open(GtkButton *button, gpointer data);
+
+static void
+add_class(GtkWidget *widget, const gchar *name)
+{
+    gtk_style_context_add_class(gtk_widget_get_style_context(widget), name);
+}
+static void
+remove_class(GtkWidget *widget, const gchar *name)
+{
+    gtk_style_context_remove_class(gtk_widget_get_style_context(widget), name);
+}
+
+static void
+pack(GtkWidget *box, GtkWidget *child, gboolean expand)
+{
+    gtk_box_pack_start(GTK_BOX(box), child, expand, expand, 0);
+}
+
+static GtkWidget *
+button(GtkWidget *box, const gchar *text, const gchar *style,
+       RadioSViewContext *ctx, const gchar *notice)
+{
+    GtkWidget *widget = radios_ui_button(text);
+    if (style != NULL)
+        add_class(widget, style);
+    if (notice != NULL)
+        radios_ui_bind_notice(widget, ctx, notice);
+    pack(box, widget, FALSE);
+    return widget;
+}
+
+static GtkWidget *
+form_button(GtkWidget *box, const gchar *text, RadioSViewContext *ctx,
+            const gchar *title, const gchar *const *fields)
+{
+    GtkWidget *widget = button(box, text, "ld-btn", ctx, NULL);
+    BroadcastForm *form = g_new0(BroadcastForm, 1);
+    form->ctx = ctx;
+    form->title = g_strdup(title);
+    form->fields = fields;
+    g_object_set_data_full(G_OBJECT(widget), "broadcast-form-title", form->title, g_free);
+    g_object_set_data_full(G_OBJECT(widget), "broadcast-form", form, g_free);
+    g_signal_connect(widget, "clicked", G_CALLBACK(broadcast_form_open), form);
+    return widget;
+}
+
+static GtkWidget *
+named_box(GtkOrientation orientation, gint spacing, const gchar *style)
+{
+    return radios_ui_box(orientation, spacing, style);
+}
+
+static GtkWidget *
+form_entry(const gchar *placeholder, gint maximum, const gchar *pattern)
+{
+    GtkWidget *entry = radios_ui_entry(placeholder);
+    gtk_entry_set_max_length(GTK_ENTRY(entry), maximum);
+    g_object_set_data(G_OBJECT(entry), "broadcast-pattern", (gpointer)pattern);
+    return entry;
+}
+
+static GtkWidget *
+form_notes(gint maximum)
+{
+    GtkWidget *text = gtk_text_view_new();
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(text), GTK_WRAP_WORD_CHAR);
+    gtk_widget_set_size_request(text, -1, 76);
+    g_object_set_data(G_OBJECT(text), "broadcast-max-length", GINT_TO_POINTER(maximum));
+    return text;
+}
+
+static void
+editor_field(GtkWidget *dialog, GtkWidget *grid, guint index,
+             const gchar *title, const gchar *id, GtkWidget *widget,
+             gboolean required)
+{
+    GtkWidget *group = named_box(GTK_ORIENTATION_VERTICAL, 6, NULL);
+    GtkWidget *label = radios_ui_label(title, "form-label");
+    gtk_label_set_mnemonic_widget(GTK_LABEL(label), widget);
+    pack(group, label, FALSE);
+    pack(group, widget, FALSE);
+    gtk_widget_set_name(widget, id);
+    gtk_widget_set_hexpand(group, TRUE);
+    gtk_grid_attach(GTK_GRID(grid), group, (gint)(index % 2), (gint)(index / 2), 1, 1);
+    g_object_set_data(G_OBJECT(widget), "broadcast-required", GINT_TO_POINTER(required));
+    g_object_set_data(G_OBJECT(widget), "broadcast-field-title", (gpointer)title);
+    g_object_set_data(G_OBJECT(dialog), id, widget);
+    GPtrArray *fields = g_object_get_data(G_OBJECT(dialog), "broadcast-fields");
+    g_ptr_array_add(fields, widget);
+}
+
+static gboolean
+date_is_valid(const gchar *value)
+{
+    gint y, m, d, consumed = 0;
+    return sscanf(value, "%4d-%2d-%2d%n", &y, &m, &d, &consumed) == 3 &&
+           consumed == 10 && value[consumed] == '\0' && y >= 1 && y <= 9999 &&
+           m >= 1 && m <= 12 && d >= 1 && d <= 31 &&
+           g_date_valid_dmy((GDateDay)d, (GDateMonth)m, (GDateYear)y);
+}
+
+static void
+broadcast_form_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    RadioSViewContext *ctx = data;
+    if (response != GTK_RESPONSE_ACCEPT) {
+        gtk_widget_destroy(GTK_WIDGET(dialog));
+        return;
+    }
+    GtkLabel *status = g_object_get_data(G_OBJECT(dialog), "broadcast-status");
+    GPtrArray *fields = g_object_get_data(G_OBJECT(dialog), "broadcast-fields");
+    for (guint i = 0; i < fields->len; ++i) {
+        GtkWidget *widget = g_ptr_array_index(fields, i);
+        if (GTK_IS_TEXT_VIEW(widget)) {
+            GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
+            gint maximum = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "broadcast-max-length"));
+            if (gtk_text_buffer_get_char_count(buffer) > maximum) {
+                gtk_label_set_text(status, "Not alanı izin verilen uzunluğu aşıyor.");
+                gtk_widget_grab_focus(widget);
+                return;
+            }
+            continue;
+        }
+        if (!GTK_IS_ENTRY(widget))
+            continue;
+        const gchar *value = gtk_entry_get_text(GTK_ENTRY(widget));
+        const gchar *pattern = g_object_get_data(G_OBJECT(widget), "broadcast-pattern");
+        gboolean required = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "broadcast-required"));
+        gchar *trimmed = g_strdup(value);
+        g_strstrip(trimmed);
+        gboolean valid = (!required || *trimmed != '\0') &&
+                         (*trimmed == '\0' || pattern == NULL ||
+                          (g_str_equal(pattern, "date") ? date_is_valid(trimmed) :
+                           g_regex_match_simple(pattern, trimmed, 0, 0)));
+        g_free(trimmed);
+        if (!valid) {
+            const gchar *title = g_object_get_data(G_OBJECT(widget), "broadcast-field-title");
+            gchar *message = g_strdup_printf("%s alanını geçerli biçimde doldurun.", title);
+            gtk_label_set_text(status, message);
+            gtk_widget_grab_focus(widget);
+            g_free(message);
+            return;
+        }
+    }
+    BroadcastView *view = broadcast_context(ctx);
+    if (view && view->programme_document && radios_data_connected(ctx)) {
+        if (!programme_can_change(view)) { gtk_label_set_text(status, "Program kaydı yüklenmeden kaydedilemez; alanlarınız korunuyor."); return; }
+        JsonObject *config = json_node_get_object(view->programme_config);
+        if (g_object_get_data(G_OBJECT(dialog), "programme-name")) {
+            object_field(config, "title", GTK_WIDGET(dialog), "programme-name");
+            object_field(config, "date", GTK_WIDGET(dialog), "programme-date");
+            if (!*radios_json_string(config, "date", "")) {
+                GDateTime *now = g_date_time_new_now_utc(); gchar *date = g_date_time_format(now, "%Y-%m-%d");
+                json_object_set_string_member(config, "date", date); g_free(date); g_date_time_unref(now);
+            }
+            object_field(config, "note", GTK_WIDGET(dialog), "programme-notes");
+        } else if (g_object_get_data(G_OBJECT(dialog), "programme-item-title")) {
+            JsonArray *events = json_object_get_array_member(config, "events");
+            const gchar *id = g_object_get_data(G_OBJECT(dialog), "programme-event-id");
+            if (!id) { g_object_set_data_full(G_OBJECT(dialog), "programme-event-id", g_uuid_string_random(), g_free);
+                id = g_object_get_data(G_OBJECT(dialog), "programme-event-id"); }
+            JsonObject *event = NULL;
+            for (guint i = 0; i < json_array_get_length(events); ++i) {
+                JsonObject *candidate = json_array_get_object_element(events, i);
+                if (g_str_equal(radios_json_string(candidate, "id", ""), id)) { event = candidate; break; }
+            }
+            if (!event && g_object_get_data(G_OBJECT(dialog), "programme-existing-event")) {
+                gtk_label_set_text(status, "Düzenlenen event güncel programda bulunamadı; girdileriniz korunuyor."); return;
+            }
+            gboolean fresh = !event;
+            if (fresh) event = json_object_new();
+            json_object_set_string_member(event, "id", id);
+            object_field(event, "title", GTK_WIDGET(dialog), "programme-item-title");
+            object_field(event, "artist", GTK_WIDGET(dialog), "programme-item-artist");
+            object_field(event, "album", GTK_WIDGET(dialog), "programme-item-album");
+            object_field(event, "start_time", GTK_WIDGET(dialog), "programme-item-time");
+            object_field(event, "version_label", GTK_WIDGET(dialog), "programme-item-version");
+            object_field(event, "note", GTK_WIDGET(dialog), "programme-item-notes");
+            const gchar *const kinds[] = {"music", "announcement", "advertisement", "jingle", "program", "sweeper", "news", "effect", "voice_track", "other"};
+            GtkWidget *type = g_object_get_data(G_OBJECT(dialog), "programme-item-type");
+            gint kind = gtk_combo_box_get_active(GTK_COMBO_BOX(type));
+            json_object_set_string_member(event, "kind", kinds[CLAMP(kind, 0, 9)]);
+            gchar *duration = field_value(GTK_WIDGET(dialog), "programme-item-duration"); guint minutes = 0, seconds = 0;
+            sscanf(duration, "%u:%u", &minutes, &seconds);
+            const gchar *original = g_object_get_data(G_OBJECT(dialog), "programme-original-duration");
+            gint64 *original_ms = g_object_get_data(G_OBJECT(dialog), "programme-original-duration-ms");
+            json_object_set_int_member(event, "duration_ms", original_ms && g_strcmp0(duration, original) == 0 ?
+                *original_ms : ((gint64)minutes * 60 + seconds) * 1000); g_free(duration);
+            if (!json_object_has_member(event, "primary_file")) json_object_set_string_member(event, "primary_file", "");
+            if (!json_object_has_member(event, "backup_file")) json_object_set_string_member(event, "backup_file", "");
+            JsonObject *binding = g_object_get_data(G_OBJECT(dialog), "programme-media-binding");
+            const gchar *binding_keys[] = {"media_id", "version_id", "media_file_id", "media_sha256"};
+            if (binding) for (guint i = 0; i < G_N_ELEMENTS(binding_keys); ++i)
+                json_object_set_string_member(event, binding_keys[i], radios_json_string(binding, binding_keys[i], ""));
+            const gchar *online_keys[] = {"online_provider", "online_id", "online_url"};
+            if (binding) for (guint i = 0; i < G_N_ELEMENTS(online_keys); ++i) json_object_remove_member(event, online_keys[i]);
+            if (fresh) {
+                RadioSProgrammeTree *tree = programme_tree(view);
+                GPtrArray *leaves = g_ptr_array_new_with_free_func((GDestroyNotify)json_object_unref); g_ptr_array_add(leaves, event);
+                programme_place(tree, programme_target(view, tree), leaves, NULL, NULL); g_ptr_array_unref(leaves);
+                if (programme_commit(view, tree, id)) gtk_label_set_text(status, "Program taslağı kaydediliyor; ses/yayın komutu gönderilmedi.");
+                return;
+            }
+        } else if (g_object_get_data(G_OBJECT(dialog), "programme-block-title")) {
+            const gchar *id = g_object_get_data(G_OBJECT(dialog), "programme-block-id");
+            RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+            if (!id || !radios_programme_tree_find(tree, id, &block, &leaf) || leaf >= 0) {
+                radios_programme_tree_free(tree); gtk_label_set_text(status, "Düzenlenen event güncel programda bulunamadı; girdileriniz korunuyor."); return;
+            }
+            RadioSProgrammeBlock *owner = g_ptr_array_index(tree->blocks, block);
+            JsonObject *edited = radios_programme_clone_object(owner->block);
+            object_field(edited, "title", GTK_WIDGET(dialog), "programme-block-title");
+            object_field(edited, "start_time", GTK_WIDGET(dialog), "programme-block-time");
+            object_field(edited, "note", GTK_WIDGET(dialog), "programme-block-notes");
+            const gchar *const kinds[] = {"music", "announcement", "advertisement", "jingle", "program", "sweeper", "news", "effect", "voice_track", "other"};
+            gint kind = gtk_combo_box_get_active(GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "programme-block-kind")));
+            json_object_set_string_member(edited, "kind", kinds[CLAMP(kind, 0, 9)]);
+            json_object_unref(owner->block); owner->block = edited;
+            gtk_label_set_text(status, programme_commit(view, tree, id) ? "Kaydedildi." : "Program kaydı gönderilemedi; girdileriniz korunuyor.");
+            return;
+        } else if (g_object_get_data(G_OBJECT(dialog), "programme-timed-title")) {
+            const gchar *target_id = g_object_get_data(G_OBJECT(dialog), "programme-timed-event-id");
+            gboolean found = FALSE; JsonArray *events = json_object_get_array_member(config, "events");
+            for (guint i = 0; target_id && i < json_array_get_length(events); ++i)
+                found |= g_str_equal(target_id, radios_json_string(json_array_get_object_element(events, i), "id", ""));
+            if (!found) { gtk_label_set_text(status, "Kesin saat için yayın sırasından mevcut bir öğe seçin."); return; }
+            JsonObject *timing = json_object_new(); json_object_set_string_member(timing, "event_id", target_id);
+            object_field(timing, "start_time", GTK_WIDGET(dialog), "programme-start-time");
+            object_field(timing, "target_time", GTK_WIDGET(dialog), "programme-target-time");
+            json_object_set_string_member(timing, "policy", gtk_combo_box_get_active(GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "programme-timed-policy"))) == 0 ? "cut" : "finish");
+            json_object_set_int_member(timing, "max_wait_ms", 1000 * gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(g_object_get_data(G_OBJECT(dialog), "programme-timed-wait"))));
+            json_object_set_object_member(config, "timing", timing);
+        } else { gtk_label_set_text(status, "Bu işlem için bir kayıt seçin; medya ve yayın iş akışları sonraki aşamalarda bağlanacak."); return; }
+        radios_data_document_dirty(view->programme_document, TRUE);
+        if (radios_data_document_save(view->programme_document, view->programme_config)) {
+            gtk_label_set_text(status, "Program taslağı kaydediliyor; ses/yayın komutu gönderilmedi."); programme_render(view);
+        }
+        return;
+    }
+    gtk_label_set_text(status, "Veri servisi bağlı değil; değişiklik kaydedilmedi. Girdiğiniz alanlar korunuyor.");
+    if (ctx->notify != NULL)
+        ctx->notify(ctx->notify_data, "Veri servisi bağlı değil; değişiklik kaydedilmedi.");
+}
+
+static GtkWidget *
+broadcast_dialog(RadioSViewContext *ctx, const gchar *title, const gchar *id,
+                 const gchar *style, GtkWidget **grid)
+{
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(title, ctx->parent,
+        GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+        "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL);
+    gtk_widget_set_name(dialog, id);
+    add_class(dialog, "radios");
+    add_class(dialog, style);
+    gtk_window_set_default_size(GTK_WINDOW(dialog), 640, 580);
+    GtkWidget *body = named_box(GTK_ORIENTATION_VERTICAL, 14, NULL);
+    gtk_container_set_border_width(GTK_CONTAINER(body), 20);
+    GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(scroll), body);
+    pack(gtk_dialog_get_content_area(GTK_DIALOG(dialog)), scroll, TRUE);
+    *grid = gtk_grid_new();
+    add_class(*grid, "programme-dialog-fields");
+    gtk_grid_set_column_homogeneous(GTK_GRID(*grid), TRUE);
+    gtk_grid_set_column_spacing(GTK_GRID(*grid), 14);
+    gtk_grid_set_row_spacing(GTK_GRID(*grid), 12);
+    pack(body, *grid, FALSE);
+    GtkWidget *status = radios_ui_label("", "ld-status");
+    pack(body, status, FALSE);
+    g_object_set_data(G_OBJECT(dialog), "broadcast-status", status);
+    g_object_set_data_full(G_OBJECT(dialog), "broadcast-fields", g_ptr_array_new(),
+                           (GDestroyNotify)g_ptr_array_unref);
+    g_signal_connect(dialog, "response", G_CALLBACK(broadcast_form_response), ctx);
+    return dialog;
+}
+
+static void
+broadcast_form_open(GtkButton *button_widget, gpointer data)
+{
+    BroadcastForm *form = data;
+    GtkWidget *grid;
+    GtkWidget *dialog;
+    const gchar *time_pattern = "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$";
+    const gchar *duration_pattern = "^[0-9]{1,4}:[0-5][0-9]$";
+    if (form->fields == programme_fields) {
+        dialog = broadcast_dialog(form->ctx, form->title, "programme-editor", "programme-dialog", &grid);
+        editor_field(dialog, grid, 0, "Program adı", "programme-name", form_entry(NULL, 80, NULL), TRUE);
+        editor_field(dialog, grid, 1, "Program tarihi", "programme-date", form_entry("YYYY-AA-GG", 10, "date"), FALSE);
+        editor_field(dialog, grid, 2, "Program notu", "programme-notes", form_notes(400), FALSE);
+        BroadcastView *view = broadcast_context(form->ctx);
+        if (view && view->programme_config) {
+            JsonObject *config = json_node_get_object(view->programme_config);
+            gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-name")), radios_json_string(config, "title", ""));
+            gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-date")), radios_json_string(config, "date", ""));
+            gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(g_object_get_data(G_OBJECT(dialog), "programme-notes"))), radios_json_string(config, "note", ""), -1);
+        }
+    } else if (form->fields == event_fields) {
+        dialog = broadcast_dialog(form->ctx, form->title, "programme-item-editor", "programme-dialog", &grid);
+        const gchar *const kinds[] = {"Müzik", "Anons", "Reklam", "Jingle", "Program", "Sweeper", "Haber", "Efekt", "Ses kaydı", "Diğer", NULL};
+        const gchar *const states[] = {"Kontrol bekliyor", "Hazır · yerel beyan", "Dosya eksik",
+                                      "Onay bekliyor", "Geçersiz reklam", "Kilitli", NULL};
+        const gchar *const files[] = {"Bilinmiyor", "Mevcut · yerel beyan", "Eksik", NULL};
+        const gchar *label = gtk_button_get_label(button_widget);
+        gint kind = label != NULL && strstr(label, "Anons") != NULL ? 1 :
+                    label != NULL && strstr(label, "Reklam") != NULL ? 2 : 0;
+        editor_field(dialog, grid, 0, "İçerik başlığı", "programme-item-title", form_entry(NULL, 160, NULL), TRUE);
+        editor_field(dialog, grid, 1, "Sanatçı", "programme-item-artist", form_entry(NULL, 120, NULL), FALSE);
+        editor_field(dialog, grid, 2, "Albüm", "programme-item-album", form_entry(NULL, 120, NULL), FALSE);
+        editor_field(dialog, grid, 3, "Öğe türü", "programme-item-type", radios_ui_combo(kinds, kind), TRUE);
+        editor_field(dialog, grid, 4, "Başlangıç saati (UTC)", "programme-item-time", form_entry("SS:DD", 5, time_pattern), FALSE);
+        editor_field(dialog, grid, 5, "Süre (mm:ss)", "programme-item-duration", form_entry("03:30", 7, duration_pattern), FALSE);
+        editor_field(dialog, grid, 6, "İçerik sürümü", "programme-item-version", form_entry("v1", 32, NULL), TRUE);
+        editor_field(dialog, grid, 7, "Hazırlık durumu", "programme-item-readiness", radios_ui_combo(states, 0), FALSE);
+        editor_field(dialog, grid, 8, "Ana sistem dosyası", "programme-item-primary", radios_ui_combo(files, 0), FALSE);
+        editor_field(dialog, grid, 9, "Yedek sistem dosyası", "programme-item-backup", radios_ui_combo(files, 0), FALSE);
+        editor_field(dialog, grid, 10, "Öğe notu", "programme-item-notes", form_notes(300), FALSE);
+        BroadcastView *view = broadcast_context(form->ctx); g_object_set_data(G_OBJECT(dialog), "programme-view", view);
+        g_object_set_data_full(G_OBJECT(dialog), "programme-insert-before", g_strdup(g_object_get_data(G_OBJECT(button_widget), "programme-insert-before")), g_free);
+        if (form->ctx->data) {
+            GtkWidget *pick = radios_ui_button("Kütüphaneden seç"); gtk_widget_set_name(pick, "programme-item-media");
+            gtk_grid_attach(GTK_GRID(grid), pick, 0, 6, 2, 1); g_signal_connect_object(pick, "clicked", G_CALLBACK(programme_media_open), dialog, 0);
+        }
+        const gchar *edit_id = g_object_get_data(G_OBJECT(button_widget), "programme-edit-event-id");
+        if (edit_id && view && view->programme_config) {
+            JsonArray *events = json_object_get_array_member(json_node_get_object(view->programme_config), "events");
+            for (guint i = 0; events && i < json_array_get_length(events); ++i) {
+                JsonObject *event = json_array_get_object_element(events, i);
+                if (!g_str_equal(edit_id, radios_json_string(event, "id", ""))) continue;
+                g_object_set_data_full(G_OBJECT(dialog), "programme-event-id", g_strdup(edit_id), g_free);
+                g_object_set_data(G_OBJECT(dialog), "programme-existing-event", GINT_TO_POINTER(1));
+                const gchar *keys[] = {"title", "artist", "album", "start_time", "version_label"};
+                const gchar *field_ids[] = {"programme-item-title", "programme-item-artist", "programme-item-album", "programme-item-time", "programme-item-version"};
+                for (guint j = 0; j < G_N_ELEMENTS(keys); ++j)
+                    gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), field_ids[j])), radios_json_string(event, keys[j], ""));
+                const gchar *kind_keys[] = {"music", "announcement", "advertisement", "jingle", "program", "sweeper", "news", "effect", "voice_track", "other"};
+                for (guint j = 0; j < G_N_ELEMENTS(kind_keys); ++j)
+                    if (g_str_equal(kind_keys[j], radios_json_string(event, "kind", "")))
+                        gtk_combo_box_set_active(GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "programme-item-type")), (gint)j);
+                gint64 seconds = radios_json_int(event, "duration_ms", 0) / 1000;
+                gchar *duration = g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, seconds / 60, seconds % 60);
+                g_object_set_data_full(G_OBJECT(dialog), "programme-original-duration", g_strdup(duration), g_free);
+                gint64 *original_ms = g_new(gint64, 1); *original_ms = radios_json_int(event, "duration_ms", 0);
+                g_object_set_data_full(G_OBJECT(dialog), "programme-original-duration-ms", original_ms, g_free);
+                gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-item-duration")), duration); g_free(duration);
+                if (json_object_has_member(event, "media_id")) gtk_widget_set_sensitive(g_object_get_data(G_OBJECT(dialog), "programme-item-duration"), FALSE);
+                gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(g_object_get_data(G_OBJECT(dialog), "programme-item-notes"))), radios_json_string(event, "note", ""), -1);
+                gtk_label_set_text(GTK_LABEL(g_object_get_data(G_OBJECT(dialog), "broadcast-status")), "Seçili metadata event düzenleniyor; UUID korunur, ses dosyası doğrulanmaz.");
+                break;
+            }
+        }
+    } else if (form->fields == timing_fields) {
+        dialog = broadcast_dialog(form->ctx, form->title, "programme-timing-editor", "programme-dialog", &grid);
+        const gchar *const policies[] = {"Parçayı kes · hedef saatte gir", "Bitmesini bekle · sınırlı bekleme", NULL};
+        editor_field(dialog, grid, 0, "Hedef olay", "programme-timed-title", form_entry(NULL, 80, NULL), TRUE);
+        editor_field(dialog, grid, 1, "Program başlangıcı (UTC)", "programme-start-time", form_entry("SS:DD", 5, time_pattern), TRUE);
+        editor_field(dialog, grid, 2, "Hedef saat (UTC)", "programme-target-time", form_entry("SS:DD", 5, time_pattern), TRUE);
+        editor_field(dialog, grid, 3, "Hedef saatte davranış", "programme-timed-policy", radios_ui_combo(policies, 0), FALSE);
+        GtkWidget *wait = gtk_spin_button_new_with_range(0, 600, 1);
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(wait), 30);
+        editor_field(dialog, grid, 4, "En fazla bekleme (saniye)", "programme-timed-wait", wait, FALSE);
+        BroadcastView *view = broadcast_context(form->ctx);
+        if (view && view->programme_config) {
+            JsonObject *config = json_node_get_object(view->programme_config);
+            JsonObject *timing = json_object_has_member(config, "timing") ? json_object_get_object_member(config, "timing") : NULL;
+            gint selected = programme_selected(view);
+            if (selected >= 0) {
+                JsonObject *event = json_array_get_object_element(json_object_get_array_member(config, "events"), (guint)selected);
+                g_object_set_data_full(G_OBJECT(dialog), "programme-timed-event-id", g_strdup(radios_json_string(event, "id", "")), g_free);
+                gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-timed-title")), radios_json_string(event, "title", ""));
+                gtk_editable_set_editable(GTK_EDITABLE(g_object_get_data(G_OBJECT(dialog), "programme-timed-title")), FALSE);
+            }
+            gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-start-time")), radios_json_string(timing, "start_time", ""));
+            gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-target-time")), radios_json_string(timing, "target_time", ""));
+            gtk_combo_box_set_active(GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "programme-timed-policy")), g_str_equal(radios_json_string(timing, "policy", "cut"), "finish") ? 1 : 0);
+            gtk_spin_button_set_value(GTK_SPIN_BUTTON(wait), radios_json_int(timing, "max_wait_ms", 30000) / 1000.0);
+        }
+    } else {
+        gboolean playlist = strstr(form->title, "Playlist") != NULL;
+        dialog = broadcast_dialog(form->ctx, form->title,
+                                  playlist ? "playlist-track-editor" : "broadcast-catalog-editor",
+                                  playlist ? "playlist-dialog" : "broadcast-catalog-dialog", &grid);
+        if (playlist) {
+            editor_field(dialog, grid, 0, "Parça adı", "playlist-track-title", form_entry(NULL, 160, NULL), TRUE);
+            editor_field(dialog, grid, 1, "Sanatçı", "playlist-track-artist", form_entry(NULL, 120, NULL), FALSE);
+            editor_field(dialog, grid, 2, "Albüm", "playlist-track-album", form_entry(NULL, 120, NULL), FALSE);
+            editor_field(dialog, grid, 3, "Süre (dk:sn)", "playlist-track-duration", form_entry("03:30", 6, duration_pattern), FALSE);
+        } else {
+            const gchar *const kinds[] = {"Parça", "Jingle", "Anons", "Reklam", "Program", NULL};
+            GtkWidget *kind = radios_ui_combo(kinds, 0);
+            gtk_widget_set_sensitive(kind, FALSE);
+            editor_field(dialog, grid, 0, "Tür", "broadcast-catalog-kind", kind, FALSE);
+            editor_field(dialog, grid, 1, "Sürüm", "broadcast-catalog-version", form_entry("v1", 40, NULL), FALSE);
+            editor_field(dialog, grid, 2, "Başlık", "broadcast-catalog-title", form_entry(NULL, 160, NULL), TRUE);
+            editor_field(dialog, grid, 3, "Sanatçı / yayıncı", "broadcast-catalog-artist", form_entry(NULL, 120, NULL), FALSE);
+            editor_field(dialog, grid, 4, "Albüm / içerik grubu", "broadcast-catalog-album", form_entry(NULL, 120, NULL), FALSE);
+            editor_field(dialog, grid, 5, "Süre · dk:ss", "broadcast-catalog-duration", form_entry(NULL, 6, duration_pattern), FALSE);
+        }
+    }
+    gtk_widget_show_all(dialog);
+}
+
+/* Ö of a content row: the content editor keeps its id, event and media. */
+static void programme_item_editor(BroadcastView *view, const gchar *edit_id)
+{
+    GtkWidget *proxy = g_object_ref_sink(gtk_button_new_with_label(""));
+    g_object_set_data_full(G_OBJECT(proxy), "programme-edit-event-id", g_strdup(edit_id), g_free);
+    BroadcastForm form = {view->ctx, "İçerik özellikleri", event_fields};
+    broadcast_form_open(GTK_BUTTON(proxy), &form);
+    gtk_widget_destroy(proxy); g_object_unref(proxy);
+}
+
+/* Ö of an event row: name, type, planned start and note of the event. */
+static void programme_block_editor(BroadcastView *view, const gchar *block_id)
+{
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    if (!radios_programme_tree_find(tree, block_id, &block, &leaf) || leaf >= 0) { radios_programme_tree_free(tree); return; }
+    JsonObject *object = ((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->block;
+    const gchar *const kinds[] = {"Müzik", "Anons", "Reklam", "Jingle", "Program", "Sweeper", "Haber", "Efekt", "Ses kaydı", "Diğer", NULL};
+    const gchar *const kind_keys[] = {"music", "announcement", "advertisement", "jingle", "program", "sweeper", "news", "effect", "voice_track", "other"};
+    gint kind = 0;
+    for (guint i = 0; i < G_N_ELEMENTS(kind_keys); ++i) if (g_str_equal(kind_keys[i], radios_json_string(object, "kind", ""))) kind = (gint)i;
+    GtkWidget *grid, *dialog = broadcast_dialog(view->ctx, "Event özellikleri", "programme-block-editor", "programme-dialog", &grid);
+    editor_field(dialog, grid, 0, "Event adı", "programme-block-title", form_entry(NULL, 160, NULL), TRUE);
+    editor_field(dialog, grid, 1, "Event türü", "programme-block-kind", radios_ui_combo(kinds, kind), TRUE);
+    editor_field(dialog, grid, 2, "Başlangıç saati (UTC)", "programme-block-time",
+        form_entry("SS:DD", 5, "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"), FALSE);
+    editor_field(dialog, grid, 3, "Event notu", "programme-block-notes", form_notes(2000), FALSE);
+    gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-block-title")), radios_json_string(object, "title", ""));
+    gtk_entry_set_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "programme-block-time")), radios_json_string(object, "start_time", ""));
+    gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(g_object_get_data(G_OBJECT(dialog), "programme-block-notes"))),
+        radios_json_string(object, "note", ""), -1);
+    g_object_set_data_full(G_OBJECT(dialog), "programme-block-id", g_strdup(block_id), g_free);
+    radios_programme_tree_free(tree);
+    gtk_widget_show_all(dialog);
+}
+
+static GtkWidget *
+stack_tabs(GtkWidget *container, GtkWidget **stack, const gchar *style)
+{
+    GtkWidget *tabs = gtk_stack_switcher_new();
+    *stack = gtk_stack_new();
+    gtk_stack_set_homogeneous(GTK_STACK(*stack), FALSE);
+    gtk_stack_set_transition_type(GTK_STACK(*stack), GTK_STACK_TRANSITION_TYPE_NONE);
+    gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(tabs), GTK_STACK(*stack));
+    add_class(tabs, style);
+    gtk_widget_set_halign(tabs, GTK_ALIGN_FILL);
+    pack(container, tabs, FALSE);
+    pack(container, *stack, TRUE);
+    return tabs;
+}
+
+static GtkWidget *
+programme_toolbar(BroadcastView *view)
+{
+    RadioSViewContext *ctx = view->ctx;
+    GtkWidget *programme = named_box(GTK_ORIENTATION_HORIZONTAL, 4, "broadcast-programme-toolbar");
+    gtk_widget_set_name(programme, "programme-toolbar");
+    GtkWidget *description = named_box(GTK_ORIENTATION_VERTICAL, 1, NULL);
+    JsonObject *config = json_node_get_object(view->programme_config);
+    view->programme_title = radios_ui_label(radios_json_string(config, "title", ""), "ld-prog-name");
+    view->programme_date = radios_ui_label(radios_json_string(config, "date", ""), "ld-prog-meta");
+    gtk_widget_set_tooltip_text(view->programme_title, radios_json_string(config, "title", ""));
+    gtk_widget_set_name(view->programme_title, "programme-title");
+    gtk_widget_set_name(view->programme_date, "programme-date");
+    gtk_label_set_line_wrap(GTK_LABEL(view->programme_title), FALSE);
+    gtk_label_set_ellipsize(GTK_LABEL(view->programme_title), PANGO_ELLIPSIZE_END);
+    gtk_label_set_max_width_chars(GTK_LABEL(view->programme_title), 16);
+    pack(description, view->programme_title, FALSE); pack(description, view->programme_date, FALSE);
+    pack(programme, description, FALSE);
+    GtkWidget *edit = form_button(programme, "Düzenle", ctx, "Programı düzenle", programme_fields);
+    gtk_widget_set_name(edit, "programme-properties");
+    gtk_widget_set_tooltip_text(edit, "Program adı, tarih ve notu düzenle");
+    GtkWidget *save = gtk_button_new_from_icon_name("document-save-symbolic", GTK_ICON_SIZE_BUTTON);
+    pack(programme, save, FALSE);
+    gtk_widget_set_name(save, "programme-save");
+    gtk_widget_set_tooltip_text(save, "Programı kaydet");
+    g_signal_connect(save, "clicked", G_CALLBACK(programme_save), view);
+    GtkWidget *options = gtk_menu_button_new();
+    gtk_button_set_label(GTK_BUTTON(options), "⋯");
+    gtk_widget_set_name(options, "programme-options");
+    gtk_widget_set_tooltip_text(options, "Program onayları, zamanlama ve işaretler");
+    pack(programme, options, FALSE);
+    GtkWidget *popover = gtk_popover_new(options);
+    gtk_widget_set_name(popover, "programme-controls");
+    add_class(popover, "radios");
+    gtk_popover_set_position(GTK_POPOVER(popover), GTK_POS_BOTTOM);
+    gtk_menu_button_set_popover(GTK_MENU_BUTTON(options), popover);
+    GtkWidget *body = named_box(GTK_ORIENTATION_VERTICAL, 9, "broadcast-settings-body");
+    gtk_container_set_border_width(GTK_CONTAINER(body), 12);
+    pack(body, radios_programme_lifecycle_new(&view->lifecycle_context, view->page, &view->programme_document), FALSE);
+
+    GtkWidget *timed = named_box(GTK_ORIENTATION_VERTICAL, 5, "ld-timed");
+    GtkWidget *title = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "ld-timed-title");
+    pack(title, radios_ui_label("Kesin saat · Erken / geç", NULL), TRUE);
+    GtkWidget *timing = form_button(title, "Ayarla", ctx, "Kesin saat davranışı", timing_fields);
+    gtk_widget_set_name(timing, "programme-timing-properties");
+    if (ctx->playout) {
+        view->schedule = button(title, "Saatli başlat", "ld-btn", ctx, NULL); gtk_widget_set_name(view->schedule, "programme-schedule");
+        g_signal_connect(view->schedule, "clicked", G_CALLBACK(programme_schedule), view);
+    }
+    pack(timed, title, FALSE);
+    view->timing_title = radios_ui_label("Kesin saatli olay  —", NULL); pack(timed, view->timing_title, FALSE);
+    GtkWidget *values = named_box(GTK_ORIENTATION_HORIZONTAL, 12, "ld-timed-values");
+    view->timing_target = radios_ui_label("Hedef saat  —:—", NULL); pack(values, view->timing_target, TRUE);
+    view->timing_policy = radios_ui_label("Davranış  —", NULL); pack(values, view->timing_policy, TRUE);
+    pack(timed, values, FALSE);
+    pack(body, timed, FALSE);
+    GtkWidget *editors = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-actions");
+    GtkWidget *transition = button(editors, "Cue ve geçiş", "ld-btn", ctx, NULL);
+    gtk_widget_set_name(transition, "programme-transition-editor");
+    radios_ui_bind_editor(transition, ctx, RADIOS_EDITOR_TRANSITION);
+    GtkWidget *markers = button(editors, "Parça işaretleri", "ld-btn", ctx, NULL);
+    gtk_widget_set_name(markers, "programme-markers-editor");
+    radios_ui_bind_editor(markers, ctx, RADIOS_EDITOR_MARKERS);
+    pack(body, editors, FALSE);
+    gtk_container_add(GTK_CONTAINER(popover), body);
+    gtk_widget_show_all(body);
+    return programme;
+}
+
+/* Design side buttons: catalogue insert/replace/append modes and clearing the
+ * selected event's contents; the catalogue opens beside the flow. */
+static void
+queue_side_action(GtkButton *control, gpointer data)
+{
+    BroadcastView *view = data;
+    guint action = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(control), "broadcast-side-action"));
+    if (action == 2) {
+        if (!programme_can_change(view)) return;
+        RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+        if (!programme_item(view, tree, &block, &leaf)) { radios_programme_tree_free(tree); programme_notice(view, "Temizlenecek eventi seçin."); return; }
+        RadioSProgrammeBlock *owner = g_ptr_array_index(tree->blocks, block);
+        gchar *id = g_strdup(radios_json_string(owner->block, "id", ""));
+        if (!owner->leaves->len) { radios_programme_tree_free(tree); g_free(id); return; }
+        radios_programme_tree_clear(tree, block);
+        if (programme_commit(view, tree, id)) programme_notice(view, "Event içeriği temizlendi.");
+        g_free(id); return;
+    }
+    view->queue_mode = action == 1 ? QUEUE_REPLACE : action == 3 ? QUEUE_APPEND : QUEUE_INSERT;
+    placement_update(view); catalog_actions_update(view);
+    gtk_stack_set_visible_child_name(GTK_STACK(view->right_stack), "library");
+    gtk_widget_grab_focus(view->query);
+}
+
+/* ⇈ ↑ ↓ ⇊ move the selected event among events, or a content inside its event. */
+static void programme_order(GtkButton *control, gpointer data)
+{
+    BroadcastView *view = data;
+    if (!programme_can_change(view)) return;
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    if (!programme_item(view, tree, &block, &leaf)) { radios_programme_tree_free(tree); programme_notice(view, "Taşımak için yayın sırasından bir event veya içerik seçin."); return; }
+    guint length = leaf < 0 ? tree->blocks->len : ((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->leaves->len;
+    guint index = leaf < 0 ? block : (guint)leaf;
+    guint action = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(control), "programme-order-action"));
+    guint position = action == 0 ? 0 : action == 1 ? (index ? index - 1 : 0) : action == 2 ? index + 2 : length;
+    gchar *id = g_strdup(view->selected_event);
+    if (!radios_programme_tree_move(tree, id, block, MIN(position, length))) {
+        radios_programme_tree_free(tree); g_free(id); programme_notice(view, "Seçili öğe zaten bu yöndeki sınırda."); return;
+    }
+    programme_commit(view, tree, id); g_free(id);
+}
+
+/* + Müzik / Anons / Reklam eventi: an empty event at the end of the flow. */
+static void programme_add_event(GtkButton *control, gpointer data)
+{
+    BroadcastView *view = data;
+    if (!programme_can_change(view)) return;
+    RadioSProgrammeTree *tree = programme_tree(view);
+    RadioSProgrammeBlock *created = radios_programme_tree_add_block(tree, tree->blocks->len,
+        g_object_get_data(G_OBJECT(control), "programme-event-kind"), NULL);
+    gchar *id = g_strdup(radios_json_string(created->block, "id", ""));
+    radios_programme_queue_set_expanded(view->queue_table, id, TRUE);
+    view->queue_mode = QUEUE_APPEND;
+    programme_commit(view, tree, id); g_free(id);
+}
+
+static void programme_start(BroadcastView *view, guint start);
+static void programme_item_editor(BroadcastView *view, const gchar *edit_id);
+static void programme_block_editor(BroadcastView *view, const gchar *block_id);
+static void queue_action(gpointer data, const gchar *id, RadioSProgrammeRowAction action)
+{
+    BroadcastView *view = data;
+    if (view->disposed) return;
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    if (!radios_programme_tree_find(tree, id, &block, &leaf)) { radios_programme_tree_free(tree); return; }
+    RadioSProgrammeBlock *owner = g_ptr_array_index(tree->blocks, block);
+    JsonObject *content = leaf >= 0 ? g_ptr_array_index(owner->leaves, (guint)leaf) : NULL;
+    if (action == RADIOS_PROGRAMME_ROW_PLAY) {
+        gint start = radios_programme_tree_leaf_index(tree, id);
+        radios_programme_tree_free(tree);
+        if (start < 0) { programme_notice(view, "Event boş."); return; }
+        programme_start(view, (guint)start); return;
+    }
+    if (action == RADIOS_PROGRAMME_ROW_WAVEFORM) {
+        gchar *media = content ? g_strdup(radios_json_string(content, "media_id", "")) : NULL;
+        radios_programme_tree_free(tree);
+        if (media && *media) radios_media_library_open_selected(view->ctx, media);
+        g_free(media); return;
+    }
+    radios_programme_tree_free(tree);
+    if (action == RADIOS_PROGRAMME_ROW_PROPERTIES) {
+        if (leaf >= 0) programme_item_editor(view, id); else programme_block_editor(view, id);
+        return;
+    }
+    if (!programme_can_change(view)) return;
+    tree = programme_tree(view);
+    /* The neighbour in the same event, else the event, stays selected. */
+    gchar *next = NULL;
+    owner = g_ptr_array_index(tree->blocks, block);
+    if (leaf >= 0 && owner->leaves->len > 1) next = g_strdup(radios_json_string(g_ptr_array_index(owner->leaves,
+        (guint)leaf + 1 < owner->leaves->len ? (guint)leaf + 1 : (guint)leaf - 1), "id", ""));
+    else if (leaf >= 0) next = g_strdup(radios_json_string(owner->block, "id", ""));
+    else if (tree->blocks->len > 1) next = g_strdup(radios_json_string(((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks,
+        block + 1 < tree->blocks->len ? block + 1 : block - 1))->block, "id", ""));
+    radios_programme_tree_remove(tree, id);
+    g_clear_pointer(&view->selected_event, g_free);
+    programme_commit(view, tree, next); g_free(next);
+}
+
+/* A YouTube Music recording as a programme content (desktop_api ONLINE_EVENT_KEYS). */
+static JsonObject *online_leaf(JsonObject *item)
+{
+    const gchar *video = radios_json_string(item, "provider_id", "");
+    gboolean valid = strlen(video) == 11;
+    for (guint i = 0; valid && video[i]; ++i) valid = g_ascii_isalnum(video[i]) || video[i] == '_' || video[i] == '-';
+    if (!valid) return NULL;
+    JsonObject *event = json_object_new(); gchar *id = g_uuid_string_random();
+    json_object_set_string_member(event, "id", id); g_free(id);
+    const gchar *keys[] = {"title", "artist"}; const glong limits[] = {160, 120};
+    for (guint i = 0; i < G_N_ELEMENTS(keys); ++i) {
+        const gchar *value = radios_json_string(item, keys[i], "");
+        gchar *bounded = g_utf8_substring(value, 0, MIN(g_utf8_strlen(value, -1), limits[i])); g_strstrip(bounded);
+        json_object_set_string_member(event, keys[i], *bounded || i ? bounded : "YouTube Music"); g_free(bounded);
+    }
+    json_object_set_string_member(event, "album", ""); json_object_set_string_member(event, "kind", "music");
+    json_object_set_string_member(event, "start_time", "");
+    json_object_set_int_member(event, "duration_ms", CLAMP(radios_json_int(item, "duration_ms", 0), 0, 86400000));
+    json_object_set_string_member(event, "version_label", "YouTube Music");
+    const gchar *blank[] = {"primary_file", "backup_file", "note"};
+    for (guint i = 0; i < G_N_ELEMENTS(blank); ++i) json_object_set_string_member(event, blank[i], "");
+    gchar *url = g_strconcat("https://music.youtube.com/watch?v=", video, NULL);
+    json_object_set_string_member(event, "online_provider", "youtube"); json_object_set_string_member(event, "online_id", video);
+    json_object_set_string_member(event, "online_url", url); g_free(url);
+    return event;
+}
+
+static JsonNode *json_parse(const gchar *text)
+{
+    JsonParser *parser = json_parser_new();
+    JsonNode *root = text && json_parser_load_from_data(parser, text, -1, NULL) ? json_node_copy(json_parser_get_root(parser)) : NULL;
+    g_object_unref(parser); return root;
+}
+
+/* Saves leaves (adopted) at placement and selects the first one. */
+static gboolean programme_insert_leaves(BroadcastView *view, GPtrArray *leaves, RadioSProgrammePlacement placement,
+    const gchar *kind, const gchar *title)
+{
+    if (!leaves->len) { g_ptr_array_unref(leaves); programme_notice(view, "Aktarılacak geçerli içerik bulunamadı."); return FALSE; }
+    RadioSProgrammeTree *tree = programme_tree(view);
+    if (radios_programme_tree_leaf_count(tree) + leaves->len > 5000) {
+        radios_programme_tree_free(tree); g_ptr_array_unref(leaves); programme_notice(view, "Program en fazla 5000 öğe içerebilir."); return FALSE;
+    }
+    guint block = programme_place(tree, placement, leaves, kind, title);
+    gchar *first = g_strdup(radios_json_string(g_ptr_array_index(leaves, 0), "id", ""));
+    radios_programme_queue_set_expanded(view->queue_table, radios_json_string(((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->block, "id", ""), TRUE);
+    g_ptr_array_unref(leaves);
+    gboolean saved = programme_commit(view, tree, first); g_free(first);
+    return saved;
+}
+
+/* YouTube Music items (provider_id, title, artist, duration_ms) into the flow. */
+static gboolean programme_insert_online(BroadcastView *view, JsonArray *items, RadioSProgrammePlacement placement, const gchar *title)
+{
+    GPtrArray *leaves = g_ptr_array_new_with_free_func((GDestroyNotify)json_object_unref);
+    for (guint i = 0; items && i < json_array_get_length(items); ++i) {
+        JsonNode *node = json_array_get_element(items, i);
+        JsonObject *leaf = JSON_NODE_HOLDS_OBJECT(node) ? online_leaf(json_node_get_object(node)) : NULL;
+        if (leaf) g_ptr_array_add(leaves, leaf);
+    }
+    return programme_insert_leaves(view, leaves, placement, NULL, title);
+}
+
+static void catalog_message(BroadcastView *view, const gchar *message);
+static gboolean programme_replace_leaf(BroadcastView *view, JsonObject *source);
+/* Spotify / Apple Music rows (source_provider) enter the flow as their YouTube
+ * Music matches, keeping the source title and artist. */
+static gboolean online_needs_match(JsonArray *items)
+{
+    for (guint i = 0; items && i < json_array_get_length(items); ++i) {
+        JsonNode *node = json_array_get_element(items, i);
+        if (JSON_NODE_HOLDS_OBJECT(node) && json_object_has_member(json_node_get_object(node), "source_provider")) return TRUE;
+    }
+    return FALSE;
+}
+typedef struct {
+    BroadcastView *view;
+    GtkWidget *page;
+    JsonArray *items;
+    gchar *block, *selected, *title;
+    RadioSProgrammePlacement placement;
+    gboolean replace;
+} ProgrammeMatch;
+static void programme_match_free(gpointer data)
+{
+    ProgrammeMatch *match = data;
+    json_array_unref(match->items); g_object_unref(match->page);
+    g_free(match->block); g_free(match->selected); g_free(match->title); g_free(match);
+}
+static void programme_matched(JsonObject *result, const gchar *error, gpointer data)
+{
+    ProgrammeMatch *match = data; BroadcastView *view = match->view;
+    if (view->disposed) return;
+    JsonNode *node = result ? json_object_get_member(result, "items") : NULL;
+    JsonArray *found = node && JSON_NODE_HOLDS_ARRAY(node) ? json_node_get_array(node) : NULL, *items = json_array_new();
+    guint missing = 0;
+    for (guint i = 0; i < json_array_get_length(match->items); ++i) {
+        JsonNode *element = found && i < json_array_get_length(found) ? json_array_get_element(found, i) : NULL;
+        JsonNode *origin = json_array_get_element(match->items, i);
+        if (!element || !JSON_NODE_HOLDS_OBJECT(element) || !JSON_NODE_HOLDS_OBJECT(origin)) { ++missing; continue; }
+        JsonObject *item = radios_programme_clone_object(json_node_get_object(element)), *source = json_node_get_object(origin);
+        const gchar *keys[] = {"title", "artist"};
+        for (guint k = 0; k < G_N_ELEMENTS(keys); ++k)
+            if (*radios_json_string(source, keys[k], "")) json_object_set_string_member(item, keys[k], radios_json_string(source, keys[k], ""));
+        json_array_add_object_element(items, item);
+    }
+    guint count = json_array_get_length(items); gboolean saved = FALSE;
+    if (!count) catalog_message(view, error ? error : "YouTube Music'te eşleşen parça bulunamadı.");
+    else if (programme_can_change(view)) {
+        if (match->replace) {
+            /* The selection may have changed while matching. */
+            JsonObject *leaf = g_strcmp0(match->selected, view->selected_event) ? NULL : online_leaf(json_array_get_object_element(items, 0));
+            saved = leaf && programme_replace_leaf(view, leaf);
+            if (!saved) catalog_message(view, "Değiştirilecek içeriği seçin.");
+        } else {
+            RadioSProgrammePlacement placement = match->placement;
+            if (match->block) {
+                /* The event may have moved while matching. */
+                RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+                if (radios_programme_tree_find(tree, match->block, &block, &leaf) && leaf < 0) {
+                    placement.block = (gint)block;
+                    placement.position = MIN(placement.position, ((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->leaves->len);
+                } else { placement.block = -1; placement.position = tree->blocks->len; }
+                radios_programme_tree_free(tree);
+            }
+            saved = programme_insert_online(view, items, placement, match->title);
+        }
+    }
+    if (saved) {
+        gchar *text = missing ? g_strdup_printf("%u parça eklendi · %u parça YouTube Music'te bulunamadı.", match->replace ? 1 : count, missing) :
+            g_strdup_printf("%u parça eklendi.", match->replace ? 1 : count);
+        catalog_message(view, text); g_free(text);
+    }
+    json_array_unref(items);
+}
+/* Catalogue items at placement, or the first one in place of the selected
+ * content; Spotify / Apple Music items are matched first (asynchronously). */
+static gboolean programme_insert_provider(BroadcastView *view, JsonArray *items, RadioSProgrammePlacement placement,
+    const gchar *title, gboolean replace)
+{
+    if (!online_needs_match(items)) {
+        if (!replace) return programme_insert_online(view, items, placement, title);
+        JsonObject *leaf = json_array_get_length(items) ? online_leaf(json_array_get_object_element(items, 0)) : NULL;
+        return leaf && programme_replace_leaf(view, leaf);
+    }
+    if (replace && !programme_leaf_selected(view)) return FALSE;
+    ProgrammeMatch *match = g_new0(ProgrammeMatch, 1); match->view = view; match->page = g_object_ref(view->page);
+    match->placement = placement; match->title = g_strdup(title); match->replace = replace;
+    if (replace) {
+        /* One recording replaces the selected content. */
+        match->items = json_array_new(); match->selected = g_strdup(view->selected_event);
+        json_array_add_element(match->items, json_node_copy(json_array_get_element(items, 0)));
+    } else {
+        match->items = json_array_ref(items);
+        if (placement.block >= 0) {
+            RadioSProgrammeTree *tree = programme_tree(view);
+            if ((guint)placement.block < tree->blocks->len)
+                match->block = g_strdup(radios_json_string(((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, (guint)placement.block))->block, "id", ""));
+            radios_programme_tree_free(tree);
+        }
+    }
+    catalog_message(view, "YouTube Music karşılıkları aranıyor…");
+    radios_broadcast_online_match(view->online, match->items, programme_matched, match, programme_match_free);
+    return TRUE;
+}
+
+/* A saved programme (Programlar) becomes one "program" event with copies of
+ * its contents, like the design's "Program bloğu". */
+static gboolean programme_insert_saved(BroadcastView *view, JsonObject *record, RadioSProgrammePlacement placement)
+{
+    JsonNode *config = record ? json_object_get_member(record, "config") : NULL;
+    if (!config || !JSON_NODE_HOLDS_OBJECT(config)) return FALSE;
+    RadioSProgrammeTree *source = radios_programme_tree_new(json_node_get_object(config));
+    GPtrArray *leaves = g_ptr_array_new_with_free_func((GDestroyNotify)json_object_unref);
+    for (guint i = 0; i < radios_programme_tree_leaf_count(source); ++i) {
+        JsonObject *leaf = radios_programme_clone_object(radios_programme_tree_leaf_at(source, i, NULL));
+        gchar *id = g_uuid_string_random(); json_object_set_string_member(leaf, "id", id); g_free(id);
+        json_object_remove_member(leaf, "block_id");
+        g_ptr_array_add(leaves, leaf);
+    }
+    radios_programme_tree_free(source);
+    const gchar *name = radios_json_string(record, "name", "");
+    gchar *title = g_utf8_substring(name, 0, MIN(g_utf8_strlen(name, -1), 160));
+    gboolean saved = programme_insert_leaves(view, leaves, placement, "program", *title ? title : NULL);
+    g_free(title); return saved;
+}
+
+static gboolean catalog_media_drop(BroadcastView *view, const gchar *payload, RadioSProgrammePlacement placement);
+/* Drops onto the flow: moved rows, catalogue media, YouTube Music items, saved programmes. */
+static gboolean queue_drop(gpointer data, RadioSDragInfo info, const gchar *payload, RadioSProgrammePlacement placement)
+{
+    BroadcastView *view = data;
+    if (view->disposed || !programme_can_change(view)) return FALSE;
+    if (info == RADIOS_DRAG_INFO_PLAYLIST) return playlist_drop(view, payload, placement);
+    if (info == RADIOS_DRAG_INFO_MEDIA) return catalog_media_drop(view, payload, placement);
+    if (info == RADIOS_DRAG_INFO_ROW) {
+        RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1; gboolean moved;
+        if (!radios_programme_tree_find(tree, payload, &block, &leaf)) { radios_programme_tree_free(tree); return FALSE; }
+        if (leaf < 0) moved = radios_programme_tree_move(tree, payload, 0, placement.block < 0 ? placement.position : (guint)placement.block);
+        else if (placement.block >= 0) moved = radios_programme_tree_move(tree, payload, (guint)placement.block, placement.position);
+        else {
+            /* A content dropped between events opens its own event there. */
+            const gchar *kind = radios_json_string(g_ptr_array_index(((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->leaves, (guint)leaf), "kind", "music");
+            guint at = MIN(placement.position, tree->blocks->len);
+            radios_programme_tree_add_block(tree, at, kind, NULL);
+            moved = radios_programme_tree_move(tree, payload, at, 0);
+        }
+        if (!moved) { radios_programme_tree_free(tree); return FALSE; }
+        return programme_commit(view, tree, payload);
+    }
+    JsonNode *node = json_parse(payload); gboolean accepted = FALSE;
+    if (info == RADIOS_DRAG_INFO_ONLINE && node && JSON_NODE_HOLDS_ARRAY(node))
+        accepted = programme_insert_provider(view, json_node_get_array(node), placement, NULL, FALSE);
+    else if (info == RADIOS_DRAG_INFO_PROGRAMME && node && JSON_NODE_HOLDS_OBJECT(node))
+        accepted = programme_insert_saved(view, json_node_get_object(node), placement);
+    if (node) json_node_free(node);
+    return accepted;
+}
+
+static void
+transition_mode_changed(GtkComboBox *combo, gpointer data)
+{
+    BroadcastView *view = data;
+    gint selected = gtk_combo_box_get_active(combo);
+    if (view->queue_slot && selected == 1) {
+        gtk_combo_box_set_active(combo, 0);
+        programme_notice(view, "Tek oynatıcıda iki parça bindirilemez; Crossfade için Genel yayın sırasını kullanın."); return;
+    }
+    gtk_widget_set_sensitive(view->transition_overlap, !view->queue_slot && (selected == 1 || selected == 2));
+    if (view->queue_slot && !view->queue_switching && view->programme_config) programme_save(NULL, view);
+}
+
+static void queue_stash(BroadcastView *view)
+{
+    PlayerQueue *queue = &view->queues[view->queue_slot];
+    g_clear_pointer(&queue->config, json_node_free); queue->config = programme_copy(view->programme_config);
+    g_free(queue->selected); queue->selected = g_strdup(view->selected_event);
+    queue->transition = (guint)MAX(0, gtk_combo_box_get_active(GTK_COMBO_BOX(view->transition_mode)));
+    queue->overlap = gtk_spin_button_get_value(GTK_SPIN_BUTTON(view->transition_overlap));
+}
+
+static JsonNode *queue_empty(guint slot)
+{
+    JsonNode *node = json_node_new(JSON_NODE_OBJECT); JsonObject *config = json_object_new(); json_node_take_object(node, config);
+    GDateTime *now = g_date_time_new_now_utc(); gchar *date = g_date_time_format(now, "%Y-%m-%d");
+    gchar *title = g_strdup_printf("Oynatıcı %u yayın sırası", slot);
+    json_object_set_string_member(config, "title", title); json_object_set_string_member(config, "date", date);
+    json_object_set_string_member(config, "note", ""); json_object_set_array_member(config, "events", json_array_new());
+    json_object_set_int_member(config, "queue_player", slot); json_object_set_int_member(config, "queue_transition", 0);
+    json_object_set_double_member(config, "queue_overlap", 0);
+    g_free(title); g_free(date); g_date_time_unref(now); return node;
+}
+
+static void queue_player_changed(GtkComboBox *combo, gpointer data)
+{
+    BroadcastView *view = data; const gchar *id = gtk_combo_box_get_active_id(combo);
+    if (view->disposed || view->queue_switching || !id) return;
+    guint slot = (guint)g_ascii_strtoull(id, NULL, 10);
+    if (slot > 32 || slot == view->queue_slot) return;
+    queue_stash(view); ++view->catalogue_intent; view->queue_switching = TRUE; view->queue_slot = slot;
+    radios_programme_queue_reset_progress(view->queue_table);
+    PlayerQueue *queue = &view->queues[slot];
+    if (!queue->config) queue->config = queue_empty(slot);
+    if (slot && !queue->document) {
+        gchar *name = g_strdup_printf("Oynatıcı %u yayın sırası", slot);
+        queue->document = radios_data_document_new(view->ctx, view->page, "programme", name, programme_apply, queue); g_free(name);
+        if (view->ctx->audio) queue->context.playout = radios_playout_ui_new_player(&queue->context, slot - 1, view->page);
+    }
+    view->programme_document = queue->document;
+    g_clear_pointer(&view->programme_config, json_node_free); view->programme_config = programme_copy(queue->config);
+    g_free(view->selected_event); view->selected_event = g_strdup(queue->selected);
+    gtk_combo_box_set_active(GTK_COMBO_BOX(view->transition_mode), (gint)queue->transition);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(view->transition_overlap), queue->overlap);
+    gtk_widget_set_sensitive(view->transition_overlap, !slot && (queue->transition == 1 || queue->transition == 2));
+    view->lifecycle_context = *programme_context(view); view->queue_switching = FALSE;
+    view->history_count = G_MAXUINT; g_clear_pointer(&view->history_latest, g_free);
+    if (view->history_table) gtk_list_store_clear(g_object_get_data(G_OBJECT(view->history_table), "list-store"));
+    programme_render(view); catalog_actions_update(view);
+    if (view->playout_status) programme_playout_tick(view);
+}
+
+static gboolean queue_documents_tick(gpointer data)
+{
+    BroadcastView *view = data; if (view->disposed) return G_SOURCE_REMOVE;
+    for (guint slot = 1; slot < G_N_ELEMENTS(view->queues); ++slot) {
+        PlayerQueue *queue = &view->queues[slot];
+        if (!queue->document || queue->initialized || !radios_data_document_ready(queue->document)) continue;
+        if (radios_data_document_revision(queue->document) > 0) queue->initialized = TRUE;
+        else if (radios_data_connected(view->ctx)) {
+            JsonNode *config = slot == view->queue_slot ? view->programme_config : queue->config;
+            queue->initialized = radios_data_document_save(queue->document, config);
+        }
+    }
+    return G_SOURCE_CONTINUE;
+}
+
+static void queue_selector_refresh(BroadcastView *view)
+{
+    if (!view->queue_player) return;
+    view->queue_switching = TRUE;
+    gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(view->queue_player));
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(view->queue_player), "0", "Genel yayın sırası");
+    for (guint slot = 1; slot < G_N_ELEMENTS(view->queues); ++slot) {
+        gchar *key = g_strdup_printf("radios-deck-owner-%u", slot - 1);
+        gboolean present = g_object_get_data(G_OBJECT(view->ctx->parent), key) != NULL; g_free(key);
+        if (!present && !view->queues[slot].document) continue;
+        gchar *id = g_strdup_printf("%u", slot), *title = g_strdup_printf("Oynatıcı %u%s", slot, present ? "" : " (kart kaldırıldı)");
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(view->queue_player), id, title); g_free(id); g_free(title);
+    }
+    gchar *selected = g_strdup_printf("%u", view->queue_slot);
+    gtk_combo_box_set_active_id(GTK_COMBO_BOX(view->queue_player), selected); g_free(selected);
+    view->queue_switching = FALSE;
+}
+
+static GtkWidget *
+flow_queue(BroadcastView *view)
+{
+    RadioSViewContext *ctx = view->ctx;
+    GtkWidget *body;
+    GtkWidget *panel = radios_ui_panel("Eventler · Yayın sırası", &body);
+    add_class(panel, "ld-flow");
+    add_class(panel, "is-selected");
+    gtk_widget_set_name(panel, "flow-workspace");
+    add_class(body, "ld-flow-body");
+    gtk_box_set_spacing(GTK_BOX(body), 7);
+    GList *children = gtk_container_get_children(GTK_CONTAINER(panel));
+    if (children != NULL && GTK_IS_BOX(children->data)) {
+        GtkWidget *head = children->data;
+        view->queue_count = radios_ui_label("— event · — içerik", "ld-head-meta"); pack(head, view->queue_count, FALSE);
+        view->queue_duration = radios_ui_label("—", "ld-head-meta"); pack(head, view->queue_duration, FALSE);
+        gtk_widget_set_name(view->queue_count, "programme-queue-count"); gtk_widget_set_name(view->queue_duration, "programme-queue-duration");
+        gtk_widget_set_tooltip_text(view->queue_duration, "Toplam süre");
+    }
+    g_list_free(children);
+    GtkWidget *player_row = named_box(GTK_ORIENTATION_HORIZONTAL, 6, "programme-player-bar");
+    pack(player_row, radios_ui_label("Oynatıcı", NULL), FALSE);
+    view->queue_player = gtk_combo_box_text_new(); gtk_widget_set_name(view->queue_player, "programme-player-selector");
+    gtk_widget_set_tooltip_text(view->queue_player, "Her oynatıcının event sırası ve taşıma kontrolleri bağımsızdır.");
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(view->queue_player), "0", "Genel yayın sırası");
+    gtk_combo_box_set_active(GTK_COMBO_BOX(view->queue_player), 0);
+    g_signal_connect(view->queue_player, "changed", G_CALLBACK(queue_player_changed), view);
+    pack(player_row, view->queue_player, TRUE); pack(body, player_row, FALSE);
+
+    GtkWidget *queue = gtk_grid_new();
+    add_class(queue, "programme-queue-layout");
+    gtk_grid_set_column_spacing(GTK_GRID(queue), 5);
+    gtk_grid_set_row_spacing(GTK_GRID(queue), 7);
+    gtk_widget_set_hexpand(queue, TRUE);
+    gtk_widget_set_vexpand(queue, TRUE);
+    pack(body, queue, TRUE);
+
+    GtkWidget *toolbar_frame = named_box(GTK_ORIENTATION_VERTICAL, 5, "programme-queue-toolbar");
+    add_class(toolbar_frame, "programme-playback-toolbar");
+    GtkWidget *toolbar = named_box(GTK_ORIENTATION_HORIZONTAL, 8, NULL);
+    pack(toolbar_frame, toolbar, FALSE);
+    view->placement = radios_ui_label("Sona yeni event olarak ekle", "programme-placement");
+    gtk_widget_set_name(view->placement, "programme-placement"); pack(toolbar_frame, view->placement, FALSE);
+    GtkWidget *transport = named_box(GTK_ORIENTATION_HORIZONTAL, 4, "programme-square-controls");
+    const gchar *symbols[] = {"|◀", "▶", "Ⅱ", "■", "▶|"};
+    const gchar *tips[] = {"Önceki içeriğe geç", "Seçili event veya içeriği oynat",
+                          "Duraklat", "Durdur", "Sonraki içeriğe geç"};
+    const gchar *transport_ids[] = {"programme-previous", "programme-play", "programme-pause", "programme-stop", "programme-next"};
+    for (guint i = 0; i < G_N_ELEMENTS(symbols); ++i) {
+        GtkWidget *control = button(transport, symbols[i], "programme-square", ctx,
+                                   ctx->playout ? NULL : "Yayın kontrolü için gerçek ses motoru bağlantısı gerekiyor.");
+        gtk_widget_set_name(control, transport_ids[i]); view->transport[i] = control;
+        if (ctx->playout) { g_object_set_data(G_OBJECT(control), "programme-transport-action", GUINT_TO_POINTER(i)); g_signal_connect(control, "clicked", G_CALLBACK(programme_transport), view); }
+        gtk_widget_set_tooltip_text(control, tips[i]);
+    }
+    pack(toolbar, transport, FALSE);
+    GtkWidget *transition = named_box(GTK_ORIENTATION_HORIZONTAL, 5, "programme-transition-controls");
+    const gchar *const modes[] = {"Parça bitince", "Crossfade", "Cue / Auto Next", "Elle geç", NULL};
+    pack(transition, radios_ui_label("Geçiş", NULL), FALSE);
+    GtkWidget *mode = radios_ui_combo(modes, 1);
+    view->transition_mode = mode;
+    gtk_widget_set_name(mode, "programme-transition-mode");
+    pack(transition, mode, TRUE);
+    pack(transition, radios_ui_label("Bindirme", NULL), FALSE);
+    GtkWidget *overlap = gtk_spin_button_new_with_range(0, 30, 0.1);
+    view->transition_overlap = overlap;
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(overlap), 3);
+    gtk_spin_button_set_digits(GTK_SPIN_BUTTON(overlap), 1);
+    gtk_entry_set_width_chars(GTK_ENTRY(overlap), 3);
+    gtk_widget_set_name(overlap, "programme-transition-overlap");
+    g_signal_connect(mode, "changed", G_CALLBACK(transition_mode_changed), view);
+    pack(transition, overlap, FALSE);
+    pack(transition, radios_ui_label("sn", NULL), FALSE);
+    GtkWidget *gear = button(transition, "⚙", "ld-btn", ctx, NULL);
+    radios_ui_bind_editor(gear, ctx, RADIOS_EDITOR_TRANSITION);
+    add_class(gear, "programme-transition-settings");
+    gtk_widget_set_tooltip_text(gear, "Geçiş otomasyonu ayarlarını aç");
+    pack(toolbar, transition, TRUE);
+    gtk_grid_attach(GTK_GRID(queue), toolbar_frame, 0, 0, 1, 1);
+
+    RadioSProgrammeQueueHooks hooks = {view, queue_selected, queue_action, queue_drop};
+    GtkWidget *table = radios_programme_queue_new(&hooks);
+    view->queue_table = table;
+    gtk_widget_set_hexpand(table, TRUE); gtk_widget_set_vexpand(table, TRUE);
+    gtk_grid_attach(GTK_GRID(queue), table, 0, 1, 1, 1);
+    GtkWidget *side = named_box(GTK_ORIENTATION_VERTICAL, 5, "programme-queue-side");
+    const gchar *side_symbols[] = {"＋", "⇄", "×", "▤"};
+    const gchar *side_text[] = {"Araya\nekle", "Değiştir", "Temizle", "Girdi"};
+    const gchar *side_ids[] = {"programme-insert", "programme-replace", "programme-remove", "programme-input"};
+    for (guint i = 0; i < G_N_ELEMENTS(side_text); ++i) {
+        GtkWidget *control = gtk_button_new();
+        gtk_widget_set_name(control, side_ids[i]);
+        GtkWidget *content = named_box(GTK_ORIENTATION_VERTICAL, 3, NULL);
+        GtkWidget *symbol = radios_ui_label(side_symbols[i], "queue-side-symbol");
+        GtkWidget *caption = radios_ui_label(side_text[i], "queue-side-caption small");
+        gtk_label_set_xalign(GTK_LABEL(symbol), 0.5f);
+        gtk_label_set_xalign(GTK_LABEL(caption), 0.5f);
+        gtk_label_set_max_width_chars(GTK_LABEL(caption), 6);
+        gtk_widget_set_size_request(control, 58, 59);
+        pack(content, symbol, FALSE);
+        pack(content, caption, FALSE);
+        gtk_container_add(GTK_CONTAINER(control), content);
+        g_object_set_data(G_OBJECT(control), "broadcast-side-action", GUINT_TO_POINTER(i));
+        g_signal_connect(control, "clicked", G_CALLBACK(queue_side_action), view);
+        pack(side, control, FALSE);
+    }
+    gtk_grid_attach(GTK_GRID(queue), side, 1, 1, 1, 1);
+
+    GtkWidget *footer = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "programme-queue-toolbar");
+    add_class(footer, "programme-queue-footer");
+    GtkWidget *order = named_box(GTK_ORIENTATION_HORIZONTAL, 4, "programme-square-controls");
+    const gchar *order_text[] = {"⇈", "↑", "↓", "⇊"};
+    const gchar *order_tips[] = {"En üste taşı", "Yukarı taşı", "Aşağı taşı", "En alta taşı"};
+    const gchar *order_ids[] = {"programme-first", "programme-up", "programme-down", "programme-last"};
+    for (guint i = 0; i < G_N_ELEMENTS(order_text); ++i) {
+        GtkWidget *control = button(order, order_text[i], "programme-square", ctx, NULL);
+        gtk_widget_set_name(control, order_ids[i]);
+        g_object_set_data(G_OBJECT(control), "programme-order-action", GUINT_TO_POINTER(i));
+        g_signal_connect(control, "clicked", G_CALLBACK(programme_order), view);
+        gtk_widget_set_tooltip_text(control, order_tips[i]);
+    }
+    pack(footer, order, FALSE);
+    GtkWidget *events = named_box(GTK_ORIENTATION_HORIZONTAL, 5, "ld-add-buttons");
+    const gchar *event_text[] = {"+ Müzik eventi", "+ Anons eventi", "+ Reklam eventi"};
+    const gchar *event_style[] = {"ld-type--music", "ld-type--announcement", "ld-type--advert"};
+    const gchar *event_ids[] = {"programme-add-music", "programme-add-announcement", "programme-add-advert"};
+    const gchar *event_kinds[] = {"music", "announcement", "advertisement"};
+    for (guint i = 0; i < G_N_ELEMENTS(event_text); ++i) {
+        GtkWidget *control = button(events, event_text[i], "ld-btn", ctx, NULL);
+        g_object_set_data(G_OBJECT(control), "programme-event-kind", (gpointer)event_kinds[i]);
+        g_signal_connect(control, "clicked", G_CALLBACK(programme_add_event), view);
+        gtk_widget_set_name(control, event_ids[i]);
+        add_class(control, "ld-add-btn");
+        add_class(control, event_style[i]);
+    }
+    gtk_widget_set_halign(events, GTK_ALIGN_END);
+    pack(footer, events, TRUE);
+    gtk_grid_attach(GTK_GRID(queue), footer, 0, 2, 1, 1);
+    if (ctx->playout) {
+        view->playout_status = radios_ui_label("Yerel yürütücü beklemede", "ld-head-meta"); gtk_widget_set_name(view->playout_status, "programme-playout-status");
+        gtk_label_set_ellipsize(GTK_LABEL(view->playout_status), PANGO_ELLIPSIZE_END); pack(body, view->playout_status, FALSE);
+    }
+    return panel;
+}
+
+static gboolean history_tick(gpointer data)
+{
+    BroadcastView *view = data; if (view->disposed) return G_SOURCE_REMOVE;
+    JsonNode *history = radios_playout_ui_history(programme_context(view)); if (!history) return G_SOURCE_CONTINUE;
+    JsonArray *entries = json_object_get_array_member(json_node_get_object(history), "entries"); guint count = entries ? json_array_get_length(entries) : 0;
+    JsonObject *last = count ? json_array_get_object_element(entries, count - 1) : NULL;
+    gchar *latest = g_strdup_printf("%s|%s|%s|%" G_GINT64_FORMAT, radios_json_string(last, "media_id", ""), radios_json_string(last, "version_id", ""),
+        radios_json_string(last, "started_utc", ""), radios_json_int(last, "position_frames", 0));
+    if (count == view->history_count && g_strcmp0(latest, view->history_latest) == 0) { g_free(latest); json_node_free(history); return G_SOURCE_CONTINUE; }
+    view->history_count = count; g_free(view->history_latest); view->history_latest = latest;
+    GtkListStore *store = g_object_get_data(G_OBJECT(view->history_table), "list-store"); gtk_list_store_clear(store);
+    for (guint i = count; i > 0 && count - i < 100; --i) {
+        JsonObject *entry = json_array_get_object_element(entries, i - 1); GtkTreeIter iter;
+        const gchar *stamp = radios_json_string(entry, "started_utc", ""); GDateTime *utc = g_date_time_new_from_iso8601(stamp, NULL);
+        gchar *time = utc ? g_date_time_format(utc, "%H:%M:%S UTC") : g_strdup(stamp); if (utc) g_date_time_unref(utc);
+        gint64 milliseconds = radios_json_int(entry, "position_frames", 0) / 48;
+        gchar *position = g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, milliseconds / 60000, (milliseconds / 1000) % 60);
+        gtk_list_store_append(store, &iter); gtk_list_store_set(store, &iter, 0, time, 1, radios_json_string(entry, "artist", ""),
+            2, radios_json_string(entry, "title", radios_json_string(entry, "media_id", "")), 3, position, -1); g_free(time); g_free(position);
+    }
+    json_node_free(history); return G_SOURCE_CONTINUE;
+}
+static void history_export_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    BroadcastView *view = g_object_get_data(G_OBJECT(data), "radios-broadcast-view");
+    if (response == GTK_RESPONSE_ACCEPT && view && !view->disposed) {
+        gchar *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog)); GError *error = NULL;
+        if (filename && g_file_set_contents(filename, g_object_get_data(G_OBJECT(dialog), "history-export"), -1, &error)) programme_notice(view, "Yerel oynatma geçmişi kaydedildi.");
+        else programme_notice(view, error ? error->message : "Dosya adı seçilmedi.");
+        g_clear_error(&error); g_free(filename);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+static void history_export(GtkButton *button, gpointer data)
+{
+    (void)button; BroadcastView *view = data; if (view->disposed) return;
+    JsonNode *history = radios_playout_ui_history(programme_context(view)); if (!history) return;
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Yerel oynatma geçmişini kaydet", view->ctx->parent, GTK_FILE_CHOOSER_ACTION_SAVE,
+        "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL); gtk_window_set_destroy_with_parent(GTK_WINDOW(dialog), TRUE);
+    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE); gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "RadioS-oynatma-gecmisi.json");
+    g_object_set_data_full(G_OBJECT(dialog), "history-export", json_to_string(history, TRUE), g_free); json_node_free(history);
+    g_signal_connect_object(dialog, "response", G_CALLBACK(history_export_response), view->page, 0); gtk_widget_show(dialog);
+}
+static GtkWidget *
+history_view(BroadcastView *view)
+{
+    RadioSViewContext *ctx = view->ctx;
+    GtkWidget *history = named_box(GTK_ORIENTATION_VERTICAL, 5, "broadcast-history");
+    add_class(history, "ops-card");
+    add_class(history, "ops-history");
+    GtkWidget *heading = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "ops-card-heading");
+    pack(heading, radios_ui_label(ctx->playout ? "Yerel oynatma geçmişi" : "Yayın geçmişi", "heading"), TRUE);
+    GtkWidget *download = button(heading, "Kaydı indir", NULL, ctx, ctx->playout ? NULL : "Yayın geçmişini indirmek için veri servisi bağlantısı gerekiyor.");
+    if (ctx->playout) { gtk_widget_set_name(download, "programme-history-export"); g_signal_connect(download, "clicked", G_CALLBACK(history_export), view); }
+    GtkWidget *stack = gtk_stack_new();
+    GtkWidget *tabs = gtk_stack_switcher_new();
+    gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(tabs), GTK_STACK(stack));
+    add_class(tabs, "ops-history-tabs");
+    pack(heading, tabs, FALSE);
+    pack(history, heading, FALSE);
+    pack(history, stack, TRUE);
+    const gchar *headers[] = {"Saat", "Sanatçı", "Parça", ctx->playout ? "Konum" : "Süre"};
+    GtkWidget *actual = radios_ui_table(headers, G_N_ELEMENTS(headers));
+    view->history_table = actual; gtk_widget_set_name(actual, "programme-history-table");
+    gtk_widget_set_tooltip_text(actual, "Yerel ses çıkışında başlayan öğeler ve gözlenen oynatma konumu.");
+    add_class(actual, "ops-table-scroll");
+    GtkWidget *tree = g_object_get_data(G_OBJECT(actual), "tree-view");
+    add_class(tree, "ops-table");
+    for (guint i = 0; i < G_N_ELEMENTS(headers); ++i)
+        gtk_tree_view_column_set_expand(gtk_tree_view_get_column(GTK_TREE_VIEW(tree),
+                                                                (gint)i), TRUE);
+    gtk_widget_set_size_request(actual, -1, 62);
+    gtk_stack_add_titled(GTK_STACK(stack), actual, "actual", ctx->playout ? "Yerel ses" : "Gerçek yayın");
+    GtkWidget *draft = radios_ui_label("—", "ops-audit-list");
+    gtk_widget_set_valign(draft, GTK_ALIGN_START);
+    gtk_stack_add_titled(GTK_STACK(stack), draft, "draft", "Düzenleme kaydı");
+    if (ctx->playout) { view->history_count = G_MAXUINT; view->history_timer = g_timeout_add(500, history_tick, view); }
+    return history;
+}
+
+typedef struct { BroadcastView *view; guint generation; JsonNode *programmes; } CatalogRead;
+static void catalog_read_free(gpointer value)
+{ CatalogRead *read = value; if (read->programmes) json_node_free(read->programmes); g_free(read); }
+static gchar *catalog_duration(gint64 milliseconds)
+{ gint64 seconds = (milliseconds + 500) / 1000; return g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, seconds / 60, seconds % 60); }
+static JsonObject *catalog_object(JsonObject *object, const gchar *key)
+{ JsonNode *node = object ? json_object_get_member(object, key) : NULL; return node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL; }
+static void catalog_message(BroadcastView *view, const gchar *message)
+{ gtk_label_set_text(GTK_LABEL(view->catalog_status), message); programme_notice(view, message); }
+static gboolean catalog_matches(const gchar *value, const gchar *query)
+{
+    if (!query || !*query) return TRUE;
+    gchar *haystack = g_utf8_casefold(value, -1), *needle = g_utf8_casefold(query, -1);
+    gboolean found = strstr(haystack, needle) != NULL; g_free(haystack); g_free(needle); return found;
+}
+
+/* Rows of the shared catalogue table: saved programmes (Programlar) first, then media. */
+static void catalog_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)owner; CatalogRead *read = data; BroadcastView *view = read->view;
+    if (read->generation != view->catalog_generation || radios_broadcast_online_active(view->online)) return;
+    if (error) { gtk_label_set_text(GTK_LABEL(view->catalog_status), error->message); return; }
+    if (!result || !JSON_NODE_HOLDS_OBJECT(result)) return;
+    JsonObject *object = json_node_get_object(result);
+    JsonNode *media_node = json_object_get_member(object, "records");
+    if (!media_node || !JSON_NODE_HOLDS_ARRAY(media_node)) return;
+    JsonArray *records = json_array_new(), *media = json_node_get_array(media_node);
+    const gchar *query = gtk_entry_get_text(GTK_ENTRY(view->query)); guint saved = 0;
+    JsonObject *programmes = read->programmes && JSON_NODE_HOLDS_OBJECT(read->programmes) ? json_node_get_object(read->programmes) : NULL;
+    JsonNode *documents = programmes ? json_object_get_member(programmes, "records") : NULL;
+    for (guint i = 0; documents && JSON_NODE_HOLDS_ARRAY(documents) && i < json_array_get_length(json_node_get_array(documents)); ++i) {
+        JsonObject *document = json_array_get_object_element(json_node_get_array(documents), i);
+        const gchar *name = radios_json_string(document, "name", "");
+        /* The working draft is the flow itself, not a catalogue entry. */
+        JsonObject *config = catalog_object(document, "config");
+        if (g_str_equal(name, "Mevcut program") || (config && json_object_has_member(config, "queue_player")) || !catalog_matches(name, query)) continue;
+        JsonObject *wrapper = json_object_new(); json_object_set_object_member(wrapper, "programme", json_object_ref(document));
+        json_array_add_object_element(records, wrapper); ++saved;
+    }
+    for (guint i = 0; i < json_array_get_length(media); ++i) json_array_add_element(records, json_node_copy(json_array_get_element(media, i)));
+    g_clear_pointer(&view->catalog_records, json_node_free);
+    view->catalog_records = json_node_new(JSON_NODE_OBJECT); json_node_take_object(view->catalog_records, json_object_new());
+    json_object_set_array_member(json_node_get_object(view->catalog_records), "records", records);
+    GtkListStore *store = g_object_get_data(G_OBJECT(view->catalog_table), "list-store"); gtk_list_store_clear(store);
+    for (guint i = 0; i < json_array_get_length(records); ++i) {
+        JsonObject *row = json_array_get_object_element(records, i), *programme = catalog_object(row, "programme"); GtkTreeIter iter;
+        gtk_list_store_append(store, &iter);
+        if (programme) {
+            JsonObject *config = catalog_object(programme, "config");
+            RadioSProgrammeTree *tree = radios_programme_tree_new(config); gint64 total = 0;
+            for (guint j = 0; j < tree->blocks->len; ++j) total += radios_programme_block_duration(g_ptr_array_index(tree->blocks, j));
+            gchar *duration = catalog_duration(total), *source = g_strdup_printf("Program · %u içerik", radios_programme_tree_leaf_count(tree));
+            gtk_list_store_set(store, &iter, 0, "", 1, radios_json_string(programme, "name", ""), 2, radios_json_string(config, "date", ""),
+                3, "Program", 4, duration, 5, source, -1);
+            g_free(duration); g_free(source); radios_programme_tree_free(tree);
+            continue;
+        }
+        JsonObject *item = catalog_object(row, "media"), *version = catalog_object(row, "version");
+        gchar *duration = catalog_duration(radios_json_int(version, "duration_ms", 0));
+        gtk_list_store_set(store, &iter, 0, radios_json_string(item, "artist", ""), 1, radios_json_string(item, "title", ""),
+            2, radios_json_string(item, "album", ""), 3, radios_programme_kind_label(radios_json_string(item, "kind", "")),
+            4, duration, 5, "Medya arşivi", -1);
+        g_free(duration);
+    }
+    gchar *count = g_strdup_printf("%u / %" G_GINT64_FORMAT " kayıt", json_array_get_length(records), radios_json_int(object, "total", 0) + saved);
+    gtk_label_set_text(GTK_LABEL(view->catalog_count), count); g_free(count);
+    gtk_label_set_text(GTK_LABEL(view->catalog_status), "");
+    catalog_actions_update(view);
+}
+
+static JsonObject *catalog_selected_record(BroadcastView *view)
+{
+    if (!view->catalog_records || (!view->catalog_unified && radios_broadcast_online_active(view->online))) return NULL;
+    GtkTreeView *tree = g_object_get_data(G_OBJECT(view->catalog_table), "tree-view");
+    GtkTreeModel *model = NULL; GtkTreeIter iter;
+    if (!gtk_tree_selection_get_selected(gtk_tree_view_get_selection(tree), &model, &iter)) return NULL;
+    GtkTreePath *path = gtk_tree_model_get_path(model, &iter); gint *indices = gtk_tree_path_get_indices(path);
+    JsonArray *rows = json_object_get_array_member(json_node_get_object(view->catalog_records), "records");
+    JsonObject *record = NULL;
+    if (indices && indices[0] >= 0 && (guint)indices[0] < json_array_get_length(rows))
+        record = json_array_get_object_element(rows, (guint)indices[0]);
+    gtk_tree_path_free(path); return record;
+}
+/* Media id of the selected archive row; saved programmes and YouTube rows have none. */
+static const gchar *catalog_selected(BroadcastView *view)
+{ JsonObject *media = catalog_object(catalog_selected_record(view), "media"); return media ? radios_json_string(media, "_id", "") : NULL; }
+static JsonObject *catalog_selected_programme(BroadcastView *view)
+{ return catalog_object(catalog_selected_record(view), "programme"); }
+static void catalog_selection(GtkTreeSelection *selection, gpointer data)
+{
+    (void)selection; BroadcastView *view = data; catalog_actions_update(view);
+    JsonArray *picked = radios_broadcast_online_active(view->online) ? radios_broadcast_online_items(view->online, FALSE) : NULL;
+    if (picked && json_array_get_length(picked))
+        radios_broadcast_online_prepare(view->online, radios_json_string(json_array_get_object_element(picked, 0), "provider_id", ""), FALSE);
+    if (picked) json_array_unref(picked);
+}
+
+/* Buttons and the selected-content details follow the catalogue mode. */
+static void catalog_actions_update(BroadcastView *view)
+{
+    if (!view->catalog_insert) return;
+    gboolean clean = !view->disposed && radios_data_connected(view->ctx) && radios_data_document_revision(view->programme_document) > 0;
+    gboolean online = radios_broadcast_online_active(view->online) && (!view->catalog_unified || catalog_object(catalog_selected_record(view), "online"));
+    JsonObject *record = catalog_selected_record(view), *programme = catalog_object(record, "programme"), *media = catalog_object(record, "media");
+    JsonObject *playlist = catalog_object(record, "playlist"), *remote_playlist = catalog_object(record, "online_playlist");
+    GtkWidget *tree = g_object_get_data(G_OBJECT(view->catalog_table), "tree-view");
+    const GtkTargetEntry *target = &radios_drag_targets(NULL)[(programme ? RADIOS_DRAG_INFO_PROGRAMME : RADIOS_DRAG_INFO_MEDIA) - 1];
+    GtkTargetList *targets = gtk_target_list_new(playlist || remote_playlist ? NULL : target, playlist || remote_playlist ? 0 : 1);
+    gtk_drag_source_set_target_list(tree, targets); gtk_target_list_unref(targets);
+    JsonArray *picked = online ? radios_broadcast_online_items(view->online, FALSE) : NULL;
+    JsonObject *item = picked && json_array_get_length(picked) ? json_array_get_object_element(picked, 0) : NULL;
+    gboolean selected = programme || media || item, idle = !view->catalogue_busy;
+    gtk_button_set_label(GTK_BUTTON(view->catalog_insert), programme ? "Programı ekle" : "Bloğa ekle");
+    gtk_button_set_label(GTK_BUTTON(view->catalog_replace), programme ? "Mevcut taslağı değiştir" : "Seçiliyle değiştir");
+    gtk_button_set_label(GTK_BUTTON(view->catalog_edit), playlist || remote_playlist ? "Playlisti aç" : "Düzenle");
+    gtk_widget_set_visible(view->catalog_edit, !online && !programme);
+    gtk_widget_set_visible(view->catalog_all, online);
+    gtk_widget_set_sensitive(view->catalog_edit, (media || playlist || remote_playlist) && idle);
+    gtk_widget_set_sensitive(view->catalog_insert, selected && clean && idle);
+    gtk_widget_set_sensitive(view->catalog_replace, selected && clean && idle && (programme || programme_leaf_selected(view)));
+    JsonArray *all = online ? radios_broadcast_online_items(view->online, TRUE) : NULL;
+    gtk_widget_set_sensitive(view->catalog_all, all && json_array_get_length(all) && clean && idle);
+    if (all) json_array_unref(all);
+    gtk_widget_set_sensitive(view->programme_archive, clean && idle);
+    JsonObject *version = catalog_object(record, "version"), *config = catalog_object(programme, "config");
+    gchar *duration = programme || media || item ? NULL : g_strdup("—");
+    if (!duration) {
+        gint64 milliseconds = item ? radios_json_int(item, "duration_ms", 0) : radios_json_int(version, "duration_ms", 0);
+        if (programme) {
+            RadioSProgrammeTree *tree = radios_programme_tree_new(config);
+            for (guint j = 0; j < tree->blocks->len; ++j) milliseconds += radios_programme_block_duration(g_ptr_array_index(tree->blocks, j));
+            radios_programme_tree_free(tree);
+        }
+        duration = milliseconds > 0 ? catalog_duration(milliseconds) : g_strdup("—");
+    }
+    const gchar *title = programme ? radios_json_string(programme, "name", "") : media ? radios_json_string(media, "title", "") :
+        item ? radios_json_string(item, "title", "") : playlist ? radios_json_string(playlist, "name", "") :
+        remote_playlist ? radios_json_string(remote_playlist, "title", "") : "İçerik seçilmedi";
+    const gchar *values[] = {programme ? "—" : media ? radios_json_string(media, "artist", "") : item ? radios_json_string(item, "artist", "") : "—",
+        programme ? radios_json_string(config, "date", "") : media ? radios_json_string(media, "album", "") : "—", duration,
+        programme ? "Program taslağı" : media ? "Medya arşivi" : item ? radios_broadcast_online_label(view->online) : "—"};
+    gtk_label_set_text(GTK_LABEL(view->catalog_title), *title ? title : "—");
+    for (guint i = 0; i < G_N_ELEMENTS(values); ++i) gtk_label_set_text(GTK_LABEL(view->catalog_details[i]), values[i] && *values[i] ? values[i] : "—");
+    g_free(duration);
+    if (picked) json_array_unref(picked);
+}
+
+typedef struct {
+    gchar *document_id, *event_id, *store_id, *station_id, *user_id, *media_id, *version_id, *media_file_id, *sha256;
+    gint64 revision, media_revision, version_revision;
+    guint intent, generation;
+    gboolean replace, placed;
+    RadioSProgrammePlacement placement;
+    JsonNode *config;
+} CatalogueIntent;
+static void catalogue_intent_free(gpointer value)
+{
+    CatalogueIntent *intent = value;
+    g_free(intent->document_id); g_free(intent->event_id); g_free(intent->store_id); g_free(intent->station_id); g_free(intent->user_id);
+    g_free(intent->media_id); g_free(intent->version_id); g_free(intent->media_file_id); g_free(intent->sha256);
+    json_node_free(intent->config); g_free(intent);
+}
+static CatalogueIntent *catalogue_capture(BroadcastView *view)
+{
+    if (view->disposed || view->catalogue_busy || radios_data_document_revision(view->programme_document) <= 0) return NULL;
+    RadioSDataClient *client = radios_data_client_acquire(view->ctx); if (!client) return NULL;
+    CatalogueIntent *intent = g_new0(CatalogueIntent, 1);
+    intent->document_id = g_strdup(radios_data_document_id(view->programme_document));
+    intent->revision = radios_data_document_revision(view->programme_document); intent->event_id = g_strdup(view->selected_event);
+    intent->config = programme_copy(view->programme_config); intent->intent = ++view->catalogue_intent;
+    intent->store_id = g_strdup(radios_data_client_store_id(client)); intent->station_id = g_strdup(radios_data_client_station_id(client));
+    intent->user_id = g_strdup(radios_data_client_user_id(client)); radios_data_client_unref(client); return intent;
+}
+static gboolean catalogue_identity(BroadcastView *view, CatalogueIntent *intent)
+{
+    RadioSDataClient *client = radios_data_client_acquire(view->ctx);
+    gboolean same = !view->disposed && client &&
+        !g_strcmp0(intent->store_id, radios_data_client_store_id(client)) && !g_strcmp0(intent->user_id, radios_data_client_user_id(client)) &&
+        !g_strcmp0(intent->station_id, radios_data_station_id(view->ctx));
+    if (client) radios_data_client_unref(client);
+    return same;
+}
+static gboolean catalogue_current(BroadcastView *view, CatalogueIntent *intent)
+{
+    return catalogue_identity(view, intent) && intent->intent == view->catalogue_intent &&
+        !g_strcmp0(intent->document_id, radios_data_document_id(view->programme_document)) &&
+        intent->revision == radios_data_document_revision(view->programme_document) &&
+        !g_strcmp0(intent->event_id, view->selected_event) && json_node_equal(intent->config, view->programme_config);
+}
+static gboolean catalogue_save(BroadcastView *view, JsonNode *next)
+{
+    queue_binding(view, json_node_get_object(next));
+    radios_data_document_dirty(view->programme_document, TRUE);
+    if (!radios_data_document_save(view->programme_document, next)) { json_node_free(next); return FALSE; }
+    g_clear_pointer(&view->programme_config, json_node_free); view->programme_config = next; programme_render(view); return TRUE;
+}
+/* The selected content keeps its id, event, start time and note; its source changes. */
+static gboolean programme_replace_leaf(BroadcastView *view, JsonObject *source)
+{
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    if (!programme_item(view, tree, &block, &leaf) || leaf < 0) { radios_programme_tree_free(tree); json_object_unref(source); return FALSE; }
+    GPtrArray *leaves = ((RadioSProgrammeBlock *)g_ptr_array_index(tree->blocks, block))->leaves;
+    JsonObject *replacement = radios_programme_clone_object(g_ptr_array_index(leaves, (guint)leaf));
+    const gchar *sources[] = {"media_id", "version_id", "media_file_id", "media_sha256", "online_provider", "online_id", "online_url"};
+    for (guint i = 0; i < G_N_ELEMENTS(sources); ++i) json_object_remove_member(replacement, sources[i]);
+    JsonObjectIter iter; const gchar *name; JsonNode *member;
+    json_object_iter_init(&iter, source);
+    while (json_object_iter_next(&iter, &name, &member))
+        if (!g_str_equal(name, "id") && !g_str_equal(name, "start_time") && !g_str_equal(name, "note"))
+            json_object_set_member(replacement, name, radios_programme_clone(member));
+    json_object_unref(source);
+    g_ptr_array_remove_index(leaves, (guint)leaf); g_ptr_array_insert(leaves, leaf, replacement);
+    gchar *id = g_strdup(radios_json_string(replacement, "id", ""));
+    gboolean saved = programme_commit(view, tree, id); g_free(id); return saved;
+}
+static void catalog_media_ready(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    CatalogueIntent *intent = value; BroadcastView *view = g_object_get_data(G_OBJECT(owner), "radios-broadcast-view");
+    if (!view || view->disposed || intent->intent != view->catalogue_intent) return;
+    view->catalogue_busy = FALSE; catalog_actions_update(view);
+    if (error) { catalog_message(view, error->message); return; }
+    if (!catalogue_current(view, intent) || intent->generation != view->catalog_generation || g_strcmp0(intent->media_id, catalog_selected(view))) {
+        catalog_message(view, "Hedef program, seçili öğe, katalog veya veri kimliği değişti; hiçbir öğe eklenmedi/değiştirilmedi."); return;
+    }
+    JsonObject *detail = result && JSON_NODE_HOLDS_OBJECT(result) ? json_node_get_object(result) : NULL;
+    JsonObject *media = catalog_object(detail, "media"), *version = catalog_object(detail, "version"), *analysis = catalog_object(detail, "analysis");
+    if (!media || !version || !analysis || g_strcmp0(radios_json_string(media, "_id", ""), intent->media_id) ||
+        g_strcmp0(radios_json_string(media, "station_id", ""), radios_data_station_id(ctx)) ||
+        g_strcmp0(radios_json_string(media, "status", ""), "active") || radios_json_int(media, "_rev", 0) != intent->media_revision ||
+        radios_json_int(version, "_rev", 0) != intent->version_revision || g_strcmp0(radios_json_string(version, "_id", ""), intent->version_id) ||
+        g_strcmp0(radios_json_string(version, "media_file_id", ""), intent->media_file_id) || g_strcmp0(radios_json_string(version, "sha256", ""), intent->sha256) ||
+        g_strcmp0(radios_json_string(analysis, "sha256", ""), intent->sha256) || !json_object_get_boolean_member(version, "verified") ||
+        !json_object_get_boolean_member(version, "object_available") || radios_json_int(version, "duration_ms", 0) <= 0) {
+        catalog_message(view, "Seçili medya değişti veya gerçek SHA doğrulaması kullanılamıyor; katalog aramasını yenileyin. Program korunuyor."); return;
+    }
+    JsonObject *event = json_object_new(); gchar *id = g_uuid_string_random(); json_object_set_string_member(event, "id", id); g_free(id);
+    const gchar *blank[] = {"start_time", "primary_file", "backup_file", "note"};
+    for (guint i = 0; i < G_N_ELEMENTS(blank); ++i) json_object_set_string_member(event, blank[i], "");
+    const gchar *keys[] = {"title", "artist", "album", "kind"}; const glong limits[] = {160,120,120,40};
+    for (guint i = 0; i < G_N_ELEMENTS(keys); ++i) { const gchar *text = radios_json_string(media, keys[i], "");
+        gchar *bounded = g_utf8_substring(text, 0, MIN(g_utf8_strlen(text, -1), limits[i])); json_object_set_string_member(event, keys[i], bounded); g_free(bounded); }
+    if (!radios_programme_kind_valid(radios_json_string(event, "kind", ""))) json_object_set_string_member(event, "kind", "music");
+    json_object_set_int_member(event, "duration_ms", radios_json_int(version, "duration_ms", 0));
+    json_object_set_string_member(event, "version_label", "Taslak");
+    json_object_set_string_member(event, "media_id", intent->media_id); json_object_set_string_member(event, "version_id", intent->version_id);
+    json_object_set_string_member(event, "media_file_id", intent->media_file_id); json_object_set_string_member(event, "media_sha256", intent->sha256);
+    gboolean saved;
+    if (intent->replace) saved = programme_replace_leaf(view, event);
+    else {
+        RadioSProgrammeTree *tree = programme_tree(view);
+        RadioSProgrammePlacement placement = intent->placed ? intent->placement : programme_target(view, tree);
+        radios_programme_tree_free(tree);
+        GPtrArray *leaves = g_ptr_array_new_with_free_func((GDestroyNotify)json_object_unref); g_ptr_array_add(leaves, event);
+        saved = programme_insert_leaves(view, leaves, placement, NULL, NULL);
+    }
+    catalog_message(view, saved ? "Medya yayın sırasına eklendi." : "Program kaydı gönderilemedi; mevcut sıra korunuyor.");
+}
+/* Verifies the real file and SHA of a media record before it enters the flow. */
+static gboolean catalog_media_verify(BroadcastView *view, JsonObject *record, gboolean replace, const RadioSProgrammePlacement *placement)
+{
+    JsonObject *media = catalog_object(record, "media"), *version = catalog_object(record, "version");
+    CatalogueIntent *intent = media && version ? catalogue_capture(view) : NULL;
+    if (!intent) { catalog_message(view, "Önce programı kaydedin ve katalogdan medya seçin."); return FALSE; }
+    intent->replace = replace;
+    if (replace && !programme_leaf_selected(view)) { catalogue_intent_free(intent); catalog_message(view, "Değiştirilecek içeriği seçin."); return FALSE; }
+    if (placement) { intent->placed = TRUE; intent->placement = *placement; }
+    intent->generation = view->catalog_generation; intent->media_id = g_strdup(radios_json_string(media, "_id", ""));
+    intent->media_revision = radios_json_int(media, "_rev", 0); intent->version_revision = radios_json_int(version, "_rev", 0);
+    intent->version_id = g_strdup(radios_json_string(version, "_id", "")); intent->media_file_id = g_strdup(radios_json_string(version, "media_file_id", ""));
+    intent->sha256 = g_strdup(radios_json_string(version, "sha256", "")); view->catalogue_busy = TRUE; catalog_actions_update(view);
+    catalog_message(view, "Seçili medyanın gerçek dosyası ve SHA özeti doğrulanıyor…");
+    if (!radios_media_library_get(view->ctx, view->page, intent->media_id, catalog_media_ready, intent, catalogue_intent_free)) {
+        view->catalogue_busy = FALSE; catalog_actions_update(view); catalog_message(view, "Medya doğrulaması başlatılamadı; program korunuyor."); return FALSE;
+    }
+    return TRUE;
+}
+/* A content after the selected event, or as a new last event. */
+static RadioSProgrammePlacement programme_after_event(BroadcastView *view)
+{
+    RadioSProgrammeTree *tree = programme_tree(view); guint block = 0; gint leaf = -1;
+    RadioSProgrammePlacement placement = {-1, programme_item(view, tree, &block, &leaf) ? block + 1 : tree->blocks->len};
+    radios_programme_tree_free(tree); return placement;
+}
+/* YouTube Music / Spotify / Apple Music catalogue rows: the selected one
+ * (insert or replace) or the whole list as one event. */
+static void catalog_online_to_programme(BroadcastView *view, gboolean replace, gboolean all)
+{
+    if (!programme_can_change(view)) return;
+    JsonArray *items = radios_broadcast_online_items(view->online, all);
+    if (!items || !json_array_get_length(items)) { if (items) json_array_unref(items); catalog_message(view, "Listeden parça seçin."); return; }
+    gboolean saved, matching = online_needs_match(items);
+    if (replace) {
+        saved = programme_insert_provider(view, items, (RadioSProgrammePlacement){-1, 0}, NULL, TRUE);
+        if (!saved) catalog_message(view, "Değiştirilecek içeriği seçin.");
+    } else if (all) {
+        const gchar *label = radios_broadcast_online_label(view->online);
+        gchar *title = g_utf8_substring(label, 0, MIN(g_utf8_strlen(label, -1), 160));
+        saved = programme_insert_provider(view, items, programme_after_event(view), *title ? title : NULL, FALSE); g_free(title);
+    } else {
+        RadioSProgrammeTree *tree = programme_tree(view); RadioSProgrammePlacement placement = programme_target(view, tree);
+        radios_programme_tree_free(tree);
+        saved = programme_insert_provider(view, items, placement, NULL, FALSE);
+    }
+    if (saved && !matching) catalog_message(view, all ? "YouTube Music listesi yayın sırasına event olarak eklendi." : "YouTube Music parçası yayın sırasına eklendi.");
+    json_array_unref(items);
+}
+static void programme_library_load(BroadcastView *view, JsonObject *document);
+static void catalog_to_programme(GtkButton *button_widget, gpointer data)
+{
+    BroadcastView *view = data; gboolean replace = GTK_WIDGET(button_widget) == view->catalog_replace;
+    if (radios_broadcast_online_active(view->online) && (!view->catalog_unified || catalog_object(catalog_selected_record(view), "online"))) { catalog_online_to_programme(view, replace, FALSE); return; }
+    JsonObject *programme = catalog_selected_programme(view);
+    if (programme) {
+        if (replace) { programme_library_load(view, programme); return; }
+        if (programme_can_change(view) && programme_insert_saved(view, programme, programme_after_event(view)))
+            catalog_message(view, "Program yayın sırasına event olarak eklendi.");
+        return;
+    }
+    catalog_media_verify(view, catalog_selected_record(view), replace, NULL);
+}
+static void catalog_all_to_programme(GtkButton *button_widget, gpointer data)
+{ (void)button_widget; catalog_online_to_programme(data, FALSE, TRUE); }
+
+/* A catalogue drag carries the selected row: media record, {"programme": …} or YouTube items. */
+static gboolean catalog_media_drop(BroadcastView *view, const gchar *payload, RadioSProgrammePlacement placement)
+{
+    JsonNode *node = json_parse(payload); gboolean accepted = FALSE;
+    if (node && JSON_NODE_HOLDS_ARRAY(node)) accepted = programme_insert_provider(view, json_node_get_array(node), placement, NULL, FALSE);
+    else if (node && JSON_NODE_HOLDS_OBJECT(node)) {
+        JsonObject *object = json_node_get_object(node), *programme = catalog_object(object, "programme");
+        if (programme) {
+            accepted = programme_insert_saved(view, programme, placement);
+        } else {
+            JsonObject *media = catalog_object(object, "media");
+            /* Verification re-reads the dragged (still selected) row. */
+            accepted = media && !g_strcmp0(radios_json_string(media, "_id", ""), catalog_selected(view)) &&
+                catalog_media_verify(view, catalog_selected_record(view), FALSE, &placement);
+        }
+    }
+    if (node) json_node_free(node);
+    return accepted;
+}
+static gchar *json_text(JsonNode *node)
+{
+    JsonGenerator *generator = json_generator_new(); json_generator_set_root(generator, node);
+    gchar *text = json_generator_to_data(generator, NULL); g_object_unref(generator); return text;
+}
+static void catalog_drag_get(GtkWidget *tree, GdkDragContext *context, GtkSelectionData *selection, guint info, guint time, gpointer data)
+{
+    (void)tree; (void)context; (void)time; BroadcastView *view = data; JsonNode *node = NULL;
+    if (radios_broadcast_online_active(view->online) && (!view->catalog_unified || catalog_object(catalog_selected_record(view), "online"))) {
+        JsonArray *items = radios_broadcast_online_items(view->online, FALSE);
+        if (items) { node = json_node_new(JSON_NODE_ARRAY); json_node_take_array(node, items); }
+    } else {
+        JsonObject *record = info == RADIOS_DRAG_INFO_PROGRAMME ? catalog_selected_programme(view) : catalog_selected_record(view);
+        if (record) { node = json_node_new(JSON_NODE_OBJECT); json_node_set_object(node, record); }
+    }
+    if (!node) return;
+    gchar *payload = json_text(node); radios_drag_set_payload(selection, payload); g_free(payload); json_node_free(node);
+}
+static void catalog_open(GtkWidget *widget, gpointer data)
+{
+    (void)widget; BroadcastView *view = data; JsonObject *record = catalog_selected_record(view);
+    JsonObject *playlist = catalog_object(record,"playlist"), *remote = catalog_object(record,"online_playlist");
+    if (playlist) { playlist_open(view,radios_json_string(playlist,"_id","")); return; }
+    if (remote) { catalog_playlist_open(view,remote); return; }
+    const gchar *id = catalog_selected(view); if (id) radios_media_library_open_selected(view->ctx, id);
+}
+static void catalog_activated(GtkTreeView *tree, GtkTreePath *path, GtkTreeViewColumn *column, gpointer data)
+{ (void)tree; (void)path; (void)column; catalog_open(NULL, data); }
+static void catalog_media_request(BroadcastView *view, CatalogRead *read)
+{
+    JsonNode *body = json_node_new(JSON_NODE_OBJECT); JsonObject *object = json_object_new(); json_node_take_object(body, object);
+    json_object_set_string_member(object, "station_id", radios_data_station_id(view->ctx));
+    json_object_set_string_member(object, "query", gtk_entry_get_text(GTK_ENTRY(view->query)));
+    json_object_set_string_member(object, "kind", view->catalog_kind ? view->catalog_kind : "music");
+    json_object_set_string_member(object, "field", "");
+    json_object_set_int_member(object, "limit", 200);
+    radios_data_request(view->ctx, view->page, "POST", "/v1/workflows/desktop-media/list", body, catalog_loaded, read, catalog_read_free);
+    json_node_free(body);
+}
+static void catalog_programmes_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)owner; CatalogRead *read = data; BroadcastView *view = read->view;
+    if (read->generation != view->catalog_generation || radios_broadcast_online_active(view->online)) return;
+    if (error || !result) { gtk_label_set_text(GTK_LABEL(view->catalog_status), error ? error->message : ""); return; }
+    CatalogRead *next = g_new0(CatalogRead, 1); next->view = view; next->generation = read->generation; next->programmes = json_node_copy(result);
+    catalog_media_request(view, next);
+}
+static const gchar *const catalog_source_names[] = {"Medya arşivi", "YouTube Music", "Spotify", "Apple Music"};
+static const gchar *const catalog_providers[] = {"", "youtube", "spotify", "apple_music"};
+typedef struct {
+    BroadcastView *view;
+    guint generation, source;
+    GWeakRef owner;
+    RadioSDataClient *client;
+    RadioSConfig config;
+    RadioSOnlineProfile *profile;
+    gchar *station, *user, *action;
+    JsonNode *payload;
+    GCancellable *cancel;
+    gboolean saved, playlist;
+} CatalogQuery;
+static void catalog_query_free(gpointer value)
+{
+    CatalogQuery *query = value; g_weak_ref_clear(&query->owner);
+    if (query->client) radios_data_client_unref(query->client);
+    radios_config_clear(&query->config); radios_online_services_ui_profile_free(query->profile);
+    g_free(query->station); g_free(query->user); g_free(query->action);
+    g_clear_pointer(&query->payload, json_node_free); g_clear_object(&query->cancel); g_free(query);
+}
+static CatalogQuery *catalog_query_new(BroadcastView *view, guint source)
+{
+    CatalogQuery *query = g_new0(CatalogQuery, 1); query->view = view; query->generation = view->catalog_generation; query->source = source;
+    g_weak_ref_init(&query->owner, view->page); query->client = radios_data_client_acquire(view->ctx);
+    query->station = g_strdup(radios_data_client_station_id(query->client)); query->user = g_strdup(radios_data_client_user_id(query->client));
+    query->config.project_root = g_strdup(view->ctx->config->project_root); query->config.python_command = g_strdup(view->ctx->config->python_command);
+    query->cancel = g_object_ref(view->catalog_cancel); query->payload = radios_data_body(view->ctx);
+    query->playlist = gtk_combo_box_get_active(GTK_COMBO_BOX(view->catalog_field)) == 1;
+    json_object_set_string_member(json_node_get_object(query->payload), "query", gtk_entry_get_text(GTK_ENTRY(view->query)));
+    json_object_set_string_member(json_node_get_object(query->payload), "kind", query->playlist ? "playlist" : "music");
+    return query;
+}
+static void catalog_search_prompt(BroadcastView *view)
+{
+    if (!view->query) return;
+    guint count = 0, selected = 0;
+    for (guint index = 0; index < 4; ++index)
+        if (view->catalog_source_mask & (1u << index)) { ++count; selected = index; }
+    gboolean playlist = gtk_combo_box_get_active(GTK_COMBO_BOX(view->catalog_field)) == 1;
+    gchar *prompt;
+    if (!count) prompt = g_strdup("Önce arama kaynağı seçin");
+    else if (count == 1) prompt = g_strdup_printf("%s · %s ara…", catalog_source_names[selected], playlist ? "Playlist" : "Parça, sanatçı veya albüm");
+    else prompt = g_strdup_printf("Seçili %u kaynakta %s ara…", count, playlist ? "playlist" : "müzik");
+    gtk_entry_set_placeholder_text(GTK_ENTRY(view->query), prompt); g_free(prompt);
+}
+
+static void catalog_sources_summary(BroadcastView *view)
+{
+    GString *summary = g_string_new(NULL); guint count = 0;
+    for (guint index = 0; index < 4; ++index)
+        if (view->catalog_source_mask & (1u << index)) {
+            if (count++) g_string_append(summary, " · ");
+            g_string_append(summary, catalog_source_names[index]);
+        }
+    gchar *label = count > 1 ? g_strdup_printf("%u kaynak", count) : g_strdup(count ? summary->str : "Kaynak seç");
+    gtk_button_set_label(GTK_BUTTON(view->catalog_source), label); g_free(label);
+    if (view->catalog_source_summary) {
+        gtk_label_set_text(GTK_LABEL(view->catalog_source_summary), summary->str);
+        gtk_widget_set_tooltip_text(view->catalog_source_summary, summary->str);
+    }
+    catalog_search_prompt(view);
+    g_string_free(summary, TRUE);
+}
+static void catalog_unified_render(BroadcastView *view)
+{
+    JsonArray *records = json_array_new(), *playable = json_array_new(); GString *errors = g_string_new(NULL); gboolean has_music = FALSE;
+    for (guint source = 0; source < 4; ++source) {
+        JsonArray *part = view->catalog_results[source] ? json_node_get_array(view->catalog_results[source]) : NULL;
+        for (guint index = 0; part && index < json_array_get_length(part); ++index) {
+            JsonObject *record = json_array_get_object_element(part, index), *item = catalog_object(record, "online");
+            json_array_add_element(records, json_node_copy(json_array_get_element(part, index)));
+            if (item) { JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_set_object(node, item); json_array_add_element(playable, node); has_music = TRUE; }
+            else json_array_add_null_element(playable);
+        }
+        if (view->catalog_errors[source]) {
+            if (errors->len) g_string_append(errors, " · ");
+            g_string_append_printf(errors, "%s: %s", catalog_source_names[source], view->catalog_errors[source]);
+        }
+    }
+    g_clear_pointer(&view->catalog_records, json_node_free); view->catalog_records = json_node_new(JSON_NODE_OBJECT);
+    json_node_take_object(view->catalog_records, json_object_new()); json_object_set_array_member(json_node_get_object(view->catalog_records), "records", records);
+    GtkListStore *store = g_object_get_data(G_OBJECT(view->catalog_table), "list-store"); gtk_list_store_clear(store);
+    for (guint index = 0; index < json_array_get_length(records); ++index) {
+        JsonObject *record = json_array_get_object_element(records, index), *media = catalog_object(record,"media"), *version = catalog_object(record,"version");
+        JsonObject *local = catalog_object(record,"playlist"), *remote = catalog_object(record,"online_playlist"), *item = catalog_object(record,"online");
+        if (remote) item = remote;
+        gchar *duration = catalog_duration(media ? radios_json_int(version,"duration_ms",0) : item ? radios_json_int(item,"duration_ms",0) : 0);
+        const gchar *title = media ? radios_json_string(media,"title","") : local ? radios_json_string(local,"name","") : radios_json_string(item,"title","");
+        const gchar *origin = media || local ? catalog_source_names[0] : radios_json_string(record,"origin","");
+        GtkTreeIter iter; gtk_list_store_append(store,&iter);
+        gtk_list_store_set(store,&iter,0,radios_json_string(media?media:item,"artist",""),1,title,2,radios_json_string(media?media:item,"album",""),
+            3,local || remote ? "Playlist" : media ? radios_programme_kind_label(radios_json_string(media,"kind","music")) : "Müzik",
+            4,local || remote ? "—" : duration,5,origin,-1); g_free(duration);
+    }
+    if (has_music) radios_broadcast_online_catalogue_rows(view->online,playable,"Arama sonuçları");
+    else radios_broadcast_online_set_active(view->online,FALSE);
+    json_array_unref(playable);
+    gchar *count = g_strdup_printf("%u kayıt%s",json_array_get_length(records),view->catalog_pending?" · aranıyor…":"");
+    gtk_label_set_text(GTK_LABEL(view->catalog_count),count); g_free(count);
+    gtk_label_set_text(GTK_LABEL(view->catalog_status),errors->str); g_string_free(errors,TRUE); catalog_actions_update(view);
+}
+static void catalog_result_item(JsonArray *records, JsonObject *item, guint source, gboolean playlist, gboolean saved)
+{
+    JsonObject *record = json_object_new(), *copy = radios_programme_clone_object(item);
+    json_object_set_string_member(copy,"source_provider",catalog_providers[source]);
+    json_object_set_object_member(record,playlist?"online_playlist":"online",copy);
+    gchar *origin = g_strdup_printf("%s%s",catalog_source_names[source],saved?" · kayıtlı":"");
+    json_object_set_string_member(record,"origin",origin); g_free(origin); json_array_add_object_element(records,record);
+}
+static void catalog_query_received(CatalogQuery *query, JsonNode *result, const GError *error)
+{
+    GtkWidget *owner = g_weak_ref_get(&query->owner); if (!owner) return;
+    BroadcastView *view = query->view; RadioSDataClient *current = radios_data_client_acquire(view->ctx);
+    gboolean valid = !view->disposed && query->generation == view->catalog_generation && view->catalog_unified && current == query->client &&
+        !g_cancellable_is_cancelled(query->cancel);
+    if (current) radios_data_client_unref(current);
+    if (!valid) { g_object_unref(owner); return; }
+    JsonArray *records = json_array_new(); JsonObject *root = result && JSON_NODE_HOLDS_OBJECT(result) ? json_node_get_object(result) : NULL;
+    if (error || !root) view->catalog_errors[query->source] = g_strdup(error ? error->message : "Arama yanıtı alınamadı.");
+    else if (!query->source) {
+        JsonArray *items = json_object_get_array_member(root,query->playlist?"playlists":"records");
+        const gchar *text = radios_json_string(json_node_get_object(query->payload),"query","");
+        for (guint index = 0; items && index < json_array_get_length(items); ++index) {
+            JsonObject *item = json_array_get_object_element(items,index);
+            if (query->playlist) {
+                if (!catalog_matches(radios_json_string(item,"name",""),text)) continue;
+                JsonObject *record = json_object_new(); json_object_set_object_member(record,"playlist",json_object_ref(item)); json_array_add_object_element(records,record);
+            } else json_array_add_element(records,json_node_copy(json_array_get_element(items,index)));
+        }
+    } else if (query->saved) {
+        JsonArray *documents = json_object_get_array_member(root,"records"); const gchar *text = radios_json_string(json_node_get_object(query->payload),"query","");
+        for (guint index = 0; documents && index < json_array_get_length(documents); ++index) {
+            JsonObject *document = json_array_get_object_element(documents,index), *config = catalog_object(document,"config");
+            if (g_strcmp0(radios_json_string(config,"provider",""),catalog_providers[query->source])) continue;
+            if (query->playlist) {
+                if (!catalog_matches(radios_json_string(document,"name",""),text)) continue;
+                JsonObject *item = json_object_new(); json_object_set_string_member(item,"title",radios_json_string(document,"name",""));
+                json_object_set_string_member(item,"provider_id",radios_json_string(config,"remote_id",""));
+                json_object_set_string_member(item,"url",radios_json_string(config,"remote_url",""));
+                json_object_set_array_member(item,"items",json_array_ref(json_object_get_array_member(config,"items")));
+                catalog_result_item(records,item,query->source,TRUE,TRUE); json_object_unref(item);
+            } else {
+                JsonArray *items = json_object_get_array_member(config,"items");
+                for (guint track = 0; items && track < json_array_get_length(items); ++track) {
+                    JsonObject *item = json_array_get_object_element(items,track);
+                    if (catalog_matches(radios_json_string(item,"title",""),text) || catalog_matches(radios_json_string(item,"artist",""),text))
+                        catalog_result_item(records,item,query->source,FALSE,TRUE);
+                }
+            }
+        }
+        view->catalog_errors[query->source] = g_strdup(query->source == 1 ? "Hizmette aramak için metin girin; kayıtlı listeler gösteriliyor." :
+            "Hizmet katalog araması için Ayarlar'dan API hesabını bağlayın; kayıtlı listeler gösteriliyor.");
+    } else {
+        JsonArray *items = json_object_get_array_member(root,"items");
+        for (guint index = 0; items && index < json_array_get_length(items); ++index)
+            catalog_result_item(records,json_array_get_object_element(items,index),query->source,query->playlist,FALSE);
+    }
+    g_clear_pointer(&view->catalog_results[query->source],json_node_free);
+    view->catalog_results[query->source] = json_node_new(JSON_NODE_ARRAY); json_node_take_array(view->catalog_results[query->source],records);
+    view->catalog_pending &= ~(1u << query->source); catalog_unified_render(view); g_object_unref(owner);
+}
+static void catalog_query_data(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{ (void)ctx; (void)owner; catalog_query_received(value,result,error); }
+static void catalog_query_worker(GTask *task, gpointer source, gpointer value, GCancellable *cancel)
+{
+    (void)source; CatalogQuery *query = value; GError *error = NULL; JsonNode *result = NULL;
+    if (query->source == 1) {
+        JsonNode *status = radios_youtube_music_request_sync(&query->config,query->station,query->user,"status",NULL,cancel,&error);
+        JsonObject *account = status && JSON_NODE_HOLDS_OBJECT(status) ? json_node_get_object(status) : NULL;
+        const gchar *generation = radios_json_string(account,"auth_generation","");
+        if (!error && *generation) {
+            json_object_set_string_member(json_node_get_object(query->payload),"expected_auth_generation",generation);
+            result = radios_youtube_music_request_sync(&query->config,query->station,query->user,query->action,query->payload,cancel,&error);
+        } else if (!error) g_set_error_literal(&error,G_IO_ERROR,G_IO_ERROR_PERMISSION_DENIED,"YouTube Music hesabını Ayarlar'dan bağlayın.");
+        if (status) json_node_free(status);
+    } else {
+        result = radios_online_request_sync(query->profile,query->action,query->payload,cancel,&error);
+        if (result && !g_strcmp0(query->action,"import_playlist")) {
+            JsonObject *config = catalog_object(json_node_get_object(result),"config");
+            JsonArray *items = config ? json_object_get_array_member(config,"items") : NULL;
+            if (items) json_object_set_array_member(json_node_get_object(result),"items",json_array_ref(items));
+        }
+    }
+    if (error) g_task_return_error(task,error);
+    else if (result) g_task_return_pointer(task,result,(GDestroyNotify)json_node_free);
+    else g_task_return_new_error(task,G_IO_ERROR,G_IO_ERROR_FAILED,"Hizmet arama yanıtı alınamadı.");
+}
+static void catalog_query_done(GObject *source, GAsyncResult *result, gpointer value)
+{
+    (void)source; (void)value; GTask *task = G_TASK(result); GError *error = NULL;
+    JsonNode *node = g_task_propagate_pointer(task,&error); catalog_query_received(g_task_get_task_data(task),node,error);
+    if (node) json_node_free(node);
+    g_clear_error(&error);
+}
+static void catalog_query_remote(CatalogQuery *query)
+{
+    GTask *task = g_task_new(NULL,query->cancel,catalog_query_done,NULL);
+    g_task_set_task_data(task,query,catalog_query_free); g_task_run_in_thread(task,catalog_query_worker); g_object_unref(task);
+}
+static void catalog_query_reset(BroadcastView *view)
+{
+    if (view->catalog_cancel) g_cancellable_cancel(view->catalog_cancel);
+    g_clear_object(&view->catalog_cancel); view->catalog_cancel = g_cancellable_new(); ++view->catalog_generation;
+    for (guint index = 0; index < 4; ++index) {
+        g_clear_pointer(&view->catalog_results[index],json_node_free); g_clear_pointer(&view->catalog_errors[index],g_free);
+    }
+    view->catalog_pending = view->catalog_source_mask;
+    radios_broadcast_online_set_active(view->online,FALSE); catalog_unified_render(view);
+}
+static void catalog_query_search(BroadcastView *view)
+{
+    catalog_query_reset(view);
+    for (guint source = 0; source < 4; ++source) {
+        if (!(view->catalog_source_mask & (1u << source))) continue;
+        CatalogQuery *query = catalog_query_new(view,source);
+        const gchar *text = radios_json_string(json_node_get_object(query->payload),"query","");
+        query->profile = source > 1 ? radios_online_services_ui_profile(view->ctx,catalog_providers[source]) : NULL;
+        query->saved = source && (!*text || (source > 1 && !query->profile));
+        if (!source || query->saved) {
+            const gchar *path = query->saved ? "/v1/workflows/desktop/list" : query->playlist ? "/v1/workflows/desktop-playlists/list" : "/v1/workflows/desktop-media/list";
+            json_object_set_string_member(json_node_get_object(query->payload),"kind",query->saved?"external_playlist":view->catalog_kind);
+            json_object_set_int_member(json_node_get_object(query->payload),"limit",200);
+            JsonNode *request_body = query->saved || query->playlist ? radios_data_body(view->ctx) : json_node_copy(query->payload);
+            if (query->saved) json_object_set_string_member(json_node_get_object(request_body),"kind","external_playlist");
+            radios_data_request(view->ctx,view->page,"POST",path,request_body,catalog_query_data,query,catalog_query_free);
+            json_node_free(request_body);
+        } else { query->action = g_strdup("search"); catalog_query_remote(query); }
+    }
+}
+static void catalog_playlist_open(BroadcastView *view, JsonObject *playlist)
+{
+    if (!radios_data_connected(view->ctx)) return;
+    guint source = 0;
+    for (guint index = 1; index < 4; ++index)
+        if (!g_strcmp0(radios_json_string(playlist,"source_provider",""),catalog_providers[index])) source = index;
+    if (!source) return;
+    JsonObject *snapshot = radios_programme_clone_object(playlist); view->catalog_unified = TRUE; catalog_query_reset(view);
+    view->catalog_pending = 1u << source;
+    view->catalog_switching = TRUE; gtk_combo_box_set_active(GTK_COMBO_BOX(view->catalog_field),0); view->catalog_switching = FALSE;
+    CatalogQuery *query = catalog_query_new(view,source); query->playlist = FALSE;
+    if (json_object_has_member(snapshot,"items")) {
+        JsonNode *result = json_node_new(JSON_NODE_OBJECT); json_node_take_object(result,json_object_new());
+        json_object_set_array_member(json_node_get_object(result),"items",json_array_ref(json_object_get_array_member(snapshot,"items")));
+        catalog_query_received(query,result,NULL); json_node_free(result); catalog_query_free(query);
+    } else {
+        query->profile = source > 1 ? radios_online_services_ui_profile(view->ctx,catalog_providers[source]) : NULL;
+        query->action = g_strdup(source == 1 ? "tracks" : "import_playlist");
+        json_object_set_string_member(json_node_get_object(query->payload),"playlist_id",radios_json_string(snapshot,"provider_id",""));
+        json_object_set_string_member(json_node_get_object(query->payload),"reference",radios_json_string(snapshot,"url",""));
+        catalog_query_remote(query);
+    }
+    json_object_unref(snapshot);
+}
+static void
+catalog_search(GtkWidget *widget, gpointer data)
+{
+    BroadcastView *view = data; (void)widget;
+    catalog_search_prompt(view);
+    if (view->catalog_switching) return;
+    if (!g_strcmp0(view->catalog_kind, "playlist")) { playlist_refresh(view); return; }
+    const gchar *query = gtk_entry_get_text(GTK_ENTRY(view->query));
+    gboolean multiple = view->catalog_source_mask && (view->catalog_source_mask & (view->catalog_source_mask - 1));
+    RadioSOnlineProfile *profile = NULL;
+    if (view->catalog_source_mask == 4 || view->catalog_source_mask == 8)
+        profile = radios_online_services_ui_profile(view->ctx,view->catalog_source_mask == 4 ? "spotify" : "apple_music");
+    gboolean unified = multiple || !view->catalog_source_mask || gtk_combo_box_get_active(GTK_COMBO_BOX(view->catalog_field)) == 1 || (profile && *query);
+    radios_online_services_ui_profile_free(profile); gboolean previous_unified = view->catalog_unified; view->catalog_unified = unified;
+    if (unified && radios_data_connected(view->ctx)) {
+        if (g_utf8_strlen(query,-1) > 256) { catalog_message(view,"Arama metni en fazla 256 karakter olabilir."); return; }
+        catalog_query_search(view); return;
+    }
+    if (previous_unified && !unified) {
+        if (view->catalog_cancel) g_cancellable_cancel(view->catalog_cancel);
+        radios_broadcast_online_set_active(view->online,FALSE);
+        guint source = view->catalog_source_mask == 2 ? 1 : view->catalog_source_mask == 4 ? 2 : view->catalog_source_mask == 8 ? 3 : 0;
+        if (source) { radios_broadcast_online_set_provider(view->online,catalog_providers[source]); radios_broadcast_online_set_active(view->online,TRUE); }
+    }
+    if (radios_broadcast_online_active(view->online)) { radios_broadcast_online_search(view->online, query); return; }
+    if (radios_data_connected(view->ctx)) {
+        CatalogRead *read = g_new0(CatalogRead, 1); read->view = view; read->generation = ++view->catalog_generation;
+        /* Programlar: saved programme drafts, then program-kind media. */
+        if (!g_strcmp0(view->catalog_kind, "program")) {
+            JsonNode *body = radios_data_body(view->ctx); json_object_set_string_member(json_node_get_object(body), "kind", "programme");
+            radios_data_request(view->ctx, view->page, "POST", "/v1/workflows/desktop/list", body, catalog_programmes_loaded, read, catalog_read_free);
+            json_node_free(body);
+        } else catalog_media_request(view, read);
+        return;
+    }
+    gchar *message = g_strdup_printf("%s%sKatalog araması için veri servisi bağlantısı gerekiyor.",
+                                     *query != '\0' ? query : "",
+                                     *query != '\0' ? ": " : "");
+    if (view->ctx->notify != NULL)
+        view->ctx->notify(view->ctx->notify_data, message);
+    g_free(message);
+}
+static void catalog_kind_changed(GtkToggleButton *button_widget, gpointer data)
+{
+    if (!gtk_toggle_button_get_active(button_widget)) return;
+    BroadcastView *view = data; view->catalog_kind = g_object_get_data(G_OBJECT(button_widget), "catalog-kind");
+    if (view->catalog_switching || !view->catalog_table) return;
+    gboolean playlist = !g_strcmp0(view->catalog_kind, "playlist");
+    gtk_stack_set_visible_child_name(GTK_STACK(view->catalog_content), playlist ? "playlists" : "media");
+    if (playlist) { ++view->catalog_generation; if (view->catalog_cancel) g_cancellable_cancel(view->catalog_cancel); return; }
+    /* YouTube Music lists tracks; other kinds come from the media archive. */
+    if ((view->catalog_source_mask & ~1u) && g_strcmp0(view->catalog_kind, "music")) {
+        view->catalog_switching = TRUE;
+        for (guint index = 0; index < 4; ++index) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(view->catalog_sources[index]),index == 0);
+        view->catalog_switching = FALSE; view->catalog_source_mask = 1; catalog_sources_summary(view);
+        radios_broadcast_online_set_active(view->online,FALSE); view->catalog_unified = FALSE;
+    }
+    catalog_search(NULL, view);
+}
+
+static void catalog_source_changed(GtkToggleButton *toggle, gpointer data)
+{
+    (void)toggle; BroadcastView *view = data; if (view->catalog_switching) return;
+    view->catalog_source_mask = 0;
+    for (guint index = 0; index < 4; ++index)
+        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(view->catalog_sources[index]))) view->catalog_source_mask |= 1u << index;
+    catalog_sources_summary(view);
+    guint selected = view->catalog_source_mask == 2 ? 1 : view->catalog_source_mask == 4 ? 2 : view->catalog_source_mask == 8 ? 3 : 0;
+    gboolean online = selected > 0;
+    if (online) radios_broadcast_online_set_provider(view->online, catalog_providers[selected]);
+    ++view->catalog_generation; g_clear_pointer(&view->catalog_records, json_node_free);
+    gtk_list_store_clear(g_object_get_data(G_OBJECT(view->catalog_table), "list-store"));
+    if ((view->catalog_source_mask & ~1u) && g_strcmp0(view->catalog_kind, "music") && view->catalog_music) {
+        view->catalog_switching = TRUE; gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(view->catalog_music), TRUE); view->catalog_switching = FALSE;
+    }
+    radios_broadcast_online_set_active(view->online, online);
+    gtk_label_set_text(GTK_LABEL(view->catalog_count), "— kayıt"); catalog_search(NULL, view);
+    catalog_actions_update(view);
+}
+
+typedef struct { BroadcastView *view; CatalogueIntent *source; GtkWidget *dialog, *name, *status; JsonNode *retry; gboolean busy; } ProgrammeArchive;
+static void archive_free(gpointer value)
+{ ProgrammeArchive *archive = value; catalogue_intent_free(archive->source); g_clear_pointer(&archive->retry, json_node_free); g_free(archive); }
+static void archive_destroyed(GtkWidget *dialog, gpointer value)
+{ ProgrammeArchive *archive = value; if (archive->view->programme_archive_dialog == dialog) archive->view->programme_archive_dialog = NULL; }
+static gboolean catalogue_definitive(const GError *error)
+{
+    return error && error->domain == RADIOS_DATA_CLIENT_ERROR &&
+        (error->code == RADIOS_DATA_CLIENT_ERROR_FORBIDDEN || error->code == RADIOS_DATA_CLIENT_ERROR_NOT_FOUND ||
+         error->code == RADIOS_DATA_CLIENT_ERROR_VALIDATION || error->code == RADIOS_DATA_CLIENT_ERROR_CONFLICT ||
+         error->code == RADIOS_DATA_CLIENT_ERROR_RATE_LIMITED);
+}
+static void archive_saved(RadioSViewContext *ctx, GtkWidget *dialog, JsonNode *result, const GError *error, gpointer value)
+{
+    ProgrammeArchive *archive = value; archive->busy = FALSE;
+    gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT, TRUE);
+    if (!catalogue_identity(archive->view, archive->source)) {
+        gtk_label_set_text(GTK_LABEL(archive->status), "Veri kimliği değişti; eski kullanıcı/istasyon/Store kimliğinin kesin işlem gövdesi korunuyor. O kimlikle yeniden bağlanıp sonucu doğrulayın."); return;
+    }
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) {
+        if (catalogue_definitive(error)) g_clear_pointer(&archive->retry, json_node_free);
+        gtk_widget_set_sensitive(archive->name, archive->retry == NULL);
+        gchar *message = g_strdup_printf("%s%s", error ? error->message : "Program kopyasının kaydı doğrulanamadı.",
+            archive->retry ? " Aynı işlemi tekrar doğrulayın; pencereyi kapatmak gönderilen kaydı geri almaz." : "");
+        gtk_label_set_text(GTK_LABEL(archive->status), message); g_free(message);
+        return;
+    }
+    JsonObject *record = json_node_get_object(result), *request = json_node_get_object(archive->retry);
+    JsonNode *saved_config = json_object_get_member(record, "config");
+    if (!saved_config || !JSON_NODE_HOLDS_OBJECT(saved_config) ||
+        g_strcmp0(radios_json_string(record, "_id", ""), radios_json_string(request, "document_id", "")) ||
+        g_strcmp0(radios_json_string(record, "station_id", ""), archive->source->station_id) ||
+        g_strcmp0(radios_json_string(record, "kind", ""), "programme") ||
+        !json_node_equal(saved_config, json_object_get_member(request, "config"))) {
+        gtk_label_set_text(GTK_LABEL(archive->status), "Kaydedilen program yanıtı bu kopyayla eşleşmedi; aynı işlem kimliğiyle tekrar deneyin."); return;
+    }
+    if (!g_strcmp0(radios_data_station_id(ctx), archive->source->station_id)) programme_library_refresh(NULL, archive->view);
+    catalog_message(archive->view, "Adlandırılmış program kopyası veritabanına kaydedildi. Program taslakları listesinden yeniden yüklenebilir; yayın başlatılmadı.");
+    gtk_widget_destroy(dialog);
+}
+static void archive_response(GtkDialog *dialog, gint response, gpointer value)
+{
+    ProgrammeArchive *archive = value;
+    if (response != GTK_RESPONSE_ACCEPT) { gtk_widget_destroy(GTK_WIDGET(dialog)); return; }
+    if (archive->busy) return;
+    if (!catalogue_identity(archive->view, archive->source)) {
+        gtk_label_set_text(GTK_LABEL(archive->status), "Veri kimliği değişti; eski kullanıcı/istasyon/Store kimliğinin kesin işlem gövdesi korunuyor. O kimlikle yeniden bağlanıp sonucu doğrulayın."); return;
+    }
+    if (!archive->retry) {
+        if (!catalogue_current(archive->view, archive->source)) {
+            gtk_label_set_text(GTK_LABEL(archive->status), "Kaynak program veya veri kimliği değişti; pencereyi kapatıp güncel taslağı yeniden saklayın."); return;
+        }
+        gchar *name = g_strdup(gtk_entry_get_text(GTK_ENTRY(archive->name))); g_strstrip(name);
+        if (!*name || !g_strcmp0(name, "Mevcut program")) {
+            gtk_label_set_text(GTK_LABEL(archive->status), "Kopyaya farklı bir ad verin; Mevcut program çalışma taslağına ayrılmıştır."); g_free(name); return;
+        }
+        archive->retry = radios_data_body(archive->view->ctx); JsonObject *object = json_node_get_object(archive->retry);
+        json_object_set_string_member(object, "kind", "programme"); json_object_set_string_member(object, "name", name);
+        JsonNode *config = programme_copy(archive->source->config); JsonObject *settings = json_node_get_object(config);
+        json_object_set_string_member(settings, "title", name);
+        json_object_remove_member(settings, "queue_player"); json_object_remove_member(settings, "queue_transition"); json_object_remove_member(settings, "queue_overlap");
+        json_object_set_member(object, "config", config); gchar *id = g_uuid_string_random(), *key = g_uuid_string_random();
+        json_object_set_string_member(object, "document_id", id); json_object_set_int_member(object, "expected_revision", 0);
+        json_object_set_string_member(object, "idempotency_key", key); g_free(id); g_free(key); g_free(name);
+    }
+    archive->busy = TRUE; gtk_widget_set_sensitive(archive->name, FALSE);
+    gtk_button_set_label(GTK_BUTTON(gtk_dialog_get_widget_for_response(dialog, GTK_RESPONSE_CANCEL)), "Kapat");
+    gtk_button_set_label(GTK_BUTTON(gtk_dialog_get_widget_for_response(dialog, GTK_RESPONSE_ACCEPT)), "Kaydı tekrar doğrula");
+    gtk_dialog_set_response_sensitive(dialog, GTK_RESPONSE_ACCEPT, FALSE);
+    gtk_label_set_text(GTK_LABEL(archive->status), "Program kopyası veritabanına kaydediliyor… Pencereyi kapatmak gönderilen kaydı geri almaz.");
+    if (!radios_data_request(archive->view->ctx, GTK_WIDGET(dialog), "POST", "/v1/workflows/desktop/put", archive->retry, archive_saved, archive, NULL)) {
+        archive->busy = FALSE; gtk_dialog_set_response_sensitive(dialog, GTK_RESPONSE_ACCEPT, TRUE);
+        gtk_label_set_text(GTK_LABEL(archive->status), "Kayıt başlatılamadı. Aynı kopyayı aynı işlem kimliğiyle tekrar deneyin.");
+    }
+}
+static void programme_archive_clicked(GtkButton *button_widget, gpointer value)
+{
+    (void)button_widget; BroadcastView *view = value;
+    if (view->programme_archive_dialog) { gtk_window_present(GTK_WINDOW(view->programme_archive_dialog)); return; }
+    CatalogueIntent *source = catalogue_capture(view);
+    if (!source) { catalog_message(view, "Önce Mevcut program taslağının veritabanı kaydını tamamlayın."); return; }
+    ProgrammeArchive *archive = g_new0(ProgrammeArchive, 1); archive->view = view; archive->source = source;
+    archive->dialog = gtk_dialog_new_with_buttons("Program taslağının kopyasını sakla", view->ctx->parent,
+        GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL, "Vazgeç", GTK_RESPONSE_CANCEL, "Kopyayı sakla", GTK_RESPONSE_ACCEPT, NULL);
+    gtk_widget_set_name(archive->dialog, "programme-archive-dialog"); view->programme_archive_dialog = archive->dialog;
+    GtkWidget *body = gtk_dialog_get_content_area(GTK_DIALOG(archive->dialog)); gtk_container_set_border_width(GTK_CONTAINER(body), 16);
+    pack(body, radios_ui_label("Mevcut sıranın yeni adlandırılmış taslak kopyası oluşturulur. Ses/hak/plan onayı verilmez.", NULL), FALSE);
+    archive->name = radios_ui_entry("Program kopyasının adı"); gtk_widget_set_name(archive->name, "programme-archive-name");
+    gtk_entry_set_max_length(GTK_ENTRY(archive->name), 160);
+    gtk_entry_set_text(GTK_ENTRY(archive->name), radios_json_string(json_node_get_object(source->config), "title", "Program kopyası")); pack(body, archive->name, FALSE);
+    archive->status = radios_ui_label("Aynı adla yeni bir kopya saklanabilir; mevcut kayıtların üzerine yazılmaz.", "application-status");
+    gtk_widget_set_name(archive->status, "programme-archive-status"); gtk_label_set_line_wrap(GTK_LABEL(archive->status), TRUE); pack(body, archive->status, FALSE);
+    g_object_set_data_full(G_OBJECT(archive->dialog), "programme-archive-state", archive, archive_free);
+    g_signal_connect(archive->dialog, "response", G_CALLBACK(archive_response), archive);
+    g_signal_connect(archive->dialog, "destroy", G_CALLBACK(archive_destroyed), archive);
+    g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), archive->dialog, G_CONNECT_SWAPPED);
+    gtk_widget_show_all(archive->dialog);
+}
+/* Saved programme drafts are listed under Programlar; after saving a copy the list refreshes. */
+static void programme_library_refresh(GtkWidget *widget, gpointer data)
+{
+    (void)widget; BroadcastView *view = data;
+    if (!view->disposed && !g_strcmp0(view->catalog_kind, "program") && !radios_broadcast_online_active(view->online)) catalog_search(NULL, view);
+}
+static void programme_library_detail(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    CatalogueIntent *intent = value; BroadcastView *view = g_object_get_data(G_OBJECT(owner), "radios-broadcast-view");
+    if (!view || view->disposed || intent->intent != view->catalogue_intent) return;
+    view->catalogue_busy = FALSE; catalog_actions_update(view);
+    if (error) { catalog_message(view, error->message); return; }
+    JsonObject *record = result && JSON_NODE_HOLDS_OBJECT(result) ? json_node_get_object(result) : NULL;
+    JsonNode *config = record ? json_object_get_member(record, "config") : NULL;
+    JsonObject *selected = catalog_selected_programme(view);
+    if (!catalogue_current(view, intent) || !selected || g_strcmp0(intent->media_id, radios_json_string(selected, "_id", "")) ||
+        !record || !config || !JSON_NODE_HOLDS_OBJECT(config) || g_strcmp0(radios_json_string(record, "_id", ""), intent->media_id) ||
+        radios_json_int(record, "_rev", 0) != intent->version_revision || g_strcmp0(radios_json_string(record, "kind", ""), "programme") ||
+        g_strcmp0(radios_json_string(record, "status", ""), "active") || g_strcmp0(radios_json_string(record, "station_id", ""), radios_data_station_id(ctx))) {
+        catalog_message(view, "Kaynak program kopyası, hedef taslak veya veri kimliği değişti; Mevcut program korunuyor. Listeyi yenileyin."); return;
+    }
+    catalog_message(view, catalogue_save(view, programme_copy(config)) ?
+        "Seçili program Mevcut program taslağına yüklendi." : "Program kopyası yüklenemedi; Mevcut program korunuyor.");
+}
+typedef struct { BroadcastView *view; CatalogueIntent *intent; } ProgrammeLoad;
+static void programme_load_free(gpointer value)
+{ ProgrammeLoad *load = value; if (load->intent) catalogue_intent_free(load->intent); g_free(load); }
+static void programme_library_load_response(GtkDialog *dialog, gint response, gpointer value)
+{
+    ProgrammeLoad *load = value; BroadcastView *view = load->view;
+    if (response == GTK_RESPONSE_ACCEPT) {
+        CatalogueIntent *intent = load->intent; JsonObject *selected = catalog_selected_programme(view);
+        if (!catalogue_current(view, intent) || view->catalogue_busy || !selected ||
+            g_strcmp0(intent->media_id, radios_json_string(selected, "_id", ""))) {
+            catalog_message(view, "Onay penceresi açıldıktan sonra kaynak kopya, hedef taslak veya veri kimliği değişti; Mevcut program korunuyor."); }
+        else {
+            JsonNode *body = radios_data_body(view->ctx); JsonObject *object = json_node_get_object(body);
+            json_object_set_string_member(object, "kind", "programme"); json_object_set_string_member(object, "document_id", intent->media_id);
+            view->catalogue_busy = TRUE; catalog_actions_update(view); catalog_message(view, "Seçili programın güncel kaydı doğrulanıyor…");
+            load->intent = NULL;
+            if (!radios_data_request(view->ctx, view->page, "POST", "/v1/workflows/desktop/get", body, programme_library_detail, intent, catalogue_intent_free)) {
+                view->catalogue_busy = FALSE; catalog_actions_update(view); catalog_message(view, "Program kopyası okunamadı; hedef taslak korunuyor."); }
+            json_node_free(body);
+        }
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+/* "Mevcut taslağı değiştir": replaces the working draft with a saved programme after confirmation. */
+static void programme_library_load(BroadcastView *view, JsonObject *document)
+{
+    if (view->catalogue_busy || !document) return;
+    CatalogueIntent *intent = catalogue_capture(view);
+    if (!intent) { catalog_message(view, "Güncel program kopyası ve kaydedilmiş hedef seçilmedi."); return; }
+    intent->media_id = g_strdup(radios_json_string(document, "_id", "")); intent->version_revision = radios_json_int(document, "_rev", 0);
+    ProgrammeLoad *load = g_new0(ProgrammeLoad, 1); load->view = view; load->intent = intent;
+    GtkWidget *dialog = gtk_message_dialog_new(view->ctx->parent, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+        GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE, "%s", "Seçili programla Mevcut program taslağını değiştir?");
+    gtk_widget_set_name(dialog, "programme-library-load-dialog");
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", "Mevcut programın içeriği seçili kayıtla değiştirilir.");
+    gtk_dialog_add_buttons(GTK_DIALOG(dialog), "Vazgeç", GTK_RESPONSE_CANCEL, "Taslağı değiştir", GTK_RESPONSE_ACCEPT, NULL);
+    g_object_set_data_full(G_OBJECT(dialog), "programme-library-load", load, programme_load_free);
+    g_signal_connect(dialog, "response", G_CALLBACK(programme_library_load_response), load);
+    g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED); gtk_widget_show_all(dialog);
+}
+
+void radios_automation_playlists_changed(GtkWidget *parent);
+/* "Playlist yönetimi" of the catalogue (design: ld-library): find a playlist,
+ * see its tracks and send them to the flow. Editing is the Playlist profile. */
+typedef struct {
+    BroadcastView *view;
+    GtkWidget *widget, *query, *lists, *tracks, *name, *count, *status, *add_track, *add_all;
+    JsonNode *records;
+    gchar *selected;
+    gboolean busy;
+} LibraryPanel;
+static void library_free(gpointer value)
+{ LibraryPanel *panel = value; g_clear_pointer(&panel->records, json_node_free); g_free(panel->selected); g_free(panel); }
+static JsonArray *library_playlists(LibraryPanel *panel)
+{ return panel->records ? json_object_get_array_member(json_node_get_object(panel->records), "playlists") : NULL; }
+static JsonObject *library_lookup(LibraryPanel *panel, const gchar *id)
+{
+    JsonArray *lists = library_playlists(panel);
+    for (guint i = 0; id && lists && i < json_array_get_length(lists); ++i)
+        if (g_str_equal(id, radios_json_string(json_array_get_object_element(lists, i), "_id", "")))
+            return json_array_get_object_element(lists, i);
+    return NULL;
+}
+static JsonObject *library_current(LibraryPanel *panel)
+{ return library_lookup(panel, panel->selected); }
+static gboolean library_matches(JsonObject *playlist, const gchar *query)
+{
+    if (!*query || catalog_matches(radios_json_string(playlist, "name", ""), query)) return TRUE;
+    JsonArray *tracks = json_object_get_array_member(playlist, "tracks");
+    for (guint i = 0; tracks && i < json_array_get_length(tracks); ++i) {
+        JsonObject *track = json_array_get_object_element(tracks, i); const gchar *keys[] = {"title", "artist", "album"};
+        for (guint j = 0; j < G_N_ELEMENTS(keys); ++j) if (catalog_matches(radios_json_string(track, keys[j], ""), query)) return TRUE;
+    }
+    return FALSE;
+}
+static void library_drag_begin(GtkWidget *handle, GdkDragContext *context, gpointer value)
+{
+    (void)context; LibraryPanel *panel = value;
+    GtkListBox *list = GTK_LIST_BOX(g_object_get_data(G_OBJECT(handle), "library-single") ? panel->tracks : panel->lists);
+    gtk_list_box_select_row(list, GTK_LIST_BOX_ROW(gtk_widget_get_parent(handle)));
+}
+static void library_drag_get(GtkWidget *handle, GdkDragContext *context, GtkSelectionData *selection, guint info, guint time, gpointer value)
+{
+    (void)context; (void)time; (void)value;
+    if (info != RADIOS_DRAG_INFO_PLAYLIST) return;
+    const gchar *playlist_id = g_object_get_data(G_OBJECT(handle), "library-playlist-id");
+    if (!g_uuid_string_is_valid(playlist_id)) return;
+    JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_take_object(node, json_object_new());
+    JsonObject *object = json_node_get_object(node); json_object_set_string_member(object, "playlist_id", playlist_id);
+    if (g_object_get_data(G_OBJECT(handle), "library-single"))
+        json_object_set_string_member(object, "entry_id", g_object_get_data(G_OBJECT(gtk_widget_get_parent(handle)), "library-id"));
+    gchar *payload = json_text(node); radios_drag_set_payload(selection, payload); g_free(payload); json_node_free(node);
+}
+static GtkWidget *library_row(LibraryPanel *panel, const gchar *title, const gchar *meta, const gchar *id, const gchar *playlist_id, gboolean single)
+{
+    GtkWidget *row = gtk_list_box_row_new(), *box = named_box(GTK_ORIENTATION_VERTICAL, 2, "ld-library-item");
+    GtkWidget *handle = gtk_event_box_new(); gtk_event_box_set_visible_window(GTK_EVENT_BOX(handle), FALSE);
+    GtkWidget *name = radios_ui_label(title, "ld-library-title"), *detail = radios_ui_label(meta, "ld-library-meta");
+    gtk_label_set_line_wrap(GTK_LABEL(name), FALSE); gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
+    gtk_label_set_line_wrap(GTK_LABEL(detail), FALSE); gtk_label_set_ellipsize(GTK_LABEL(detail), PANGO_ELLIPSIZE_END);
+    pack(box, name, FALSE); pack(box, detail, FALSE);
+    gtk_container_add(GTK_CONTAINER(handle), box); gtk_container_add(GTK_CONTAINER(row), handle);
+    g_object_set_data_full(G_OBJECT(row), "library-id", g_strdup(id), g_free);
+    g_object_set_data_full(G_OBJECT(handle), "library-playlist-id", g_strdup(playlist_id), g_free);
+    g_object_set_data(G_OBJECT(handle), "library-single", GINT_TO_POINTER(single));
+    gtk_drag_source_set(handle, GDK_BUTTON1_MASK, &radios_drag_targets(NULL)[RADIOS_DRAG_INFO_PLAYLIST - 1], 1, GDK_ACTION_COPY);
+    g_signal_connect(handle, "drag-begin", G_CALLBACK(library_drag_begin), panel);
+    g_signal_connect(handle, "drag-data-get", G_CALLBACK(library_drag_get), panel);
+    return row;
+}
+static void library_clear(GtkWidget *list)
+{
+    GList *rows = gtk_container_get_children(GTK_CONTAINER(list));
+    for (GList *item = rows; item; item = item->next) gtk_widget_destroy(item->data);
+    g_list_free(rows);
+}
+static void library_actions_update(LibraryPanel *panel)
+{
+    JsonObject *playlist = library_current(panel);
+    JsonArray *tracks = playlist ? json_object_get_array_member(playlist, "tracks") : NULL;
+    gtk_widget_set_sensitive(panel->add_all, tracks && json_array_get_length(tracks) && !panel->busy);
+    gtk_widget_set_sensitive(panel->add_track, gtk_list_box_get_selected_row(GTK_LIST_BOX(panel->tracks)) && !panel->busy);
+}
+static void library_tracks_render(LibraryPanel *panel)
+{
+    library_clear(panel->tracks); JsonObject *playlist = library_current(panel);
+    JsonArray *tracks = playlist ? json_object_get_array_member(playlist, "tracks") : NULL; gint64 total = 0;
+    for (guint i = 0; tracks && i < json_array_get_length(tracks); ++i) {
+        JsonObject *track = json_array_get_object_element(tracks, i); gint64 milliseconds = radios_json_int(track, "duration_ms", 0);
+        gchar *duration = milliseconds > 0 ? catalog_duration(milliseconds) : g_strdup("—");
+        gchar *meta = g_strdup_printf("%s%s%s", radios_json_string(track, "artist", ""), *radios_json_string(track, "artist", "") ? " · " : "", duration);
+        gtk_container_add(GTK_CONTAINER(panel->tracks), library_row(panel, radios_json_string(track, "title", "—"), meta,
+            radios_json_string(track, "_id", ""), radios_json_string(playlist, "_id", ""), TRUE));
+        total += MAX(0, milliseconds); g_free(duration); g_free(meta);
+    }
+    gtk_widget_show_all(panel->tracks);
+    gtk_label_set_text(GTK_LABEL(panel->name), playlist ? radios_json_string(playlist, "name", "") : "Playlist seçilmedi");
+    gchar *duration = total > 0 ? catalog_duration(total) : g_strdup("—");
+    gchar *count = playlist ? g_strdup_printf("%u parça · %s", tracks ? json_array_get_length(tracks) : 0, duration) : g_strdup("");
+    gtk_label_set_text(GTK_LABEL(panel->count), count); g_free(count); g_free(duration);
+    library_actions_update(panel);
+}
+static void library_render(LibraryPanel *panel)
+{
+    library_clear(panel->lists); JsonArray *lists = library_playlists(panel);
+    const gchar *query = gtk_entry_get_text(GTK_ENTRY(panel->query)); guint shown = 0;
+    for (guint i = 0; lists && i < json_array_get_length(lists); ++i) {
+        JsonObject *playlist = json_array_get_object_element(lists, i);
+        if (!library_matches(playlist, query)) continue;
+        JsonArray *tracks = json_object_get_array_member(playlist, "tracks");
+        gchar *meta = g_strdup_printf("%u parça", tracks ? json_array_get_length(tracks) : 0);
+        const gchar *id = radios_json_string(playlist, "_id", "");
+        GtkWidget *row = library_row(panel, radios_json_string(playlist, "name", ""), meta, id, id, FALSE);
+        gtk_container_add(GTK_CONTAINER(panel->lists), row); g_free(meta); ++shown;
+        if (!g_strcmp0(panel->selected, radios_json_string(playlist, "_id", ""))) gtk_list_box_select_row(GTK_LIST_BOX(panel->lists), GTK_LIST_BOX_ROW(row));
+    }
+    if (!shown) {
+        GtkWidget *row = gtk_list_box_row_new(); gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), FALSE);
+        gtk_container_add(GTK_CONTAINER(row), radios_ui_label(lists && json_array_get_length(lists) ? "Sonuç bulunamadı" : "Playlist yok", "ld-empty"));
+        gtk_container_add(GTK_CONTAINER(panel->lists), row);
+    }
+    gtk_widget_show_all(panel->lists); library_tracks_render(panel);
+}
+static void library_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    (void)ctx; (void)owner; LibraryPanel *panel = value;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { gtk_label_set_text(GTK_LABEL(panel->status), error ? error->message : "Playlistler okunamadı."); return; }
+    g_clear_pointer(&panel->records, json_node_free); panel->records = programme_copy(result);
+    if (!library_current(panel)) g_clear_pointer(&panel->selected, g_free);
+    gtk_label_set_text(GTK_LABEL(panel->status), ""); library_render(panel);
+}
+static void library_refresh(LibraryPanel *panel)
+{
+    if (panel->view->disposed || !radios_data_connected(panel->view->ctx)) return;
+    JsonNode *body = radios_data_body(panel->view->ctx);
+    radios_data_request(panel->view->ctx, panel->widget, "POST", "/v1/workflows/desktop-playlists/list", body, library_loaded, panel, NULL);
+    json_node_free(body);
+}
+static void playlist_refresh(BroadcastView *view)
+{
+    LibraryPanel *panel = view->playlist_panel ? g_object_get_data(G_OBJECT(view->playlist_panel), "broadcast-library") : NULL;
+    if (panel) library_refresh(panel);
+}
+static void library_mapped(GtkWidget *widget, gpointer value)
+{ (void)widget; library_refresh(value); }
+static void library_search(GtkWidget *widget, gpointer value) { (void)widget; library_render(value); }
+static void library_list_selected(GtkListBox *list, GtkListBoxRow *row, gpointer value)
+{
+    (void)list; LibraryPanel *panel = value; const gchar *id = row ? g_object_get_data(G_OBJECT(row), "library-id") : NULL;
+    if (!id || !g_strcmp0(id, panel->selected)) return;
+    g_free(panel->selected); panel->selected = g_strdup(id); library_tracks_render(panel);
+}
+static void library_track_selected(GtkListBox *list, GtkListBoxRow *row, gpointer value)
+{ (void)list; LibraryPanel *panel = value; gtk_widget_set_sensitive(panel->add_track, row && !panel->busy); }
+typedef struct { LibraryPanel *panel; CatalogueIntent *source; gboolean single; RadioSProgrammePlacement placement; gchar *name; } LibraryAdd;
+static void library_add_free(gpointer value)
+{ LibraryAdd *add = value; catalogue_intent_free(add->source); g_free(add->name); g_free(add); }
+static void library_prepared(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    (void)owner; LibraryAdd *add = value; LibraryPanel *panel = add->panel; GError *failure = NULL;
+    panel->busy = FALSE; panel->view->catalogue_busy = FALSE; library_actions_update(panel); catalog_actions_update(panel->view);
+    if (!catalogue_current(panel->view, add->source)) {
+        gtk_label_set_text(GTK_LABEL(panel->status), "Hedef program veya seçim değişti; playlist eklenmedi. Yeniden bırakın."); return;
+    }
+    JsonArray *tracks = result && JSON_NODE_HOLDS_OBJECT(result) ? json_object_get_array_member(json_node_get_object(result), "tracks") : NULL;
+    if (error || !tracks) { gtk_label_set_text(GTK_LABEL(panel->status), error ? error->message : "Playlist medyası doğrulanamadı."); return; }
+    gboolean added = append_tracks(ctx, tracks, &add->placement, add->single ? NULL : add->name, &failure);
+    gtk_label_set_text(GTK_LABEL(panel->status), added ? (add->single ? "Parça yayın sırasına eklendi." :
+        add->placement.block >= 0 ? "Playlist parçaları açık evente eklendi." : "Playlist yayın sırasına event olarak eklendi.") :
+        failure ? failure->message : "Yayın sırası güncellenemedi.");
+    g_clear_error(&failure);
+}
+static gboolean library_transfer(LibraryPanel *panel, JsonObject *playlist, const gchar *entry_id, RadioSProgrammePlacement placement)
+{
+    BroadcastView *view = panel->view;
+    if (!playlist || panel->busy || !programme_can_change(view)) return FALSE;
+    CatalogueIntent *source = catalogue_capture(view); if (!source) return FALSE;
+    LibraryAdd *add = g_new0(LibraryAdd, 1); add->panel = panel; add->source = source; add->single = entry_id != NULL;
+    add->name = g_strdup(radios_json_string(playlist, "name", ""));
+    add->placement = placement;
+    JsonNode *body = radios_data_body(view->ctx); JsonObject *object = json_node_get_object(body);
+    json_object_set_string_member(object, "kind", "playlist"); json_object_set_string_member(object, "playlist_id", radios_json_string(playlist, "_id", ""));
+    if (add->single) {
+        JsonArray *ids = json_array_new(); json_array_add_string_element(ids, entry_id);
+        json_object_set_array_member(object, "entry_ids", ids);
+    }
+    panel->busy = TRUE; view->catalogue_busy = TRUE; library_actions_update(panel); catalog_actions_update(view);
+    gtk_label_set_text(GTK_LABEL(panel->status), "Medya doğrulanıyor…");
+    gboolean started = radios_data_request(view->ctx, panel->widget, "POST", "/v1/workflows/desktop-playout/prepare", body, library_prepared, add, library_add_free);
+    if (!started) {
+        panel->busy = FALSE; view->catalogue_busy = FALSE; library_actions_update(panel); catalog_actions_update(view);
+        gtk_label_set_text(GTK_LABEL(panel->status), "Medya kontrolü başlatılamadı.");
+    }
+    json_node_free(body);
+    return started;
+}
+static void library_add(GtkButton *button, gpointer value)
+{
+    LibraryPanel *panel = value; RadioSProgrammeTree *tree = programme_tree(panel->view);
+    gboolean single = GTK_WIDGET(button) == panel->add_track;
+    RadioSProgrammePlacement placement = single ? programme_target(panel->view, tree) : programme_after_event(panel->view);
+    radios_programme_tree_free(tree);
+    GtkListBoxRow *row = single ? gtk_list_box_get_selected_row(GTK_LIST_BOX(panel->tracks)) : NULL;
+    const gchar *entry_id = row ? g_object_get_data(G_OBJECT(row), "library-id") : NULL;
+    if (!single || entry_id) library_transfer(panel, library_current(panel), entry_id, placement);
+}
+static gboolean playlist_drop(BroadcastView *view, const gchar *payload, RadioSProgrammePlacement placement)
+{
+    LibraryPanel *panel = view->playlist_panel ? g_object_get_data(G_OBJECT(view->playlist_panel), "broadcast-library") : NULL;
+    JsonNode *node = json_parse(payload); gboolean accepted = FALSE;
+    if (panel && node && JSON_NODE_HOLDS_OBJECT(node)) {
+        JsonObject *object = json_node_get_object(node);
+        const gchar *id = radios_json_string(object, "playlist_id", "");
+        gboolean single = json_object_has_member(object, "entry_id");
+        const gchar *entry_id = single ? radios_json_string(object, "entry_id", "") : NULL;
+        JsonObject *playlist = g_uuid_string_is_valid(id) ? library_lookup(panel, id) : NULL;
+        gboolean valid = playlist && json_object_get_size(object) == (single ? 2 : 1);
+        if (single) {
+            JsonArray *tracks = playlist ? json_object_get_array_member(playlist, "tracks") : NULL; gboolean found = FALSE;
+            for (guint index = 0; valid && tracks && index < json_array_get_length(tracks); ++index)
+                if (!g_strcmp0(entry_id, radios_json_string(json_array_get_object_element(tracks, index), "_id", ""))) found = TRUE;
+            valid = valid && g_uuid_string_is_valid(entry_id) && found;
+        }
+        if (valid) accepted = library_transfer(panel, playlist, entry_id, placement);
+    }
+    if (node) json_node_free(node);
+    return accepted;
+}
+static void library_created(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
+{
+    (void)owner; LibraryPanel *panel = value;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { gtk_label_set_text(GTK_LABEL(panel->status), error ? error->message : "Playlist oluşturulamadı."); return; }
+    g_free(panel->selected); panel->selected = g_strdup(radios_json_string(json_node_get_object(result), "_id", ""));
+    gtk_entry_set_text(GTK_ENTRY(panel->query), "");
+    radios_automation_playlists_changed(GTK_WIDGET(ctx->parent)); library_refresh(panel);
+}
+static void library_new_response(GtkDialog *dialog, gint response, gpointer value)
+{
+    LibraryPanel *panel = value;
+    if (response == GTK_RESPONSE_ACCEPT) {
+        gchar *name = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(g_object_get_data(G_OBJECT(dialog), "library-name")))));
+        if (*name && radios_data_connected(panel->view->ctx)) {
+            JsonNode *body = radios_data_body(panel->view->ctx); JsonObject *object = json_node_get_object(body); gchar *key = g_uuid_string_random();
+            json_object_set_string_member(object, "name", name); json_object_set_string_member(object, "idempotency_key", key); g_free(key);
+            radios_data_request(panel->view->ctx, panel->widget, "POST", "/v1/workflows/desktop-playlists/create", body, library_created, panel, NULL);
+            json_node_free(body);
+        }
+        g_free(name);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+static void library_new(GtkButton *button, gpointer value)
+{
+    (void)button; LibraryPanel *panel = value;
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Playlist oluştur", panel->view->ctx->parent, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+        "Vazgeç", GTK_RESPONSE_CANCEL, "Oluştur", GTK_RESPONSE_ACCEPT, NULL);
+    gtk_widget_set_name(dialog, "broadcast-library-new"); add_class(dialog, "radios"); add_class(dialog, "task-dialog");
+    GtkWidget *body = gtk_dialog_get_content_area(GTK_DIALOG(dialog)); gtk_container_set_border_width(GTK_CONTAINER(body), 16);
+    GtkWidget *entry = radios_ui_entry("Playlist adı"); gtk_entry_set_max_length(GTK_ENTRY(entry), 120); gtk_widget_set_name(entry, "broadcast-library-new-name");
+    gtk_entry_set_activates_default(GTK_ENTRY(entry), TRUE); gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    pack(body, entry, FALSE); g_object_set_data(G_OBJECT(dialog), "library-name", entry);
+    g_signal_connect(dialog, "response", G_CALLBACK(library_new_response), panel);
+    g_signal_connect_object(panel->widget, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
+    gtk_widget_show_all(dialog);
+}
+/* Düzenle: the Playlist profile edits playlists and tracks. */
+static GtkWidget *library_find(GtkWidget *root, const gchar *name)
+{
+    if (g_str_equal(gtk_widget_get_name(root), name)) return root;
+    if (!GTK_IS_CONTAINER(root)) return NULL;
+    GList *children = gtk_container_get_children(GTK_CONTAINER(root)); GtkWidget *found = NULL;
+    for (GList *item = children; item && !found; item = item->next) found = library_find(item->data, name);
+    g_list_free(children); return found;
+}
+static void library_edit(GtkButton *button, gpointer value)
+{
+    (void)button; LibraryPanel *panel = value;
+    GtkWidget *tab = library_find(GTK_WIDGET(panel->view->ctx->parent), "profile-playlist-tab");
+    if (GTK_IS_BUTTON(tab)) gtk_button_clicked(GTK_BUTTON(tab));
+}
+static GtkWidget *library_list(GtkWidget *box, const gchar *name, gint height, const gchar *style)
+{
+    GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL); add_class(scroll, style);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_widget_set_size_request(scroll, -1, height);
+    GtkWidget *list = gtk_list_box_new(); gtk_widget_set_name(list, name);
+    gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_SINGLE);
+    gtk_container_add(GTK_CONTAINER(scroll), list); pack(box, scroll, TRUE); return list;
+}
+static GtkWidget *
+playlist_tools(BroadcastView *view)
+{
+    LibraryPanel *panel = g_new0(LibraryPanel, 1); panel->view = view;
+    GtkWidget *body = named_box(GTK_ORIENTATION_VERTICAL, 8, "ld-body ld-library-body");
+    panel->widget = body;
+    gtk_widget_set_name(body, "broadcast-playlist-tools");
+    g_object_set_data_full(G_OBJECT(body), "broadcast-library", panel, library_free);
+    GtkWidget *search = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-search-row");
+    panel->query = radios_ui_entry("Ad, sanatçı, albüm…"); gtk_widget_set_name(panel->query, "broadcast-library-query"); pack(search, panel->query, TRUE);
+    GtkWidget *find = button(search, "Ara", "ld-btn", view->ctx, NULL);
+    g_signal_connect(find, "clicked", G_CALLBACK(library_search), panel); g_signal_connect(panel->query, "activate", G_CALLBACK(library_search), panel);
+    GtkWidget *create = button(search, "Playlist oluştur", "ld-btn--primary", view->ctx, NULL); gtk_widget_set_name(create, "broadcast-library-new-button");
+    g_signal_connect(create, "clicked", G_CALLBACK(library_new), panel);
+    pack(body, search, FALSE);
+    GtkWidget *columns = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_paned_set_position(GTK_PANED(columns), 200);
+    GtkWidget *lists = named_box(GTK_ORIENTATION_VERTICAL, 7, NULL);
+    GtkWidget *tracks = named_box(GTK_ORIENTATION_VERTICAL, 7, NULL);
+    gtk_paned_pack1(GTK_PANED(columns), lists, FALSE, TRUE);
+    gtk_paned_pack2(GTK_PANED(columns), tracks, TRUE, TRUE);
+    pack(body, columns, TRUE);
+    GtkWidget *lists_head = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-subhead");
+    pack(lists_head, radios_ui_label("Playlistler", "heading"), TRUE);
+    pack(lists, lists_head, FALSE);
+    panel->lists = library_list(lists, "broadcast-library-playlists", 190, "ld-playlists");
+    g_signal_connect(panel->lists, "row-selected", G_CALLBACK(library_list_selected), panel);
+    GtkWidget *tracks_head = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-subhead");
+    GtkWidget *titles = named_box(GTK_ORIENTATION_VERTICAL, 2, NULL);
+    panel->name = radios_ui_label("Playlist seçilmedi", "heading"); panel->count = radios_ui_label("", "ld-library-meta");
+    gtk_label_set_line_wrap(GTK_LABEL(panel->name), FALSE);
+    gtk_label_set_ellipsize(GTK_LABEL(panel->name), PANGO_ELLIPSIZE_END);
+    pack(titles, panel->name, FALSE); pack(titles, panel->count, FALSE); pack(tracks_head, titles, TRUE);
+    GtkWidget *edit = button(tracks_head, "Düzenle", "ld-btn", view->ctx, NULL); gtk_widget_set_name(edit, "broadcast-library-edit");
+    g_signal_connect(edit, "clicked", G_CALLBACK(library_edit), panel);
+    pack(tracks, tracks_head, FALSE);
+    panel->tracks = library_list(tracks, "broadcast-library-tracks", 190, "ld-track-list");
+    g_signal_connect(panel->tracks, "row-selected", G_CALLBACK(library_track_selected), panel);
+    GtkWidget *to_programme = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-to-programme");
+    panel->add_track = button(to_programme, "Seçili parçayı ekle", "ld-btn--primary", view->ctx, NULL); gtk_widget_set_name(panel->add_track, "broadcast-library-add-track");
+    panel->add_all = button(to_programme, "Playlisti ekle", "ld-btn", view->ctx, NULL); gtk_widget_set_name(panel->add_all, "broadcast-library-add-all");
+    g_signal_connect(panel->add_track, "clicked", G_CALLBACK(library_add), panel); g_signal_connect(panel->add_all, "clicked", G_CALLBACK(library_add), panel);
+    pack(body, to_programme, FALSE);
+    panel->status = radios_ui_label("", "application-status"); gtk_widget_set_name(panel->status, "broadcast-library-status"); pack(body, panel->status, FALSE);
+    g_signal_connect(body, "map", G_CALLBACK(library_mapped), panel);
+    library_render(panel);
+    return body;
+}
+static void playlist_open(BroadcastView *view, const gchar *id)
+{
+    LibraryPanel *panel = g_object_get_data(G_OBJECT(view->playlist_panel),"broadcast-library");
+    g_free(panel->selected); panel->selected = g_strdup(id); gtk_entry_set_text(GTK_ENTRY(panel->query),"");
+    GtkWidget *tab = library_find(view->page,"broadcast-kind-playlist");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(tab),TRUE); library_refresh(panel);
+}
+
+static GtkWidget *
+catalog_view(BroadcastView *view)
+{
+    GtkWidget *pane = named_box(GTK_ORIENTATION_VERTICAL, 9, "broadcast-library-body");
+    add_class(pane, "broadcast-right-pane");
+    gtk_widget_set_name(pane, "broadcast-library-pane");
+    GtkWidget *header = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "broadcast-catalog-header");
+    gtk_widget_set_name(header, "broadcast-catalog-header");
+    GtkWidget *kinds = named_box(GTK_ORIENTATION_HORIZONTAL, 4, "broadcast-catalog-kinds");
+    const gchar *names[] = {"Parçalar", "Jingle", "Anons", "Reklam", "Programlar", "Playlist"};
+    const gchar *kind_ids[] = {"music", "jingle", "announcement", "advertisement", "program", "playlist"};
+    const gchar *kind_names[] = {"broadcast-kind-music", "broadcast-kind-jingle", "broadcast-kind-announcement", "broadcast-kind-advert", "broadcast-kind-programme", "broadcast-kind-playlist"};
+    GtkRadioButton *group = NULL;
+    for (guint i = 0; i < G_N_ELEMENTS(names); ++i) {
+        GtkWidget *choice = gtk_radio_button_new_with_label_from_widget(group, names[i]);
+        gtk_toggle_button_set_mode(GTK_TOGGLE_BUTTON(choice), FALSE);
+        add_class(choice, "broadcast-catalog-kind"); gtk_widget_set_name(choice, kind_names[i]);
+        if (group == NULL) { group = GTK_RADIO_BUTTON(choice); view->catalog_music = choice; }
+        g_object_set_data(G_OBJECT(choice), "catalog-kind", (gpointer)kind_ids[i]);
+        g_signal_connect(choice, "toggled", G_CALLBACK(catalog_kind_changed), view);
+        pack(kinds, choice, TRUE);
+    }
+    pack(header, kinds, TRUE);
+    pack(header, programme_toolbar(view), FALSE);
+    pack(pane, header, FALSE);
+    view->catalog_content = gtk_stack_new();
+    gtk_widget_set_name(view->catalog_content, "broadcast-catalog-content");
+    gtk_stack_set_homogeneous(GTK_STACK(view->catalog_content), FALSE);
+    gtk_stack_set_transition_type(GTK_STACK(view->catalog_content), GTK_STACK_TRANSITION_TYPE_NONE);
+    pack(pane, view->catalog_content, TRUE);
+    GtkWidget *body = named_box(GTK_ORIENTATION_VERTICAL, 9, "broadcast-media-body");
+    gtk_stack_add_named(GTK_STACK(view->catalog_content), body, "media");
+    view->playlist_panel = playlist_tools(view);
+    gtk_stack_add_named(GTK_STACK(view->catalog_content), view->playlist_panel, "playlists");
+    gtk_stack_set_visible_child_name(GTK_STACK(view->catalog_content), "media");
+    GtkWidget *search = named_box(GTK_ORIENTATION_VERTICAL, 7, "broadcast-library-search");
+    GtkWidget *source = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "broadcast-catalog-source-row");
+    view->catalog_kind = "music";
+    const gchar *const fields[] = {"Müzik", "Playlist", NULL};
+    GtkWidget *source_label = radios_ui_label("Arama kaynağı", NULL);
+    gtk_widget_set_name(source_label, "broadcast-catalog-source-label"); pack(source, source_label, FALSE);
+    view->catalog_source = gtk_menu_button_new(); gtk_widget_set_name(view->catalog_source, "broadcast-catalog-source");
+    gtk_button_set_label(GTK_BUTTON(view->catalog_source),catalog_source_names[0]); view->catalog_source_mask = 1;
+    GtkWidget *source_arrow = gtk_image_new_from_icon_name("pan-down-symbolic", GTK_ICON_SIZE_MENU);
+    gtk_widget_set_name(source_arrow, "broadcast-catalog-source-arrow");
+    gtk_button_set_image(GTK_BUTTON(view->catalog_source), source_arrow);
+    gtk_button_set_image_position(GTK_BUTTON(view->catalog_source), GTK_POS_RIGHT);
+    gtk_button_set_always_show_image(GTK_BUTTON(view->catalog_source), TRUE);
+    gtk_widget_set_tooltip_text(view->catalog_source, "Aramanın yapılacağı kaynakları seç");
+    atk_object_set_name(gtk_widget_get_accessible(view->catalog_source), "Arama kaynağı");
+    GtkWidget *source_menu = gtk_popover_new(view->catalog_source), *choices = named_box(GTK_ORIENTATION_VERTICAL,6,NULL);
+    gtk_widget_set_name(source_menu,"broadcast-catalog-source-menu"); gtk_container_set_border_width(GTK_CONTAINER(choices),10);
+    const gchar *const source_ids[] = {"broadcast-source-archive","broadcast-source-youtube","broadcast-source-spotify","broadcast-source-apple"};
+    for (guint index = 0; index < 4; ++index) {
+        view->catalog_sources[index] = gtk_check_button_new_with_label(catalog_source_names[index]);
+        gtk_widget_set_name(view->catalog_sources[index],source_ids[index]);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(view->catalog_sources[index]),index == 0);
+        pack(choices,view->catalog_sources[index],FALSE);
+        g_signal_connect(view->catalog_sources[index],"toggled",G_CALLBACK(catalog_source_changed),view);
+    }
+    gtk_container_add(GTK_CONTAINER(source_menu),choices); gtk_widget_show_all(choices);
+    gtk_menu_button_set_popover(GTK_MENU_BUTTON(view->catalog_source),source_menu);
+    pack(source, view->catalog_source, TRUE);
+    pack(source, radios_ui_label("Arama alanı", NULL), FALSE);
+    view->catalog_field = radios_ui_combo(fields, 0); gtk_widget_set_name(view->catalog_field,"broadcast-catalog-field"); pack(source, view->catalog_field, TRUE);
+    g_signal_connect(view->catalog_field, "changed", G_CALLBACK(catalog_search), view);
+    pack(search, source, FALSE);
+    GtkWidget *row = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "ld-search-row");
+    view->query = radios_ui_entry("Medya arşivi · Parça, sanatçı veya albüm ara…");
+    gtk_widget_set_name(view->query, "broadcast-catalog-query");
+    gtk_entry_set_max_length(GTK_ENTRY(view->query),256);
+    pack(row, view->query, TRUE);
+    GtkWidget *find = button(row, "Ara", "ld-btn", view->ctx, NULL);
+    g_signal_connect(find, "clicked", G_CALLBACK(catalog_search), view);
+    g_signal_connect(view->query, "activate", G_CALLBACK(catalog_search), view);
+    pack(search, row, FALSE);
+    pack(body, search, FALSE);
+    GtkWidget *toolbar = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "broadcast-library-toolbar");
+    view->catalog_count = radios_ui_label("— kayıt", NULL);
+    gtk_widget_set_name(view->catalog_count, "broadcast-catalog-count");
+    pack(toolbar, view->catalog_count, TRUE);
+    view->catalog_source_summary = radios_ui_label("Medya arşivi", "broadcast-catalog-source-summary");
+    gtk_widget_set_name(view->catalog_source_summary,"broadcast-catalog-source-summary");
+    gtk_label_set_ellipsize(GTK_LABEL(view->catalog_source_summary),PANGO_ELLIPSIZE_END);
+    gtk_label_set_line_wrap(GTK_LABEL(view->catalog_source_summary),FALSE);
+    gtk_label_set_max_width_chars(GTK_LABEL(view->catalog_source_summary),24);
+    pack(toolbar,view->catalog_source_summary,FALSE);
+    GtkWidget *library = button(toolbar, "Medya kütüphanesi", "ld-btn--primary", view->ctx, NULL);
+    gtk_widget_set_name(library, "broadcast-media-library"); radios_ui_bind_media_library(library, view->ctx);
+    view->programme_archive = button(toolbar, "Mevcut programı sakla", "ld-btn", view->ctx, NULL);
+    gtk_widget_set_name(view->programme_archive, "broadcast-programme-archive");
+    g_signal_connect(view->programme_archive, "clicked", G_CALLBACK(programme_archive_clicked), view);
+    pack(body, toolbar, FALSE);
+    const gchar *headers[] = {"Sanatçı", "Başlık", "Albüm", "Tür", "Süre", "Kaynak"};
+    GtkWidget *table = radios_ui_table(headers, G_N_ELEMENTS(headers));
+    view->catalog_table = table;
+    gtk_widget_set_name(table, "broadcast-media-table");
+    add_class(table, "broadcast-library-table-scroll");
+    pack(body, table, TRUE);
+    GtkWidget *inspector = named_box(GTK_ORIENTATION_VERTICAL, 7, "broadcast-catalog-inspector");
+    GtkWidget *heading = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "broadcast-catalog-heading");
+    view->catalog_title = radios_ui_label("İçerik seçilmedi", "heading"); gtk_widget_set_name(view->catalog_title, "broadcast-catalog-title");
+    pack(heading, view->catalog_title, TRUE);
+    GtkWidget *actions = named_box(GTK_ORIENTATION_HORIZONTAL, 5, "broadcast-catalog-actions");
+    GtkWidget *edit = button(actions, "Düzenle", "ld-btn", view->ctx, NULL); view->catalog_edit = edit;
+    gtk_widget_set_name(edit, "broadcast-catalog-edit");
+    g_signal_connect(edit, "clicked", G_CALLBACK(catalog_open), view);
+    GtkTreeView *catalog_tree = g_object_get_data(G_OBJECT(table), "tree-view");
+    g_signal_connect(gtk_tree_view_get_selection(catalog_tree), "changed", G_CALLBACK(catalog_selection), view);
+    g_signal_connect(catalog_tree, "row-activated", G_CALLBACK(catalog_activated), view);
+    /* Rows drag onto the flow or a player: one target, the payload names its kind. */
+    gtk_tree_view_enable_model_drag_source(catalog_tree, GDK_BUTTON1_MASK, &radios_drag_targets(NULL)[RADIOS_DRAG_INFO_MEDIA - 1], 1, GDK_ACTION_COPY);
+    g_signal_connect(catalog_tree, "drag-data-get", G_CALLBACK(catalog_drag_get), view);
+    gtk_widget_set_sensitive(edit, FALSE);
+    view->catalog_insert = button(actions, "Bloğa ekle", "ld-btn--primary", view->ctx, NULL);
+    view->catalog_replace = button(actions, "Seçiliyle değiştir", "ld-btn", view->ctx, NULL);
+    view->catalog_all = button(actions, "Tümünü ekle", "ld-btn", view->ctx, NULL);
+    gtk_widget_set_name(view->catalog_insert, "broadcast-catalog-insert"); gtk_widget_set_name(view->catalog_replace, "broadcast-catalog-replace");
+    gtk_widget_set_name(view->catalog_all, "broadcast-catalog-all");
+    g_signal_connect(view->catalog_insert, "clicked", G_CALLBACK(catalog_to_programme), view);
+    g_signal_connect(view->catalog_replace, "clicked", G_CALLBACK(catalog_to_programme), view);
+    g_signal_connect(view->catalog_all, "clicked", G_CALLBACK(catalog_all_to_programme), view);
+    gtk_widget_set_no_show_all(view->catalog_all, TRUE);
+    pack(heading, actions, FALSE);
+    pack(inspector, heading, FALSE);
+    GtkWidget *details = named_box(GTK_ORIENTATION_HORIZONTAL, 14, "broadcast-catalog-details");
+    const gchar *detail_names[] = {"Sanatçı", "Albüm", "Süre", "Kaynak"};
+    for (guint i = 0; i < G_N_ELEMENTS(detail_names); ++i) {
+        GtkWidget *pair = named_box(GTK_ORIENTATION_VERTICAL, 2, NULL);
+        pack(pair, radios_ui_label(detail_names[i], "broadcast-catalog-detail-name"), FALSE);
+        view->catalog_details[i] = radios_ui_label("—", "broadcast-catalog-detail-value");
+        gtk_label_set_line_wrap(GTK_LABEL(view->catalog_details[i]), FALSE);
+        gtk_label_set_ellipsize(GTK_LABEL(view->catalog_details[i]), PANGO_ELLIPSIZE_END);
+        pack(pair, view->catalog_details[i], FALSE); pack(details, pair, TRUE);
+    }
+    pack(inspector, details, FALSE);
+    pack(body, inspector, FALSE);
+    view->catalog_status = radios_ui_label("", "application-status");
+    gtk_widget_set_name(view->catalog_status, "broadcast-catalog-status"); gtk_label_set_line_wrap(GTK_LABEL(view->catalog_status), TRUE); pack(body, view->catalog_status, FALSE);
+    view->online = radios_broadcast_online_new(view->ctx, view->page, table, view->catalog_count, view->catalog_status);
+    GtkWidget *online_source = radios_broadcast_online_source_row(view->online);
+    GtkWidget *online_player = radios_broadcast_online_player_row(view->online);
+    pack(body, online_source, FALSE); pack(body, online_player, FALSE);
+    gint position = 0;
+    gtk_container_child_get(GTK_CONTAINER(body), table, "position", &position, NULL);
+    gtk_box_reorder_child(GTK_BOX(body), online_source, position);
+    gtk_container_child_get(GTK_CONTAINER(body), inspector, "position", &position, NULL);
+    gtk_box_reorder_child(GTK_BOX(body), online_player, position + 1);
+    catalog_actions_update(view);
+    return pane;
+}
+
+static void
+player_count_update(BroadcastView *view)
+{
+    GList *children = gtk_container_get_children(GTK_CONTAINER(view->players));
+    gchar *text = g_strdup_printf("%u oynatıcı", g_list_length(children));
+    gtk_label_set_text(GTK_LABEL(view->player_count), text);
+    queue_selector_refresh(view);
+    g_free(text);
+    g_list_free(children);
+    if (!view->loading && view->channel_document && radios_data_document_ready(view->channel_document)) {
+        JsonNode *config = json_node_new(JSON_NODE_OBJECT); json_node_take_object(config, json_object_new());
+        GList *cards = gtk_container_get_children(GTK_CONTAINER(view->players));
+        json_object_set_int_member(json_node_get_object(config), "deck_count", MAX(1, g_list_length(cards)));
+        radios_data_document_save(view->channel_document, config); json_node_free(config); g_list_free(cards);
+    }
+}
+
+static void
+player_remove(GtkButton *button_widget, gpointer data)
+{
+    BroadcastView *view = data;
+    GList *cards = gtk_container_get_children(GTK_CONTAINER(view->players));
+    guint count = g_list_length(cards); g_list_free(cards);
+    if (count <= 1) { view->ctx->notify(view->ctx->notify_data, "En az bir oynatıcı kalmalı."); return; }
+    GtkWidget *card = g_object_get_data(G_OBJECT(button_widget), "radios-player-card");
+    GtkWidget *wrapper = gtk_widget_get_parent(card);
+    if (GTK_IS_ASPECT_FRAME(wrapper)) wrapper = gtk_widget_get_parent(wrapper);
+    gtk_widget_destroy(GTK_IS_FLOW_BOX_CHILD(wrapper) ? wrapper : card);
+    player_count_update(view);
+}
+
+static void
+volume_change(GtkRange *range, gpointer data)
+{
+    GtkLabel *value = data;
+    gchar *text = g_strdup_printf("%.1f dB", gtk_range_get_value(range));
+    gtk_label_set_text(value, text);
+    g_free(text);
+}
+
+/* A live player card plays its inputs ("Girdiler") in order: verified library
+ * media on its own deck, YouTube Music inputs on the shared player. */
+typedef struct {
+    RadioSViewContext *ctx;
+    BroadcastView *view;
+    GtkWidget *card, *state, *elapsed, *duration, *seek, *play, *pause, *stop, *next, *cue, *gain, *main;
+    GtkWidget *title, *metadata, *next_label, *inputs, *inputs_list, *clear;
+    GtkWidget *sync, *autodj_target, *autodj_start, *bpm, *waveform;
+    gboolean controls_updating;
+    guint64 choices_signature, analysis_serial;
+    GHashTable *analysis_seen;
+    RadioSDataClient *analysis_client;
+    GCancellable *analysis_cancel;
+    gint64 analysis_retry_after;
+    JsonArray *queue;
+    gint current;
+    gboolean running, online, destroyed, lookup_pending, queue_active;
+    guint64 load_serial, match_serial;
+    guint deck, timer;
+} PlayerAudio;
+
+static void player_audio_error(PlayerAudio *player, GError *error)
+{
+    if (error && player->ctx->notify) player->ctx->notify(player->ctx->notify_data, error->message);
+    g_clear_error(&error);
+}
+static JsonObject *player_input(PlayerAudio *player, gint index)
+{ return player->queue && index >= 0 && (guint)index < json_array_get_length(player->queue) ? json_array_get_object_element(player->queue, (guint)index) : NULL; }
+/* Intent IDs never repeat: a lookup from a replaced queue must not become
+ * current again when the next Play starts another request. */
+static void player_input_invalidate(PlayerAudio *player)
+{
+    ++player->load_serial;
+    player->match_serial = 0;
+    player->lookup_pending = FALSE;
+}
+static gboolean player_input_loaded(PlayerAudio *player, const RadioSAudioUiSnapshot *snapshot)
+{
+    JsonObject *input = player_input(player, player->current);
+    return input && snapshot->media_id[0] &&
+        g_str_equal(snapshot->media_id, radios_json_string(input, "media_id", "")) &&
+        g_str_equal(snapshot->version_id, radios_json_string(input, "version_id", ""));
+}
+static gchar *player_clock(gint64 milliseconds, gboolean tenths)
+{
+    milliseconds = MAX(0, milliseconds);
+    return tenths ? g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT ".%01" G_GINT64_FORMAT, milliseconds / 60000, milliseconds / 1000 % 60, milliseconds / 100 % 10) :
+        g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, milliseconds / 60000, milliseconds / 1000 % 60);
+}
+static void player_options_refresh(PlayerAudio *player)
+{
+    RadioSAudioPlayerOptions options = {-1, -1}; radios_audio_ui_player_options(player->ctx, player->deck, &options);
+    guint64 mask = 0;
+    for (guint deck = 0; deck < 32; ++deck) {
+        gchar *key = g_strdup_printf("radios-deck-owner-%u", deck);
+        if (g_object_get_data(G_OBJECT(player->ctx->parent), key)) mask |= G_GUINT64_CONSTANT(1) << deck;
+        g_free(key);
+    }
+    guint64 signature = mask | ((guint64)(options.sync_master + 1) << 32) | ((guint64)(options.autodj_target + 1) << 38);
+    if (signature == player->choices_signature) return;
+    player->choices_signature = signature; player->controls_updating = TRUE;
+    GtkWidget *selector = player->autodj_target;
+    gint selection = options.autodj_target;
+    {
+        gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(selector));
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(selector), "-1", "Kapalı");
+        for (guint deck = 0; deck < 32; ++deck) {
+            if (deck == player->deck || (!(mask & (G_GUINT64_CONSTANT(1) << deck)) && selection != (gint)deck)) continue;
+            gchar *id = g_strdup_printf("%u", deck), *label = g_strdup_printf("Oynatıcı %u%s", deck + 1,
+                mask & (G_GUINT64_CONSTANT(1) << deck) ? "" : " (kaldırıldı)");
+            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(selector), id, label); g_free(id); g_free(label);
+        }
+        gchar *id = g_strdup_printf("%d", selection); gtk_combo_box_set_active_id(GTK_COMBO_BOX(selector), id); g_free(id);
+    }
+    player->controls_updating = FALSE;
+}
+static void player_options_changed(GtkComboBox *combo, gpointer data)
+{
+    (void)combo; PlayerAudio *player = data; if (player->controls_updating) return;
+    const gchar *target = gtk_combo_box_get_active_id(GTK_COMBO_BOX(player->autodj_target));
+    if (!target) return;
+    gint selected = (gint)g_ascii_strtoll(target, NULL, 10);
+    /* The AutoDJ choice also supplies SYNC's master at activation. Persisting
+     * an inactive SYNC edge here would reject a valid two-way AutoDJ pair. */
+    RadioSAudioPlayerOptions options = {-1, selected}; GError *error = NULL;
+    if (!radios_audio_ui_set_player_options(player->ctx, player->deck, &options, &error)) {
+        player_audio_error(player, error); player->choices_signature = G_MAXUINT64; player_options_refresh(player);
+    }
+}
+static void player_sync_changed(GtkToggleButton *button, gpointer data)
+{
+    PlayerAudio *player = data; if (player->controls_updating) return;
+    RadioSAudioPlayerOptions options = {-1, -1}; radios_audio_ui_player_options(player->ctx, player->deck, &options);
+    GError *error = NULL;
+    if (!radios_audio_ui_sync(player->ctx, player->deck, options.autodj_target, gtk_toggle_button_get_active(button), &error)) {
+        player_audio_error(player, error); player->controls_updating = TRUE;
+        gtk_toggle_button_set_active(button, FALSE); player->controls_updating = FALSE;
+    }
+}
+typedef struct { guint64 serial, generation; gchar *key; } PlayerAnalysis;
+static void player_analysis_free(gpointer value)
+{ PlayerAnalysis *job = value; g_free(job->key); g_free(job); }
+static void player_analysis_ready(RadioSViewContext *ctx, GtkWidget *card, JsonNode *node, const GError *error, gpointer data)
+{
+    PlayerAnalysis *job = data; PlayerAudio *player = g_object_get_data(G_OBJECT(card), "radios-player-audio");
+    if (!player || job->serial != player->analysis_serial) return;
+    g_clear_object(&player->analysis_cancel);
+    if (error) {
+        g_hash_table_remove(player->analysis_seen, job->key);
+        player->analysis_retry_after = g_get_monotonic_time() + 5 * G_USEC_PER_SEC;
+        if (ctx->notify) ctx->notify(ctx->notify_data, error->message);
+    }
+    if (node && JSON_NODE_HOLDS_OBJECT(node)) {
+        JsonObject *detail = json_node_get_object(node), *media = json_object_get_object_member(detail, "media");
+        RadioSAudioUiSnapshot snapshot = {0}; radios_audio_ui_get_snapshot(ctx, player->deck, &snapshot);
+        JsonObject *analysis = json_object_get_object_member(detail, "analysis"); RadioSRhythmAnalysis rhythm;
+        if (analysis && snapshot.generation == job->generation && g_str_equal(snapshot.media_id, radios_json_string(media, "_id", "")) &&
+            g_str_equal(snapshot.version_id, radios_json_string(media, "version_id", ""))) {
+            JsonNode *rhythm_node = json_object_get_member(analysis, "rhythm");
+            if (rhythm_node && JSON_NODE_HOLDS_OBJECT(rhythm_node) && radios_rhythm_analysis_read(json_node_get_object(rhythm_node), &rhythm)) {
+                RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
+                if (engine) { radios_audio_engine_set_deck_rhythm(engine, player->deck, snapshot.generation, &rhythm, NULL); radios_audio_engine_unref(engine); }
+            }
+            g_object_set_data_full(G_OBJECT(card), "radios-deck-media-detail", json_node_copy(node), (GDestroyNotify)json_node_free);
+        }
+    }
+}
+static gboolean player_analysis_start(PlayerAudio *player, const gchar *id, const gchar *version, guint64 generation)
+{
+    if (!g_uuid_string_is_valid(id) || !g_uuid_string_is_valid(version)) return FALSE;
+    gchar *key = g_strdup_printf("%s:%s:%" G_GUINT64_FORMAT, id, version, generation);
+    if (g_hash_table_contains(player->analysis_seen, key)) { g_free(key); return FALSE; }
+    g_hash_table_add(player->analysis_seen, g_strdup(key));
+    PlayerAnalysis *job = g_new0(PlayerAnalysis, 1); job->serial = ++player->analysis_serial; job->generation = generation; job->key = key;
+    player->analysis_cancel = radios_media_rhythm_ensure_async(player->ctx, player->card, id, player_analysis_ready, job, player_analysis_free);
+    if (!player->analysis_cancel) {
+        /* rhythm_start has already freed job; keep only the independent key. */
+        gchar *failed = g_strdup_printf("%s:%s:%" G_GUINT64_FORMAT, id, version, generation);
+        g_hash_table_remove(player->analysis_seen, failed); g_free(failed);
+        player->analysis_retry_after = g_get_monotonic_time() + 5 * G_USEC_PER_SEC;
+    }
+    return TRUE;
+}
+static void player_analysis_update(PlayerAudio *player, const RadioSAudioUiSnapshot *snapshot)
+{
+    RadioSDataClient *client = radios_data_client_acquire(player->ctx);
+    if (client != player->analysis_client) {
+        if (player->analysis_cancel) g_cancellable_cancel(player->analysis_cancel);
+        g_clear_object(&player->analysis_cancel); ++player->analysis_serial;
+        g_hash_table_remove_all(player->analysis_seen); player->analysis_retry_after = 0;
+        if (player->analysis_client) radios_data_client_unref(player->analysis_client);
+        player->analysis_client = client; client = NULL;
+    }
+    if (client) radios_data_client_unref(client);
+    if (player->analysis_cancel || player->destroyed || !radios_data_connected(player->ctx) ||
+        g_get_monotonic_time() < player->analysis_retry_after) return;
+    JsonNode *cached = g_object_get_data(G_OBJECT(player->card), "radios-deck-media-detail");
+    JsonObject *detail = cached && JSON_NODE_HOLDS_OBJECT(cached) ? json_node_get_object(cached) : NULL;
+    JsonObject *media = detail ? json_object_get_object_member(detail, "media") : NULL;
+    JsonObject *analysis = detail ? json_object_get_object_member(detail, "analysis") : NULL;
+    JsonNode *rhythm_node = analysis ? json_object_get_member(analysis, "rhythm") : NULL;
+    JsonObject *rhythm = rhythm_node && JSON_NODE_HOLDS_OBJECT(rhythm_node) ? json_node_get_object(rhythm_node) : NULL;
+    gboolean complete = !player->online && media && rhythm &&
+        g_str_equal(snapshot->media_id, radios_json_string(media, "_id", "")) &&
+        g_str_equal(snapshot->version_id, radios_json_string(media, "version_id", "")) &&
+        g_str_equal(radios_data_station_id(player->ctx), radios_json_string(media, "station_id", "")) &&
+        radios_json_int(rhythm, "schema", 0) == 1 &&
+        g_str_equal(radios_json_string(rhythm, "algorithm", ""), "radios-onset-grid-v1") &&
+        json_object_has_member(rhythm, "analyzed_ms");
+    if (!complete && !player->online && player_analysis_start(player, snapshot->media_id, snapshot->version_id, snapshot->generation)) return;
+    for (guint index = 0; player->queue && index < json_array_get_length(player->queue); ++index) {
+        JsonObject *input = json_array_get_object_element(player->queue, index);
+        if (player_analysis_start(player, radios_json_string(input, "media_id", ""), radios_json_string(input, "version_id", ""), 0)) return;
+    }
+}
+static JsonObject *player_loaded_input(PlayerAudio *player)
+{
+    JsonNode *node = g_object_get_data(G_OBJECT(player->card), "radios-deck-media-detail");
+    if (!node || !JSON_NODE_HOLDS_OBJECT(node)) return NULL;
+    JsonObject *detail = json_node_get_object(node), *media = json_object_get_object_member(detail, "media"), *version = json_object_get_object_member(detail, "version");
+    RadioSAudioUiSnapshot snapshot = {0}; radios_audio_ui_get_snapshot(player->ctx, player->deck, &snapshot);
+    if (!g_str_equal(snapshot.media_id, radios_json_string(media, "_id", "")) || !g_str_equal(snapshot.version_id, radios_json_string(version, "_id", ""))) return NULL;
+    JsonObject *input = json_object_new(); const gchar *metadata[] = {"title", "artist", "album"};
+    for (guint index = 0; index < G_N_ELEMENTS(metadata); ++index) json_object_set_string_member(input, metadata[index], radios_json_string(media, metadata[index], ""));
+    json_object_set_string_member(input, "media_id", snapshot.media_id); json_object_set_string_member(input, "version_id", snapshot.version_id);
+    json_object_set_string_member(input, "media_file_id", radios_json_string(version, "media_file_id", ""));
+    json_object_set_string_member(input, "media_sha256", radios_json_string(version, "sha256", ""));
+    json_object_set_int_member(input, "duration_ms", radios_json_int(version, "duration_ms", 0)); return input;
+}
+static void player_autodj_clicked(GtkButton *button, gpointer data)
+{
+    (void)button; PlayerAudio *player = data; RadioSAudioPlayerOptions options = {-1, -1};
+    radios_audio_ui_player_options(player->ctx, player->deck, &options); GError *error = NULL;
+    if (options.autodj_target < 0) { if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, "AutoDJ hedef oynatıcısını seçin."); return; }
+    JsonArray *items = json_array_new();
+    guint count = player->queue ? json_array_get_length(player->queue) : 0;
+    if (player->current >= 0 && (guint)player->current < count && count - (guint)player->current >= 2) {
+        for (guint index = (guint)player->current; index < count && json_array_get_length(items) < 500; ++index)
+            json_array_add_object_element(items, radios_programme_clone_object(json_array_get_object_element(player->queue, index)));
+    } else {
+        JsonObject *first = player_loaded_input(player);
+        if (!first && player_input(player, player->current)) first = radios_programme_clone_object(player_input(player, player->current));
+        gchar *key = g_strdup_printf("radios-deck-owner-%d", options.autodj_target); GtkWidget *card = g_object_get_data(G_OBJECT(player->ctx->parent), key); g_free(key);
+        PlayerAudio *target = card ? g_object_get_data(G_OBJECT(card), "radios-player-audio") : NULL;
+        JsonObject *second = target ? player_loaded_input(target) : NULL;
+        if (!second && target && player_input(target, target->current)) second = radios_programme_clone_object(player_input(target, target->current));
+        if (first) json_array_add_object_element(items, first);
+        if (second) json_array_add_object_element(items, second);
+    }
+    if (!radios_playout_ui_start_player_autodj(player->ctx, player->card, items, player->deck, (guint)options.autodj_target, &error)) player_audio_error(player, error);
+    else { player->running = FALSE; if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, "AutoDJ: seçilen deck çifti ve BPM geçişi hazırlanıyor."); }
+    json_array_unref(items);
+}
+static RadioSViewContext *player_managed_context(PlayerAudio *player)
+{
+    RadioSPlayoutDeckMetadata metadata; PlayerQueue *queue = &player->view->queues[player->deck + 1];
+    if (queue->context.playout && radios_playout_ui_deck_metadata(&queue->context, player->deck, &metadata)) return &queue->context;
+    return radios_playout_ui_deck_metadata(player->ctx, player->deck, &metadata) ? player->ctx : NULL;
+}
+static void player_metadata_render(PlayerAudio *player, RadioSAudioUiSnapshot *snapshot)
+{
+    RadioSPlayoutDeckMetadata programme = {0};
+    PlayerQueue *queue = &player->view->queues[player->deck + 1];
+    gboolean managed = (queue->initialized && radios_playout_ui_deck_metadata(&queue->context, player->deck, &programme)) ||
+        radios_playout_ui_deck_metadata(player->ctx, player->deck, &programme);
+    const gchar *title = "", *artist = "", *album = "", *source = "", *context = "", *next_title = "", *next_artist = "";
+    JsonObject *current = player_input(player, player->current), *next = NULL;
+    if (managed) {
+        player->running = FALSE; player->online = FALSE;
+        title = programme.title; artist = programme.artist; album = programme.album;
+        source = "Medya arşivi"; context = programme.source_name;
+        next_title = programme.next_title; next_artist = programme.next_artist;
+        snapshot->duration_ms = programme.duration_ms;
+    } else if (current && player->online) {
+        title = radios_json_string(current, "title", ""); artist = radios_json_string(current, "artist", "");
+        album = radios_json_string(current, "album", ""); source = radios_player_input_source(current);
+        next = player_input(player, player->current + 1);
+    } else {
+        gboolean input_loaded = player_input_loaded(player, snapshot);
+        if (snapshot->title[0] && (!player->queue_active || input_loaded)) {
+            title = snapshot->title; artist = snapshot->artist; album = snapshot->album; source = "Medya arşivi";
+            if (input_loaded) next = player_input(player, player->current + 1);
+        } else if (current && player->queue_active) {
+            title = radios_json_string(current, "title", ""); artist = radios_json_string(current, "artist", "");
+            album = radios_json_string(current, "album", ""); source = "Medya arşivi";
+            next = player_input(player, player->current + 1);
+        }
+    }
+    if (next) { next_title = radios_json_string(next, "title", ""); next_artist = radios_json_string(next, "artist", ""); }
+    gtk_label_set_text(GTK_LABEL(player->title), *title ? title : "—");
+    gtk_widget_set_tooltip_text(player->title, *title ? title : NULL);
+    const gchar *details[] = {artist, album, source, context}; GString *information = g_string_new(NULL);
+    for (guint index = 0; index < G_N_ELEMENTS(details); ++index) if (*details[index]) {
+        if (information->len) g_string_append(information, " · ");
+        g_string_append(information, details[index]);
+    }
+    gtk_label_set_text(GTK_LABEL(player->metadata), information->str);
+    gtk_widget_set_tooltip_text(player->metadata, information->len ? information->str : NULL);
+    gtk_widget_set_visible(player->metadata, information->len > 0); g_string_free(information, TRUE);
+    gchar *following = g_strdup_printf("Sıradaki  %s%s%s", *next_artist && *next_title ? next_artist : "",
+        *next_artist && *next_title ? " — " : "", *next_title ? next_title : "—");
+    gtk_label_set_text(GTK_LABEL(player->next_label), following);
+    gtk_widget_set_tooltip_text(player->next_label, *next_title ? following : NULL); g_free(following);
+}
+static void player_inputs_render(PlayerAudio *player);
+static void player_input_remove(GtkButton *button, gpointer value)
+{
+    PlayerAudio *player = value; gint index = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "player-input-index"));
+    if (!player_input(player, index)) return;
+    if (index == player->current && player->running) return;
+    if (index == player->current) {
+        player_input_invalidate(player);
+        radios_broadcast_online_card_stop(player->view->online, player->card);
+        radios_audio_ui_preview_stop(player->ctx, player->card);
+        if (player->queue_active && player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+    }
+    json_array_remove_element(player->queue, (guint)index);
+    if (index < player->current) --player->current;
+    if (player->current >= (gint)json_array_get_length(player->queue)) player->current = (gint)json_array_get_length(player->queue) - 1;
+    JsonObject *current = player_input(player, player->current);
+    if (player->queue_active) player->online = current &&
+        (json_object_has_member(current, "online_id") || json_object_has_member(current, "match_provider"));
+    player_inputs_render(player);
+}
+static void player_inputs_render(PlayerAudio *player)
+{
+    gtk_container_foreach(GTK_CONTAINER(player->inputs_list), (GtkCallback)(void (*)(void))gtk_widget_destroy, NULL);
+    guint count = player->queue ? json_array_get_length(player->queue) : 0;
+    for (guint i = 0; i < count; ++i) {
+        JsonObject *input = json_array_get_object_element(player->queue, i);
+        GtkWidget *row = named_box(GTK_ORIENTATION_HORIZONTAL, 6, "lp-input");
+        if ((gint)i == player->current) add_class(row, "is-current");
+        GtkWidget *info = named_box(GTK_ORIENTATION_VERTICAL, 1, "lp-input-info");
+        gchar *heading = g_strdup_printf("%u. %s", i + 1, radios_json_string(input, "title", ""));
+        gchar *duration = player_clock(radios_json_int(input, "duration_ms", 0), FALSE);
+        gchar *meta = g_strdup_printf("%s%s%s · %s", radios_json_string(input, "artist", ""), *radios_json_string(input, "artist", "") ? " · " : "",
+            radios_player_input_source(input), radios_json_int(input, "duration_ms", 0) > 0 ? duration : "—");
+        GtkWidget *name = radios_ui_label(heading, "lp-input-title"); gtk_label_set_line_wrap(GTK_LABEL(name), FALSE);
+        gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END); pack(info, name, FALSE);
+        GtkWidget *detail = radios_ui_label(meta, "lp-input-meta"); gtk_label_set_line_wrap(GTK_LABEL(detail), FALSE);
+        gtk_label_set_ellipsize(GTK_LABEL(detail), PANGO_ELLIPSIZE_END); pack(info, detail, FALSE);
+        pack(row, info, TRUE);
+        GtkWidget *remove = button(row, "×", "lp-input-remove", player->ctx, NULL);
+        gtk_widget_set_tooltip_text(remove, "Girdiyi kaldır");
+        g_object_set_data(G_OBJECT(remove), "player-input-index", GINT_TO_POINTER((gint)i));
+        g_signal_connect(remove, "clicked", G_CALLBACK(player_input_remove), player);
+        gtk_widget_set_sensitive(remove, !((gint)i == player->current && player->running));
+        pack(player->inputs_list, row, FALSE);
+        g_free(heading); g_free(duration); g_free(meta);
+    }
+    if (!count) pack(player->inputs_list, radios_ui_label("Girdi yok", "lp-input-empty"), FALSE);
+    gtk_widget_show_all(player->inputs_list);
+    gchar *label = g_strdup_printf("Girdiler (%u)", count); gtk_expander_set_label(GTK_EXPANDER(player->inputs), label); g_free(label);
+    gtk_widget_set_sensitive(player->clear, count > 0 && !player->running);
+    RadioSAudioUiSnapshot snapshot = {0}; radios_audio_ui_get_snapshot(player->ctx, player->deck, &snapshot);
+    player_metadata_render(player, &snapshot);
+}
+
+/* ---- Card transport ----------------------------------------------------- */
+static void player_input_start(PlayerAudio *player, gboolean resume);
+static void player_advance(PlayerAudio *player);
+/* YouTube Music inputs and Spotify / Apple Music inputs (match_provider),
+ * which play in their official player or through their YouTube Music match. */
+static gboolean input_online(JsonObject *input)
+{ return input && (json_object_has_member(input, "online_id") || json_object_has_member(input, "match_provider")); }
+static gboolean input_official(JsonObject *input)
+{
+    return input && json_object_has_member(input, "official_id") &&
+        radios_official_player_available(radios_json_string(input, "match_provider", ""));
+}
+typedef struct { GWeakRef card; JsonObject *input; guint64 serial; gboolean play, resume; } PlayerMatch;
+static void player_match_free(gpointer value)
+{ PlayerMatch *match = value; g_weak_ref_clear(&match->card); json_object_unref(match->input); g_free(match); }
+static void player_matched(JsonObject *result, const gchar *error, gpointer value)
+{
+    PlayerMatch *match = value; GtkWidget *card = g_weak_ref_get(&match->card);
+    PlayerAudio *player = card ? g_object_get_data(G_OBJECT(card), "radios-player-audio") : NULL;
+    JsonNode *node = result ? json_object_get_member(result, "items") : NULL;
+    JsonArray *items = node && JSON_NODE_HOLDS_ARRAY(node) ? json_node_get_array(node) : NULL;
+    JsonNode *first = items && json_array_get_length(items) ? json_array_get_element(items, 0) : NULL;
+    JsonObject *item = first && JSON_NODE_HOLDS_OBJECT(first) ? json_node_get_object(first) : NULL;
+    if (item) json_object_set_string_member(match->input, "online_id", radios_json_string(item, "provider_id", ""));
+    if (player && !player->destroyed && !match->play) {
+        /* The next input: prepared while the current one plays. */
+        if (item && player->running && player_input(player, player->current + 1) == match->input)
+            radios_broadcast_online_prepare(player->view->online, radios_json_string(item, "provider_id", ""), FALSE);
+    } else if (player && !player->destroyed && match->serial == player->match_serial && match->serial == player->load_serial) {
+        player->match_serial = 0;
+        if (player->running && player_input(player, player->current) == match->input) {
+            if (item) player_input_start(player, match->resume);
+            else {
+                gchar *text = g_strdup_printf("%s: %s", radios_json_string(match->input, "title", "—"), error ? error : "YouTube Music'te bulunamadı.");
+                if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, text);
+                g_free(text); player_advance(player);
+            }
+        }
+    }
+    if (card) g_object_unref(card);
+}
+static void player_match(PlayerAudio *player, JsonObject *input, gboolean play, gboolean resume)
+{
+    PlayerMatch *match = g_new0(PlayerMatch, 1); g_weak_ref_init(&match->card, player->card);
+    match->input = json_object_ref(input); match->serial = player->load_serial; match->play = play; match->resume = resume;
+    if (play) player->match_serial = player->load_serial;
+    JsonArray *items = json_array_new(); json_array_add_object_element(items, json_object_ref(input));
+    radios_broadcast_online_match(player->view->online, items, player_matched, match, player_match_free); json_array_unref(items);
+}
+typedef struct { PlayerAudio *player; guint64 serial; } PlayerLoad;
+static void player_media_ready(RadioSViewContext *ctx, GtkWidget *card, JsonNode *result, const GError *error, gpointer value)
+{
+    PlayerLoad *load = value; PlayerAudio *player = g_object_get_data(G_OBJECT(card), "radios-player-audio");
+    if (!player || player != load->player || load->serial != player->load_serial) return;
+    player->lookup_pending = FALSE;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) {
+        if (ctx->notify) ctx->notify(ctx->notify_data, error ? error->message : "Girdi medyası okunamadı.");
+        player->running = FALSE; player_inputs_render(player); return;
+    }
+    JsonObject *detail = json_node_get_object(result), *media = catalog_object(detail, "media"), *version = catalog_object(detail, "version");
+    JsonObject *input = player_input(player, player->current);
+    if (!input || !g_str_equal(radios_json_string(media, "_id", ""), radios_json_string(input, "media_id", "")) ||
+        !g_str_equal(radios_json_string(version, "_id", ""), radios_json_string(input, "version_id", ""))) {
+        player->running = FALSE;
+        if (ctx->notify) ctx->notify(ctx->notify_data, "Girdinin medya sürümü değişmiş; güncel listeyi yeniden yükleyin.");
+        player_inputs_render(player); return;
+    }
+    GError *failure = NULL;
+    if (!radios_audio_ui_load_media(ctx, card, json_node_get_object(result), player->deck, player->running, &failure)) {
+        player->running = FALSE; player_audio_error(player, failure); player_inputs_render(player); return;
+    }
+    g_object_set_data_full(G_OBJECT(card), "radios-deck-media-detail", json_node_copy(result), (GDestroyNotify)json_node_free);
+    radios_audio_ui_set_deck_main(ctx, player->deck, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(player->main)), NULL);
+}
+/* Loads (and with running, plays) the current input. */
+static void player_input_start(PlayerAudio *player, gboolean resume)
+{
+    JsonObject *input = player_input(player, player->current);
+    if (!input) { player->running = FALSE; player_inputs_render(player); return; }
+    GError *error = NULL; player_input_invalidate(player); player->queue_active = TRUE;
+    player->online = input_online(input);
+    if (player->online) {
+        if (player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+        /* Spotify / Apple Music play in their official player when it is
+         * installed, otherwise through their YouTube Music match. */
+        const gchar *video = input_official(input) ? radios_json_string(input, "official_id", "") :
+            json_object_has_member(input, "online_id") ? radios_json_string(input, "online_id", "") : NULL;
+        if (!video) {
+            radios_broadcast_online_card_stop(player->view->online, player->card);
+            player_match(player, input, TRUE, resume); player_inputs_render(player); return;
+        }
+        if (!radios_broadcast_online_card_play(player->view->online, player->card, video, resume, &error)) {
+            player->running = FALSE; player_audio_error(player, error);
+        }
+    } else {
+        radios_broadcast_online_card_stop(player->view->online, player->card);
+        /* Stop the previous source before looking up its replacement. Its
+         * EOF/error is not the completion of this pending input. */
+        if (player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+        player->lookup_pending = TRUE;
+        PlayerLoad *load = g_new0(PlayerLoad, 1); load->player = player; load->serial = player->load_serial;
+        if (!radios_media_library_get(player->ctx, player->card, radios_json_string(input, "media_id", ""), player_media_ready, load, g_free)) {
+            player->running = FALSE; player->lookup_pending = FALSE;
+            if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, "Girdi medyası okunamadı.");
+        }
+    }
+    /* The next YouTube Music input is prepared while this one plays. */
+    JsonObject *next = player_input(player, player->current + 1);
+    if (player->running && next && !input_official(next) && json_object_has_member(next, "online_id"))
+        radios_broadcast_online_prepare(player->view->online, radios_json_string(next, "online_id", ""), FALSE);
+    else if (player->running && next && !input_official(next) && json_object_has_member(next, "match_provider"))
+        player_match(player, next, FALSE, FALSE);
+    player_inputs_render(player);
+}
+static void player_advance(PlayerAudio *player)
+{
+    if (player->current + 1 >= (gint)(player->queue ? json_array_get_length(player->queue) : 0)) {
+        player->running = FALSE; player_inputs_render(player); return;
+    }
+    ++player->current; player_input_start(player, FALSE);
+}
+static gboolean player_audio_tick(gpointer value)
+{
+    PlayerAudio *player = value; RadioSAudioUiSnapshot snapshot = {0};
+    if (!radios_audio_ui_get_snapshot(player->ctx, player->deck, &snapshot)) return G_SOURCE_CONTINUE;
+    player_metadata_render(player, &snapshot);
+    player_options_refresh(player);
+    player_analysis_update(player, &snapshot);
+    radios_player_waveform_update(player->waveform, &snapshot, player->online);
+    RadioSAudioPlayerOptions options = {-1, -1}; radios_audio_ui_player_options(player->ctx, player->deck, &options);
+    gchar *tempo = snapshot.bpm > 0 ? g_strdup_printf("%.1f BPM · %+.1f%%", snapshot.effective_bpm, (snapshot.tempo_ratio - 1) * 100) : g_strdup("BPM —");
+    gtk_label_set_text(GTK_LABEL(player->bpm), tempo); g_free(tempo);
+    player->controls_updating = TRUE;
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->sync), snapshot.sync_master >= 0);
+    player->controls_updating = FALSE;
+    gboolean local = !player->online && snapshot.media_id[0];
+    gboolean ready = snapshot.state == RADIOS_AUDIO_UI_READY || snapshot.state == RADIOS_AUDIO_UI_PLAYING || snapshot.state == RADIOS_AUDIO_UI_PAUSED;
+    gtk_widget_set_sensitive(player->sync, local && ready && snapshot.bpm > 0 && options.autodj_target >= 0);
+    gtk_widget_set_sensitive(player->autodj_target, snapshot.sync_master < 0);
+    gtk_widget_set_sensitive(player->autodj_start, !player->online && options.autodj_target >= 0 && (local || player_input(player, player->current)));
+    RadioSViewContext *managed = player_managed_context(player);
+    static const gchar *const states[] = { "Boş", "Yükleniyor", "Hazır", "Oynuyor", "Duraklatıldı", "Bitti", "Hata" };
+    if (player->online) {
+        RadioSYouTubeMusicSnapshot online; gboolean starting = FALSE;
+        radios_broadcast_online_card_state(player->view->online, player->card, &online, &starting);
+        /* A Spotify / Apple Music input waits for its match. */
+        starting |= player->running && player->match_serial && player->match_serial == player->load_serial;
+        if (player->running && online.state == RADIOS_YOUTUBE_MUSIC_FINISHED) { player_advance(player); return G_SOURCE_CONTINUE; }
+        if (player->running && online.state == RADIOS_YOUTUBE_MUSIC_FAILED) {
+            if (player->ctx->notify && online.error[0]) player->ctx->notify(player->ctx->notify_data, online.error);
+            player_advance(player); return G_SOURCE_CONTINUE;
+        }
+        static const gchar *const online_states[] = {"Hazır", "Yükleniyor", "Oynuyor", "Duraklatıldı", "Bitti", "Hata"};
+        gboolean sounding = online.state == RADIOS_YOUTUBE_MUSIC_PLAYING || online.state == RADIOS_YOUTUBE_MUSIC_PAUSED || online.state == RADIOS_YOUTUBE_MUSIC_STARTING;
+        gtk_label_set_text(GTK_LABEL(player->state), starting ? "Yükleniyor" : online_states[CLAMP((gint)online.state, 0, 5)]);
+        gtk_widget_set_tooltip_text(player->state, online.error[0] ? online.error : NULL);
+        gint64 position = (gint64)(online.position_seconds * 1000), length = radios_json_int(player_input(player, player->current), "duration_ms", 0);
+        gchar *time = player_clock(position, TRUE), *text = g_strdup_printf("Geçen  %s", time);
+        gtk_label_set_text(GTK_LABEL(player->elapsed), text); g_free(time); g_free(text);
+        time = player_clock(length, FALSE); text = g_strdup_printf("Süre  %s", time);
+        gtk_label_set_text(GTK_LABEL(player->duration), text); g_free(time); g_free(text);
+        gtk_range_set_range(GTK_RANGE(player->seek), 0, MAX(1, length)); gtk_range_set_value(GTK_RANGE(player->seek), (gdouble)MIN(position, MAX(1, length)));
+        gtk_widget_set_sensitive(player->play, !starting && online.state != RADIOS_YOUTUBE_MUSIC_PLAYING && player_input(player, player->current));
+        gtk_widget_set_sensitive(player->pause, online.state == RADIOS_YOUTUBE_MUSIC_PLAYING);
+        gtk_widget_set_sensitive(player->stop, sounding || starting);
+        gtk_widget_set_sensitive(player->seek, FALSE); gtk_widget_set_sensitive(player->cue, FALSE);
+        gtk_widget_set_sensitive(player->next, player_input(player, player->current + 1) != NULL);
+        return G_SOURCE_CONTINUE;
+    }
+    if (player->running && !player->lookup_pending && player_input_loaded(player, &snapshot) &&
+        (snapshot.state == RADIOS_AUDIO_UI_EOF || snapshot.state == RADIOS_AUDIO_UI_ERROR)) {
+        if (snapshot.state == RADIOS_AUDIO_UI_ERROR && player->ctx->notify && snapshot.error[0]) player->ctx->notify(player->ctx->notify_data, snapshot.error);
+        player_advance(player); return G_SOURCE_CONTINUE;
+    }
+    gboolean selected_loaded = !player->queue_active || player_input_loaded(player, &snapshot);
+    gtk_label_set_text(GTK_LABEL(player->state), player->lookup_pending ? "Yükleniyor" :
+        selected_loaded ? states[CLAMP((gint)snapshot.state, 0, 6)] : player_input(player, player->current) ? "Hazır" : "Boş");
+    gtk_widget_set_tooltip_text(player->state, snapshot.error[0] ? snapshot.error : NULL);
+    guint64 position = selected_loaded ? snapshot.position_ms : 0;
+    guint64 duration = selected_loaded ? snapshot.duration_ms : (guint64)MAX(0, radios_json_int(player_input(player, player->current), "duration_ms", 0));
+    gchar *time = player_clock((gint64)position, TRUE), *text = g_strdup_printf("Geçen  %s", time);
+    gtk_label_set_text(GTK_LABEL(player->elapsed), text); g_free(time); g_free(text);
+    time = player_clock((gint64)duration, FALSE); text = g_strdup_printf("Süre  %s", time);
+    gtk_label_set_text(GTK_LABEL(player->duration), text); g_free(time); g_free(text);
+    gtk_range_set_range(GTK_RANGE(player->seek), 0, MAX(1, duration));
+    gtk_range_set_value(GTK_RANGE(player->seek), (gdouble)position);
+    gboolean loaded = selected_loaded && !player->lookup_pending && snapshot.state != RADIOS_AUDIO_UI_EMPTY && snapshot.state != RADIOS_AUDIO_UI_LOADING && snapshot.state != RADIOS_AUDIO_UI_ERROR;
+    gboolean queued = player->queue_active && player_input(player, player->current) != NULL;
+    gtk_widget_set_sensitive(player->play, (loaded && snapshot.output_ready && snapshot.state != RADIOS_AUDIO_UI_PLAYING) ||
+        (queued && !player->lookup_pending && (!selected_loaded || (snapshot.state != RADIOS_AUDIO_UI_PLAYING && snapshot.state != RADIOS_AUDIO_UI_LOADING))));
+    gtk_widget_set_sensitive(player->pause, selected_loaded && snapshot.state == RADIOS_AUDIO_UI_PLAYING);
+    gtk_widget_set_sensitive(player->stop, loaded || player->lookup_pending || (selected_loaded && snapshot.state == RADIOS_AUDIO_UI_LOADING) || player->running);
+    gtk_widget_set_sensitive(player->seek, loaded);
+    gtk_widget_set_sensitive(player->cue, loaded);
+    gtk_widget_set_sensitive(player->next, player_input(player, player->current + 1) != NULL);
+    if (managed) {
+        RadioSPlayoutSnapshot run = {0}; radios_playout_ui_get_snapshot(managed, &run);
+        gtk_widget_set_sensitive(player->play, run.state == RADIOS_PLAYOUT_PAUSED && radios_audio_ui_ready(player->ctx, RADIOS_AUDIO_UI_MAIN));
+        gtk_widget_set_sensitive(player->pause, run.state == RADIOS_PLAYOUT_PLAYING || run.state == RADIOS_PLAYOUT_OVERLAP);
+        gtk_widget_set_sensitive(player->stop, TRUE);
+        gtk_widget_set_sensitive(player->next, run.index + 1 < run.total);
+        gtk_widget_set_sensitive(player->seek, FALSE);
+        gtk_widget_set_sensitive(player->sync, FALSE);
+        gtk_widget_set_sensitive(player->autodj_start, FALSE);
+    }
+    return G_SOURCE_CONTINUE;
+}
+static void player_audio_destroy(GtkWidget *widget, gpointer value)
+{
+    PlayerAudio *player = value; player->destroyed = TRUE;
+    player_input_invalidate(player);
+    if (player->analysis_cancel) g_cancellable_cancel(player->analysis_cancel);
+    ++player->analysis_serial;
+    if (player->timer) { g_source_remove(player->timer); player->timer = 0; }
+    gchar *key = g_strdup_printf("radios-deck-owner-%u", player->deck);
+    if (g_object_get_data(G_OBJECT(player->ctx->parent), key) == widget)
+        g_object_set_data(G_OBJECT(player->ctx->parent), key, NULL);
+    g_free(key);
+    if (!player->view->disposed) {
+        RadioSViewContext *managed = player_managed_context(player);
+        if (managed) radios_playout_ui_action(managed, RADIOS_PLAYOUT_STOP, NULL);
+        radios_broadcast_online_card_stop(player->view->online, widget);
+    }
+    radios_audio_ui_preview_stop(player->ctx, widget);
+    if (player->ctx->audio) {
+        radios_audio_ui_stop(player->ctx, player->deck, NULL);
+        radios_audio_ui_set_deck_main(player->ctx, player->deck, FALSE, NULL);
+    }
+}
+static void player_audio_free(gpointer value)
+{
+    PlayerAudio *player = value;
+    if (player->queue) json_array_unref(player->queue);
+    g_clear_object(&player->analysis_cancel); g_clear_pointer(&player->analysis_seen, g_hash_table_unref);
+    if (player->analysis_client) radios_data_client_unref(player->analysis_client);
+    g_free(player);
+}
+static void player_loaded(JsonArray *items, const gchar *name, gboolean append, gpointer value);
+static void player_audio_action(GtkButton *widget, gpointer value)
+{
+    PlayerAudio *player = value; GError *error = NULL; GtkWidget *control = GTK_WIDGET(widget);
+    RadioSViewContext *managed = player_managed_context(player);
+    if (managed && (control == player->play || control == player->pause || control == player->stop || control == player->next)) {
+        RadioSPlayoutAction action = control == player->play ? RADIOS_PLAYOUT_RESUME : control == player->pause ? RADIOS_PLAYOUT_PAUSE :
+            control == player->stop ? RADIOS_PLAYOUT_STOP : RADIOS_PLAYOUT_NEXT;
+        radios_playout_ui_action(managed, action, &error); player_audio_error(player, error); return;
+    }
+    if (control == player->play) {
+        RadioSAudioUiSnapshot snapshot = {0}; radios_audio_ui_get_snapshot(player->ctx, player->deck, &snapshot);
+        if (player->online) {
+            RadioSYouTubeMusicSnapshot online; gboolean starting; radios_broadcast_online_card_state(player->view->online, player->card, &online, &starting);
+            player->running = TRUE; player_input_start(player, online.state == RADIOS_YOUTUBE_MUSIC_PAUSED); return;
+        }
+        gboolean loaded = snapshot.state == RADIOS_AUDIO_UI_READY || snapshot.state == RADIOS_AUDIO_UI_PAUSED;
+        if (player->queue_active && player_input(player, player->current) && (!loaded || !player_input_loaded(player, &snapshot))) { player->running = TRUE; player_input_start(player, FALSE); return; }
+        player->running = player->queue_active && player_input_loaded(player, &snapshot);
+        radios_audio_ui_play(player->ctx, player->deck, &error);
+    } else if (control == player->pause) {
+        if (player->online) radios_broadcast_online_card_pause(player->view->online, player->card, &error);
+        else radios_audio_ui_pause(player->ctx, player->deck, &error);
+    } else if (control == player->stop) {
+        player->running = FALSE; player_input_invalidate(player);
+        radios_broadcast_online_card_stop(player->view->online, player->card);
+        if (!player->online) radios_audio_ui_stop(player->ctx, player->deck, &error);
+        player_inputs_render(player);
+    } else if (control == player->next) {
+        if (!player_input(player, player->current + 1)) return;
+        gboolean running = player->running; player_input_invalidate(player); ++player->current; player->queue_active = TRUE;
+        if (running) player_input_start(player, FALSE);
+        else {
+            radios_broadcast_online_card_stop(player->view->online, player->card);
+            if (player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+            radios_audio_ui_preview_stop(player->ctx, player->card);
+            player->online = input_online(player_input(player, player->current)); player_inputs_render(player);
+        }
+    } else if (g_object_get_data(G_OBJECT(control), "player-loader")) {
+        gchar *title = g_strdup_printf("%s · Playlist yükle", (const gchar *)g_object_get_data(G_OBJECT(player->card), "radios-player-name"));
+        radios_player_loader_open(player->ctx, player->card, player->view->online, title, player_loaded, player); g_free(title);
+        return;
+    } else {
+        /* Kütüphaneden yükle: one library media; the inputs pause. */
+        player->running = FALSE; player->online = FALSE; player->queue_active = FALSE; player_input_invalidate(player);
+        radios_broadcast_online_card_stop(player->view->online, player->card);
+        radios_media_library_open_for_deck(player->ctx, player->deck);
+    }
+    player_audio_error(player, error);
+}
+/* Inputs from the loader ("Yükle" replaces, "Sona ekle" appends). */
+static void player_loaded(JsonArray *items, const gchar *name, gboolean append, gpointer value)
+{
+    PlayerAudio *player = value; guint added = 0;
+    if (!append) {
+        player->running = FALSE; player_input_invalidate(player); player->queue_active = TRUE;
+        radios_broadcast_online_card_stop(player->view->online, player->card);
+        radios_audio_ui_preview_stop(player->ctx, player->card);
+        if (player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+        if (player->queue) json_array_unref(player->queue);
+        player->queue = NULL; player->current = -1;
+    }
+    if (!player->queue) player->queue = json_array_new();
+    for (guint i = 0; items && i < json_array_get_length(items) && json_array_get_length(player->queue) < 1000; ++i, ++added)
+        json_array_add_object_element(player->queue, radios_programme_clone_object(json_array_get_object_element(items, i)));
+    if (player->current < 0 && json_array_get_length(player->queue)) {
+        player->current = 0; player->queue_active = TRUE;
+        player->online = input_online(player_input(player, 0));
+    }
+    radios_broadcast_online_prepare_items(player->view->online, player->queue, TRUE);
+    gtk_expander_set_expanded(GTK_EXPANDER(player->inputs), TRUE);
+    player_inputs_render(player);
+    gchar *message = g_strdup_printf("%s: %s%s%u girdi %s.", (const gchar *)g_object_get_data(G_OBJECT(player->card), "radios-player-name"),
+        name && *name ? name : "", name && *name ? ", " : "", added, append ? "eklendi" : "yüklendi");
+    if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, message);
+    g_free(message);
+}
+static void player_clear(GtkButton *button, gpointer value)
+{
+    (void)button; PlayerAudio *player = value;
+    if (player->running) return;
+    player_input_invalidate(player);
+    radios_broadcast_online_card_stop(player->view->online, player->card);
+    radios_audio_ui_preview_stop(player->ctx, player->card);
+    if (player->queue_active && player->ctx->audio) radios_audio_ui_stop(player->ctx, player->deck, NULL);
+    if (player->queue) json_array_unref(player->queue);
+    player->queue = NULL; player->current = -1; player->online = FALSE; player_inputs_render(player);
+}
+/* Catalogue rows, flow events and contents dropped on a card become inputs. */
+static void player_drop(GtkWidget *card, GdkDragContext *context, gint x, gint y, GtkSelectionData *selection,
+    guint info, guint time, gpointer value)
+{
+    (void)x; (void)y; PlayerAudio *player = value; JsonArray *items = json_array_new(); const gchar *name = NULL;
+    gchar *payload = radios_drag_payload(selection); JsonNode *node = NULL;
+    if (payload && info == RADIOS_DRAG_INFO_ROW) {
+        RadioSProgrammeTree *tree = programme_tree(player->view); guint block = 0; gint leaf = -1;
+        if (radios_programme_tree_find(tree, payload, &block, &leaf)) {
+            RadioSProgrammeBlock *owner = g_ptr_array_index(tree->blocks, block);
+            for (guint i = leaf < 0 ? 0 : (guint)leaf; i < owner->leaves->len && (leaf < 0 || i == (guint)leaf); ++i) {
+                JsonObject *input = radios_player_input_new(g_ptr_array_index(owner->leaves, i));
+                if (input) json_array_add_object_element(items, input);
+            }
+        }
+        radios_programme_tree_free(tree);
+    } else if (payload && (node = json_parse(payload))) {
+        if (JSON_NODE_HOLDS_ARRAY(node)) {
+            for (guint i = 0; i < json_array_get_length(json_node_get_array(node)); ++i) {
+                JsonNode *element = json_array_get_element(json_node_get_array(node), i);
+                JsonObject *input = JSON_NODE_HOLDS_OBJECT(element) ? radios_player_input_new(json_node_get_object(element)) : NULL;
+                if (input) json_array_add_object_element(items, input);
+            }
+        } else if (JSON_NODE_HOLDS_OBJECT(node)) {
+            JsonObject *record = json_node_get_object(node), *programme = catalog_object(record, "programme");
+            JsonObject *media = catalog_object(record, "media"), *version = catalog_object(record, "version");
+            if (programme) {
+                RadioSProgrammeTree *tree = radios_programme_tree_new(catalog_object(programme, "config"));
+                for (guint i = 0; i < radios_programme_tree_leaf_count(tree); ++i) {
+                    JsonObject *input = radios_player_input_new(radios_programme_tree_leaf_at(tree, i, NULL));
+                    if (input) json_array_add_object_element(items, input);
+                }
+                radios_programme_tree_free(tree); name = radios_json_string(programme, "name", "");
+            } else if (media && version) {
+                JsonObject *source = json_object_new();
+                json_object_set_string_member(source, "media_id", radios_json_string(media, "_id", ""));
+                json_object_set_string_member(source, "version_id", radios_json_string(version, "_id", ""));
+                json_object_set_string_member(source, "media_file_id", radios_json_string(version, "media_file_id", ""));
+                json_object_set_string_member(source, "media_sha256", radios_json_string(version, "sha256", ""));
+                const gchar *keys[] = {"title", "artist", "album"};
+                for (guint i = 0; i < G_N_ELEMENTS(keys); ++i) json_object_set_string_member(source, keys[i], radios_json_string(media, keys[i], ""));
+                json_object_set_int_member(source, "duration_ms", radios_json_int(version, "duration_ms", 0));
+                JsonObject *input = radios_player_input_new(source); json_object_unref(source);
+                if (input) json_array_add_object_element(items, input);
+            }
+        }
+    }
+    gboolean accepted = json_array_get_length(items) > 0;
+    if (accepted) player_loaded(items, name, TRUE, player);
+    remove_class(card, "is-drop-target");
+    if (node) json_node_free(node);
+    g_free(payload); json_array_unref(items);
+    gtk_drag_finish(context, accepted, FALSE, time);
+}
+gboolean radios_broadcast_play_on_player(RadioSViewContext *ctx, JsonArray *items, const gchar *name, gchar **player, GError **error)
+{
+    BroadcastView *view = ctx && ctx->parent ? g_object_get_data(G_OBJECT(ctx->parent), "radios-broadcast-context") : NULL;
+    if (!view || view->disposed || !view->players) {
+        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_INITIALIZED, "Canlı oynatıcılar hazır değil."); return FALSE;
+    }
+    JsonArray *inputs = json_array_new();
+    for (guint i = 0; items && i < json_array_get_length(items); ++i) {
+        JsonObject *input = radios_player_input_new(json_array_get_object_element(items, i));
+        if (input) json_array_add_object_element(inputs, input);
+    }
+    if (!json_array_get_length(inputs)) {
+        json_array_unref(inputs); g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "Listede çalınabilir parça yok."); return FALSE;
+    }
+    GList *children = gtk_container_get_children(GTK_CONTAINER(view->players)); PlayerAudio *target = NULL;
+    for (GList *item = children; item && !target; item = item->next) {
+        GtkWidget *card = GTK_IS_FLOW_BOX_CHILD(item->data) ? gtk_bin_get_child(GTK_BIN(item->data)) : item->data;
+        if (GTK_IS_ASPECT_FRAME(card)) card = gtk_bin_get_child(GTK_BIN(card));
+        PlayerAudio *candidate = card ? g_object_get_data(G_OBJECT(card), "radios-player-audio") : NULL;
+        RadioSAudioUiSnapshot snapshot = {0};
+        if (!candidate || candidate->running) continue;
+        radios_audio_ui_get_snapshot(ctx, candidate->deck, &snapshot);
+        if (snapshot.state != RADIOS_AUDIO_UI_PLAYING && snapshot.state != RADIOS_AUDIO_UI_LOADING) target = candidate;
+    }
+    g_list_free(children);
+    if (!target) { json_array_unref(inputs); g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY, "Boş canlı oynatıcı yok."); return FALSE; }
+    player_loaded(inputs, name, FALSE, target); json_array_unref(inputs);
+    target->running = TRUE; player_input_start(target, FALSE);
+    if (player) *player = g_strdup(g_object_get_data(G_OBJECT(target->card), "radios-player-name"));
+    return TRUE;
+}
+static gboolean player_drag_motion(GtkWidget *card, GdkDragContext *context, gint x, gint y, guint time, gpointer value)
+{ (void)context; (void)x; (void)y; (void)time; (void)value; add_class(card, "is-drop-target"); return FALSE; }
+static void player_drag_leave(GtkWidget *card, GdkDragContext *context, guint time, gpointer value)
+{ (void)context; (void)time; (void)value; remove_class(card, "is-drop-target"); }
+static gboolean player_audio_seek(GtkRange *range, GtkScrollType scroll, gdouble position, gpointer value)
+{
+    (void)range; (void)scroll; PlayerAudio *player = value; GError *error = NULL;
+    if (player->online) return TRUE;
+    radios_audio_ui_seek(player->ctx, player->deck, (guint64)MAX(0, llround(position)), &error);
+    player_audio_error(player, error); return FALSE;
+}
+static void player_audio_gain(GtkRange *range, gpointer value)
+{
+    PlayerAudio *player = value; GError *error = NULL;
+    radios_audio_ui_set_deck_gain(player->ctx, player->deck, gtk_range_get_value(range), &error);
+    player_audio_error(player, error);
+}
+static void player_audio_main(GtkToggleButton *widget, gpointer value)
+{
+    PlayerAudio *player = value; GError *error = NULL;
+    radios_audio_ui_set_deck_main(player->ctx, player->deck, gtk_toggle_button_get_active(widget), &error);
+    player_audio_error(player, error);
+}
+static void player_audio_cue(GtkButton *widget, gpointer value)
+{
+    (void)widget; PlayerAudio *player = value; RadioSAudioUiSnapshot snapshot = {0};
+    if (!radios_audio_ui_get_snapshot(player->ctx, player->deck, &snapshot) || !snapshot.media_id[0]) return;
+    JsonNode *detail = g_object_get_data(G_OBJECT(player->card), "radios-deck-media-detail");
+    JsonObject *object = detail && JSON_NODE_HOLDS_OBJECT(detail) ? json_node_get_object(detail) : NULL;
+    JsonObject *media = object ? json_object_get_object_member(object, "media") : NULL;
+    if (!media || !g_str_equal(radios_json_string(media, "_id", ""), snapshot.media_id) ||
+        !g_str_equal(radios_json_string(media, "version_id", ""), snapshot.version_id)) return;
+    GError *error = NULL;
+    radios_audio_ui_preview(player->ctx, player->card, object, 0, 0, &error);
+    player_audio_error(player, error);
+}
+
+static void
+player_add(GtkButton *button_widget, gpointer data)
+{
+    BroadcastView *view = data;
+    GList *cards = gtk_container_get_children(GTK_CONTAINER(view->players));
+    guint count = g_list_length(cards); g_list_free(cards);
+    if (count >= 32) { view->ctx->notify(view->ctx->notify_data, "En fazla 32 oynatıcı eklenebilir."); return; }
+    GtkWidget *card = named_box(GTK_ORIENTATION_VERTICAL, 6, "lp-card");
+    guint deck = 0;
+    for (; deck < 32; ++deck) {
+        gchar *key = g_strdup_printf("radios-deck-owner-%u", deck);
+        gboolean occupied = g_object_get_data(G_OBJECT(view->ctx->parent), key) != NULL;
+        g_free(key); if (!occupied) break;
+    }
+    PlayerAudio *audio = g_new0(PlayerAudio, 1); audio->ctx = view->ctx; audio->view = view; audio->card = card; audio->deck = deck; audio->current = -1;
+    audio->analysis_seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    audio->choices_signature = G_MAXUINT64;
+    gchar *owner_key = g_strdup_printf("radios-deck-owner-%u", deck);
+    g_object_set_data(G_OBJECT(view->ctx->parent), owner_key, card); g_free(owner_key);
+    g_object_set_data_full(G_OBJECT(card), "radios-player-audio", audio, player_audio_free);
+    g_signal_connect(card, "destroy", G_CALLBACK(player_audio_destroy), audio);
+    (void)button_widget;
+    GtkWidget *heading = named_box(GTK_ORIENTATION_HORIZONTAL, 6, "lp-card-heading");
+    gchar *number = g_strdup_printf("%u", deck + 1);
+    gchar *title = g_strdup_printf("Oynatıcı %u", deck + 1);
+    g_object_set_data_full(G_OBJECT(card), "radios-player-id",
+                          g_strdup(number), g_free);
+    g_object_set_data_full(G_OBJECT(card), "radios-player-name",
+                          g_strdup(title), g_free);
+    pack(heading, radios_ui_label(number, "lp-card-number"), FALSE);
+    pack(heading, radios_ui_label(title, "heading"), TRUE);
+    audio->state = radios_ui_label("Beklemede", "lp-state"); pack(heading, audio->state, FALSE);
+    GtkWidget *remove = button(heading, "×", "lp-remove", view->ctx, NULL);
+    g_object_set_data(G_OBJECT(remove), "radios-player-card", card);
+    g_signal_connect(remove, "clicked", G_CALLBACK(player_remove), view);
+    pack(card, heading, FALSE);
+    g_free(number);
+    g_free(title);
+    GtkWidget *current = named_box(GTK_ORIENTATION_VERTICAL, 3, "lp-current");
+    GtkWidget *media_title = radios_ui_label("—", "lp-current-title"); audio->title = media_title;
+    gchar *metadata_name = g_strdup_printf("deck-%u-title", deck); gtk_widget_set_name(media_title, metadata_name); g_free(metadata_name);
+    gtk_label_set_line_wrap(GTK_LABEL(media_title), FALSE); gtk_label_set_ellipsize(GTK_LABEL(media_title), PANGO_ELLIPSIZE_END);
+    g_object_set_data(G_OBJECT(card), "radios-deck-title-widget", media_title);
+    pack(current, media_title, FALSE);
+    audio->metadata = radios_ui_label("", "lp-current-meta");
+    metadata_name = g_strdup_printf("deck-%u-metadata", deck); gtk_widget_set_name(audio->metadata, metadata_name); g_free(metadata_name);
+    gtk_label_set_line_wrap(GTK_LABEL(audio->metadata), FALSE); gtk_label_set_ellipsize(GTK_LABEL(audio->metadata), PANGO_ELLIPSIZE_END);
+    gtk_widget_set_no_show_all(audio->metadata, TRUE); pack(current, audio->metadata, FALSE);
+    audio->next_label = radios_ui_label("Sıradaki  —", "lp-next");
+    metadata_name = g_strdup_printf("deck-%u-next-title", deck); gtk_widget_set_name(audio->next_label, metadata_name); g_free(metadata_name);
+    gtk_label_set_line_wrap(GTK_LABEL(audio->next_label), FALSE); gtk_label_set_ellipsize(GTK_LABEL(audio->next_label), PANGO_ELLIPSIZE_END);
+    pack(current, audio->next_label, FALSE);
+    pack(card, current, FALSE);
+    GtkWidget *source = named_box(GTK_ORIENTATION_HORIZONTAL, 5, "lp-source-row");
+    GtkWidget *loader = button(source, "Playlist yükle", "lp-add-input", view->ctx, NULL);
+    gchar *control_name = g_strdup_printf("deck-%u-playlist", deck); gtk_widget_set_name(loader, control_name); g_free(control_name);
+    g_object_set_data(G_OBJECT(loader), "player-loader", GINT_TO_POINTER(1));
+    gtk_widget_set_sensitive(loader, view->ctx->data != NULL);
+    g_signal_connect(loader, "clicked", G_CALLBACK(player_audio_action), audio);
+    GtkWidget *add = button(source, "Kütüphaneden yükle", "lp-add-input", view->ctx, NULL);
+    control_name = g_strdup_printf("deck-%u-load", deck); gtk_widget_set_name(add, control_name); g_free(control_name);
+    gtk_widget_set_sensitive(add, view->ctx->audio != NULL);
+    g_signal_connect(add, "clicked", G_CALLBACK(player_audio_action), audio);
+    pack(card, source, FALSE);
+    GtkWidget *transport = named_box(GTK_ORIENTATION_HORIZONTAL, 4, "lp-transport");
+    const gchar *controls[] = {"▶", "Ⅱ", "■", "▸|"};
+    const gchar *control_labels[] = {"Oynat", "Duraklat", "Durdur", "Sonraki"};
+    for (guint i = 0; i < G_N_ELEMENTS(controls); ++i) {
+        GtkWidget *control = button(transport, controls[i], NULL, view->ctx, NULL);
+        gtk_widget_set_tooltip_text(control, control_labels[i]);
+        atk_object_set_name(gtk_widget_get_accessible(control), control_labels[i]);
+        gtk_widget_set_hexpand(control, TRUE);
+        const gchar *suffix[] = { "play", "pause", "stop", "next" };
+        control_name = g_strdup_printf("deck-%u-%s", deck, suffix[i]); gtk_widget_set_name(control, control_name); g_free(control_name);
+        if (i == 0) audio->play = control; else if (i == 1) audio->pause = control; else if (i == 2) audio->stop = control; else audio->next = control;
+        g_signal_connect(control, "clicked", G_CALLBACK(player_audio_action), audio);
+        gtk_widget_set_sensitive(control, FALSE);
+    }
+    pack(card, transport, FALSE);
+    audio->waveform = radios_player_waveform_new(view->ctx, card, deck);
+    pack(card, audio->waveform, FALSE);
+    GtkWidget *times = named_box(GTK_ORIENTATION_HORIZONTAL, 8, "lp-times");
+    audio->elapsed = radios_ui_label("Geçen  —:—", NULL); audio->duration = radios_ui_label("Süre  —:—", NULL);
+    pack(times, audio->elapsed, TRUE); pack(times, audio->duration, TRUE);
+    pack(card, times, FALSE);
+    audio->seek = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 1, 1);
+    gtk_scale_set_draw_value(GTK_SCALE(audio->seek), FALSE); gtk_widget_set_sensitive(audio->seek, FALSE);
+    control_name = g_strdup_printf("deck-%u-seek", deck); gtk_widget_set_name(audio->seek, control_name); g_free(control_name);
+    g_signal_connect(audio->seek, "change-value", G_CALLBACK(player_audio_seek), audio); pack(card, audio->seek, FALSE);
+    GtkWidget *level = named_box(GTK_ORIENTATION_HORIZONTAL, 7, "lp-level");
+    pack(level, radios_ui_label("VOLUME", "lp-volume-line-control"), FALSE);
+    GtkWidget *scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, -60, 6, 0.5);
+    gtk_scale_set_draw_value(GTK_SCALE(scale), FALSE);
+    gtk_range_set_value(GTK_RANGE(scale), 0);
+    add_class(scale, "lp-volume-line");
+    GtkWidget *value = radios_ui_label("0.0 dB", "lp-volume-value");
+    g_signal_connect(scale, "value-changed", G_CALLBACK(volume_change), value);
+    audio->gain = scale;
+    g_signal_connect(scale, "value-changed", G_CALLBACK(player_audio_gain), audio);
+    gtk_widget_set_sensitive(scale, view->ctx->audio != NULL);
+    pack(level, scale, TRUE);
+    pack(level, value, FALSE);
+    GtkWidget *cue = button(level, "CUE", "lp-cue", view->ctx, NULL);
+    control_name = g_strdup_printf("deck-%u-cue", deck); gtk_widget_set_name(cue, control_name); g_free(control_name);
+    audio->cue = cue; g_signal_connect(cue, "clicked", G_CALLBACK(player_audio_cue), audio);
+    gtk_widget_set_sensitive(cue, FALSE);
+    pack(card, level, FALSE);
+    GtkWidget *sync_row = named_box(GTK_ORIENTATION_HORIZONTAL, 6, "lp-sync-row");
+    audio->sync = gtk_toggle_button_new_with_label("SYNC");
+    audio->bpm = radios_ui_label("BPM —", NULL);
+    audio->autodj_target = gtk_combo_box_text_new();
+    GtkWidget *autodj_row = named_box(GTK_ORIENTATION_HORIZONTAL, 6, "lp-autodj-row");
+    pack(autodj_row, radios_ui_label("AutoDJ", NULL), FALSE);
+    audio->autodj_start = gtk_button_new_with_label("Başlat");
+    GtkWidget *automation_controls[] = {audio->sync, audio->bpm, audio->autodj_target, audio->autodj_start};
+    const gchar *automation_names[] = {"sync", "bpm", "autodj-target", "autodj-start"};
+    for (guint index = 0; index < G_N_ELEMENTS(automation_controls); ++index) {
+        control_name = g_strdup_printf("deck-%u-%s", deck, automation_names[index]);
+        gtk_widget_set_name(automation_controls[index], control_name); g_free(control_name);
+        gtk_widget_set_sensitive(automation_controls[index], view->ctx->audio != NULL);
+    }
+    gtk_widget_set_tooltip_text(audio->sync, "AutoDJ hedefinin BPM ve beat fazına eşleştir (±%16). Ton korunur.");
+    gtk_widget_set_tooltip_text(audio->autodj_target, "AutoDJ ve SYNC hedef oynatıcısı. Sıradaki parçalar bu iki deck arasında dönüşümlü çalar.");
+    g_signal_connect(audio->sync, "toggled", G_CALLBACK(player_sync_changed), audio);
+    g_signal_connect(audio->autodj_target, "changed", G_CALLBACK(player_options_changed), audio);
+    g_signal_connect(audio->autodj_start, "clicked", G_CALLBACK(player_autodj_clicked), audio);
+    pack(sync_row, audio->bpm, TRUE); pack(sync_row, audio->sync, FALSE);
+    pack(autodj_row, audio->autodj_target, TRUE); pack(autodj_row, audio->autodj_start, FALSE);
+    pack(card, sync_row, FALSE); pack(card, autodj_row, FALSE);
+    audio->main = gtk_check_button_new_with_label("Ana çıkışa gönder");
+    g_object_set_data(G_OBJECT(card), "radios-deck-main-widget", audio->main);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(audio->main), TRUE);
+    gtk_widget_set_sensitive(audio->main, view->ctx->audio != NULL);
+    g_signal_connect(audio->main, "toggled", G_CALLBACK(player_audio_main), audio); pack(card, audio->main, FALSE);
+    if (view->ctx->audio) radios_audio_ui_set_deck_main(view->ctx, deck, TRUE, NULL);
+    gtk_widget_set_no_show_all(audio->main, TRUE); gtk_widget_hide(audio->main);
+    audio->inputs = gtk_expander_new("Girdiler (0)");
+    add_class(audio->inputs, "lp-inputs");
+    control_name = g_strdup_printf("deck-%u-inputs", deck); gtk_widget_set_name(audio->inputs, control_name); g_free(control_name);
+    GtkWidget *input_body = named_box(GTK_ORIENTATION_VERTICAL, 5, "lp-input-body");
+    audio->inputs_list = named_box(GTK_ORIENTATION_VERTICAL, 2, "lp-input-list"); pack(input_body, audio->inputs_list, FALSE);
+    audio->clear = button(input_body, "Sırayı temizle", "lp-clear", view->ctx, NULL);
+    control_name = g_strdup_printf("deck-%u-clear", deck); gtk_widget_set_name(audio->clear, control_name); g_free(control_name);
+    g_signal_connect(audio->clear, "clicked", G_CALLBACK(player_clear), audio);
+    gtk_container_add(GTK_CONTAINER(audio->inputs), input_body);
+    pack(card, audio->inputs, FALSE);
+    gtk_widget_set_no_show_all(audio->inputs, TRUE); gtk_widget_hide(audio->inputs);
+    guint target_count = 0; const GtkTargetEntry *targets = radios_drag_targets(&target_count);
+    gtk_drag_dest_set(card, GTK_DEST_DEFAULT_ALL, targets, MIN(target_count, 2), GDK_ACTION_COPY | GDK_ACTION_MOVE);
+    g_signal_connect(card, "drag-data-received", G_CALLBACK(player_drop), audio);
+    g_signal_connect(card, "drag-motion", G_CALLBACK(player_drag_motion), audio);
+    g_signal_connect(card, "drag-leave", G_CALLBACK(player_drag_leave), audio);
+    GtkWidget *square = gtk_aspect_frame_new(NULL, 0.5f, 0.5f, 1.0f, FALSE);
+    gtk_frame_set_shadow_type(GTK_FRAME(square), GTK_SHADOW_NONE);
+    gtk_widget_set_size_request(square, 360, 360);
+    gtk_container_add(GTK_CONTAINER(square), card);
+    gtk_flow_box_insert(GTK_FLOW_BOX(view->players), square, -1);
+    gtk_widget_show_all(square);
+    player_inputs_render(audio);
+    player_options_refresh(audio);
+    if (view->ctx->audio) audio->timer = g_timeout_add(100, player_audio_tick, audio);
+    player_count_update(view);
+}
+
+static GtkWidget *
+players_view(BroadcastView *view)
+{
+    GtkWidget *rack = named_box(GTK_ORIENTATION_VERTICAL, 10, "live-player-rack");
+    add_class(rack, "broadcast-right-pane");
+    gtk_widget_set_name(rack, "broadcast-players-pane");
+    GtkWidget *toolbar = named_box(GTK_ORIENTATION_HORIZONTAL, 10, "live-player-toolbar");
+    view->player_count = radios_ui_label("0 oynatıcı", NULL);
+    pack(toolbar, view->player_count, TRUE);
+    GtkWidget *add = button(toolbar, "+ Oynatıcı ekle", "ld-btn--primary", view->ctx, NULL);
+    g_signal_connect(add, "clicked", G_CALLBACK(player_add), view);
+    pack(rack, toolbar, FALSE);
+    view->players = gtk_flow_box_new();
+    gtk_flow_box_set_selection_mode(GTK_FLOW_BOX(view->players), GTK_SELECTION_NONE);
+    gtk_flow_box_set_min_children_per_line(GTK_FLOW_BOX(view->players), 1);
+    gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(view->players), 2);
+    gtk_flow_box_set_homogeneous(GTK_FLOW_BOX(view->players), TRUE);
+    gtk_flow_box_set_row_spacing(GTK_FLOW_BOX(view->players), 9);
+    gtk_flow_box_set_column_spacing(GTK_FLOW_BOX(view->players), 9);
+    add_class(view->players, "live-player-list");
+    gtk_widget_set_valign(view->players, GTK_ALIGN_START);
+    GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    gtk_container_add(GTK_CONTAINER(scroll), view->players);
+    pack(rack, scroll, TRUE);
+    for (guint i = 0; i < 6; ++i)
+        player_add(NULL, view);
+    return rack;
+}
+
+GtkWidget *
+radios_broadcast_new(RadioSViewContext *ctx)
+{
+    BroadcastView *view = g_new0(BroadcastView, 1);
+    view->ctx = ctx;
+    view->lifecycle_context = *ctx;
+    for (guint slot = 0; slot < G_N_ELEMENTS(view->queues); ++slot) {
+        PlayerQueue *queue = &view->queues[slot]; queue->view = view; queue->slot = slot; queue->context = *ctx;
+        if (slot) { queue->context.playout = NULL; queue->context.broadcast = NULL; queue->context.advertisement = NULL; }
+    }
+    view->queues[0].transition = 1; view->queues[0].overlap = 3;
+    GtkWidget *page = named_box(GTK_ORIENTATION_HORIZONTAL, 12, "broadcast-workspace");
+    view->page = page;
+    view->programme_config = json_node_new(JSON_NODE_OBJECT); json_node_take_object(view->programme_config, json_object_new());
+    JsonObject *config = json_node_get_object(view->programme_config);
+    GDateTime *now = g_date_time_new_now_utc(); gchar *date = g_date_time_format(now, "%Y-%m-%d");
+    json_object_set_string_member(config, "title", "Program taslağı"); json_object_set_string_member(config, "date", date);
+    json_object_set_string_member(config, "note", ""); json_object_set_array_member(config, "events", json_array_new());
+    g_free(date); g_date_time_unref(now);
+    g_object_set_data(G_OBJECT(ctx->parent), "radios-broadcast-context", view);
+    add_class(page, "live-desk");
+    gtk_widget_set_name(page, "live-task-view");
+    gtk_box_set_homogeneous(GTK_BOX(page), TRUE);
+    g_object_set_data_full(G_OBJECT(page), "radios-broadcast-view", view, broadcast_free);
+    g_signal_connect(page, "destroy", G_CALLBACK(programme_destroyed), view);
+    GtkWidget *left = named_box(GTK_ORIENTATION_VERTICAL, 10, NULL);
+    pack(left, flow_queue(view), TRUE);
+    pack(left, history_view(view), FALSE);
+    pack(left, radios_broadcast_output_panel_new(ctx), FALSE);
+    pack(page, left, TRUE);
+    GtkWidget *right = named_box(GTK_ORIENTATION_VERTICAL, 0, "broadcast-right");
+    GtkWidget *stack;
+    stack_tabs(right, &stack, "broadcast-right-tabs");
+    view->right_stack = stack;
+    gtk_stack_add_titled(GTK_STACK(stack), catalog_view(view), "library", "Parça · Albüm · Program");
+    gtk_stack_add_titled(GTK_STACK(stack), players_view(view), "players", "Canlı oynatıcılar");
+    pack(page, right, TRUE);
+    view->programme_document = radios_data_document_new(ctx, page, "programme", "Mevcut program", programme_apply, &view->queues[0]);
+    view->queues[0].document = view->programme_document;
+    view->queue_timer = g_timeout_add(100, queue_documents_tick, view);
+    radios_data_register_refresh(ctx, page, broadcast_refresh);
+    if (ctx->playout) view->playout_timer = g_timeout_add(100, programme_playout_tick, view);
+    return page;
+}
+
+static void channel_apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer data)
+{
+    (void)ctx; (void)owner; BroadcastView *view = data;
+    gint count = (gint)radios_json_int(config, "deck_count", 6); view->loading = TRUE;
+    GList *cards = gtk_container_get_children(GTK_CONTAINER(view->players)); gint current = (gint)g_list_length(cards);
+    while (current > count) { GtkWidget *last = g_list_last(cards)->data; cards = g_list_remove(cards, last); gtk_widget_destroy(last); --current; }
+    g_list_free(cards);
+    while (current++ < count) player_add(NULL, view);
+    player_count_update(view); view->loading = FALSE;
+}
+static void broadcast_refresh(RadioSViewContext *ctx, GtkWidget *owner)
+{
+    BroadcastView *view = g_object_get_data(G_OBJECT(owner), "radios-broadcast-view");
+    if (!view->channel_document) view->channel_document = radios_data_document_new(ctx, owner, "channel", "Yayın oynatıcıları", channel_apply, view);
+    catalog_search(NULL, view);
+}

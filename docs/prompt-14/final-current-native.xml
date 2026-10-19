@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="7"
+	timestamp="2026-10-09T02:07:29"
+	>
+	<testcase name="native_youtube_music" classname="native_youtube_music" time="3.49189" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Se0f4a0f59fcca9af9ca2a7640e98b5a6
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..5
+# Start of native-youtube tests
+ok 1 /native-youtube/browser-account-inline-library-native-play
+# slow test /native-youtube/browser-account-inline-library-native-play executed in 0.53 secs
+ok 2 /native-youtube/database-import-cas-rename-order-remove-reopen
+# slow test /native-youtube/database-import-cas-rename-order-remove-reopen executed in 0.50 secs
+ok 3 /native-youtube/auth-error-masked-headers-cancel-viewer
+ok 4 /native-youtube/same-user-reconnect-owner-close
+# slow test /native-youtube/same-user-reconnect-owner-close executed in 0.69 secs
+ok 5 /native-youtube/spotify-list-matches-and-plays
+# End of native-youtube tests
+</system-out>
+	</testcase>
+	<testcase name="native_online_services" classname="native_online_services" time="4.04184" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sb8e3821ad72c3c8fc141bfbf70d55ed0
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..7
+# Start of native-online tests
+ok 1 /native-online/persistence-cas-reference-validation
+# slow test /native-online/persistence-cas-reference-validation executed in 0.80 secs
+ok 2 /native-online/fresh-permission-cancel-owner-close
+# slow test /native-online/fresh-permission-cancel-owner-close executed in 0.77 secs
+ok 3 /native-online/basic-login-without-database-or-developer-keys
+ok 4 /native-online/login-dialog-singleton-reopen
+ok 5 /native-online/broadcast-connect-button-opens-login-only-popup
+ok 6 /native-online/workspace-three-provider-lists-reopen
+# slow test /native-online/workspace-three-provider-lists-reopen executed in 0.80 secs
+ok 7 /native-online/workspace-youtube-reference-validation
+# End of native-online tests
+</system-out>
+	</testcase>
+</testsuite>

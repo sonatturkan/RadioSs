@@ -1,0 +1,206 @@
+{
+  "reviewer": "PROMPT-2/coordinator",
+  "verified_utc": "2026-10-09T02:43:52.586077+00:00",
+  "manifest_sha256": "10cf55bb6bc37210acb4d056c2e83485e7d6be7569cf033fd876b979edda1114",
+  "actual_file_hash_matches": 47,
+  "checks": [
+    {
+      "path": "prompt/2/2.pdf",
+      "sha256": "fc01fceb345526e161d61373c919676d8467402563fa418127f558b3347d5438"
+    },
+    {
+      "path": "prompt/2/figures/sema_1.png",
+      "sha256": "4e02741e464324a59f6b9ee8827892da3d5761a923900cfd1badc0b1694b5c7b"
+    },
+    {
+      "path": "RadioS/CMakeLists.txt",
+      "sha256": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863"
+    },
+    {
+      "path": "RadioS/assets/themes/header-status.css",
+      "sha256": "7f2e0557d2c20e69008a60c9f92cafdac9d407aa617a612eeb781f6420ad51b3"
+    },
+    {
+      "path": "RadioS/cmake/Pdf2HeaderStatus.cmake",
+      "sha256": "2c3781e02306739bc254031f7c639cfea005792088d36d8b5d39f6f05f9b42ba"
+    },
+    {
+      "path": "RadioS/include/radios/broadcast_header.h",
+      "sha256": "88ea073d0d00aa5503459854c563b2f1f0ca509d56453a1e802dfa614eeadc28"
+    },
+    {
+      "path": "RadioS/include/radios/header_status.h",
+      "sha256": "2ad4ea76144a29dba8da6e19d5b2c0818c709f2cc8455d1eb31e08381cec378d"
+    },
+    {
+      "path": "RadioS/include/radios/playout_ui.h",
+      "sha256": "ea981fbe8494603f33cbc6284b37f13a050b2e533e1c490c7013b062c4f402d5"
+    },
+    {
+      "path": "RadioS/include/radios/ui_preferences.h",
+      "sha256": "775db72aa3695706bce122635df928bc2c17237e2d94c1cf4c82101cac90d66b"
+    },
+    {
+      "path": "RadioS/src/core/ui_preferences.c",
+      "sha256": "e4be04d2c14b2bc84c9ec13de44d9f4b1e326a9e301b5c84326462dd72069582"
+    },
+    {
+      "path": "RadioS/src/playout/planner.c",
+      "sha256": "2f84ecd6e2e823730c1b5bfabdb5663504f25e0d825449c28d52261357acba35"
+    },
+    {
+      "path": "RadioS/src/ui/broadcast.c",
+      "sha256": "658917509c2c95845e8ab48acdec889b11470ca97d7ad77c311d27dce19dfcc8"
+    },
+    {
+      "path": "RadioS/src/ui/broadcast_online.c",
+      "sha256": "89a4e6a6bd90ca7f834e57f4f52be7cd02f0817bf8ac356f04cfbbed1500ae60"
+    },
+    {
+      "path": "RadioS/src/ui/header.c",
+      "sha256": "2f8696092b4dfd8be3f7e9df0d95dd52885f277f2684a16882e4fd86ca536681"
+    },
+    {
+      "path": "RadioS/src/ui/header_status.c",
+      "sha256": "4926015b89aa422503cf01de924c04169a5336fcb3e0ce954d283e9c81900cc7"
+    },
+    {
+      "path": "RadioS/src/ui/playout_ui.c",
+      "sha256": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28"
+    },
+    {
+      "path": "RadioS/src/ui/preferences.c",
+      "sha256": "c264c91fd94bc28d0680b4506b30c725348cdc67c61f2e303d5eafb3cc6595b9"
+    },
+    {
+      "path": "RadioS/src/ui/window.c",
+      "sha256": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8"
+    },
+    {
+      "path": "RadioS/tests/test_ui_preferences.c",
+      "sha256": "0ca7591a8ef901b7c6b681ba5b243f4cce4f9f97d9208e8a6cb2d18a166d8b4e"
+    },
+    {
+      "path": "RadioS/tests/test_header_ui.c",
+      "sha256": "1765f046b410331e8678fcd63af54450994578caa897c4eb904d13e883bf1d77"
+    },
+    {
+      "path": "RadioS/tests/test_broadcast_header.c",
+      "sha256": "33aafe9ff5eb32c2870025f4c211e8ec4d3f32686b75a05a86941b4c3ce8793a"
+    },
+    {
+      "path": "RadioS/tests/test_header_online_status.c",
+      "sha256": "067759f491d3a827c6b6ba83e4999860686ae4c57908392ae42674d33d7f2a2c"
+    },
+    {
+      "path": "RadioS/tests/test_header_playout_ui.c",
+      "sha256": "4f3d5896acb494039f461e8666013ec0088b21fa7ea2c70515247254572dd2b8"
+    },
+    {
+      "path": "RadioS/tests/header_layout_driver.c",
+      "sha256": "326a42f6ee157b9961d6eedf53978481d53fec46e7c8879b1585cdc5e60af8cf"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/implementation.md",
+      "sha256": "a86665d3d1853372acc7d91accf3a792cde7864800314d5a1239ef4ce6559de5"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/requirements.md",
+      "sha256": "f45c7e3f337305b232090b2bb742d1a1a085e12aebbe4204561b7c49dbc31ce4"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/architecture-audit.md",
+      "sha256": "ef5eec3d4e968fd15b1ab2deb72097a136545fee8edb8b1e15eb7b5bda8831ee"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/20261009T023257Z/manifest.json",
+      "sha256": "1f275d3c9deaadc29c5d2539a1e3f996e5d81c487d457846147cf926febf4b59"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/20261009T023257Z/selected-tests.xml",
+      "sha256": "5621cb13eae26e114c15936ad4befee49604c800a9c366ea0ed99821388157a5"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/20261009T023257Z/selected-tests-full-tap.log",
+      "sha256": "019567135d643f582bf2593b25375dbd364c59e962f3d03a5399a6f6fdfc8894"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/20261009T023257Z/coordinator-tap-verification.json",
+      "sha256": "8f556fbb8634911b4826ad0585461f5a16aed7f7cc04c39803f42f955a75ba72"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/20261009T023257Z/online-flow.log",
+      "sha256": "0b33f483c51e38a745ee9c55c18fcf410388a56681d6d84979b150dfd8571d28"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/manifest.json",
+      "sha256": "f9f43693872e985cd76f0abadbf8a2e6aecd0aa8841eafccfb9cba9f9f3a83ee"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/coordinator-visual-review.json",
+      "sha256": "74c630afe2ddece5ff16c8c671b6b2c6a3ae3ce7a2d0980a9dbf935ed88a693d"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/release-20261009T023847Z/manifest.json",
+      "sha256": "b0b1d857aaf98e8dcaa311ee21f4c9f116aef5bd7c7079de7a2972f866b5c4f0"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/release-20261009T023847Z/coordinator-release-verification.json",
+      "sha256": "039fa8e466dac4e7e80bd72a2018c7b2173457cd2a731d161ee77e49adaff08a"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/evidence/default-prompt5-p2-inclusion-verification.json",
+      "sha256": "8cbb4eb2c836bc1e196b825c12e233b6a03bdc653f0fcca678d4c70ca5e63a67"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1000-large.png",
+      "sha256": "d54d722285a14ea5b57429d0250402d06e563ef78ddf21b1e5cec9efadb760b3"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1000-normal.png",
+      "sha256": "eef94d14ce4b7c596b72d330b386a359f58e26857abef1f8c9d6cc61d000d50e"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1400-large.png",
+      "sha256": "bef61826735a1c34cede8fb08a4f2d7ee3f21177e0cc04cee8ddb024b6146535"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1400-normal.png",
+      "sha256": "be89440d56d17678cd1549868663832ba94c55d2f9307e1cafea16b82dbc74b9"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1800-large.png",
+      "sha256": "b10577fb9a920f91138c3d36c0f80ae7abaea314e6112538b823d67085f9d9e2"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/header-1800-normal.png",
+      "sha256": "34ed1c95cdb99d64eb5cd6ed50d7e9b7c0adb880f381f9513a3dd7b145522f29"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/main-normal.png",
+      "sha256": "e47b08ab85e9d596f015fb11cfa679e907ebdaf67d2cc51c24a28c2ae11d42f8"
+    },
+    {
+      "path": "RadioS/docs/prompt-2/screenshots/final-20261009T023434Z/preferences-view.png",
+      "sha256": "d06b84a062b66ff09a336f4439021b2d5c518fd4df1339d4fcf9cfcd18cd4670"
+    },
+    {
+      "path": "RadioS/build/prompt-2-release/radios",
+      "sha256": "116fc0aa16a5ce4d46cc606591188466bf6099b275cd0bcb07ef4b2dd20ab4a9"
+    },
+    {
+      "path": "RadioS/build/radios",
+      "sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e"
+    }
+  ],
+  "production16_match_latest_release": true,
+  "owned6_tests_match_functional_snapshot": true,
+  "actual_glib_cases": 81,
+  "ctest_targets": 8,
+  "skip_failure": 0,
+  "all8_final_visual_artifacts_match": true,
+  "current_release370_zero_drift": true,
+  "historic_functional_playlist_drift_retained": true,
+  "required_p2_pending": [],
+  "default_scope": "Dated functionalP2 inclusion; currentvisual header differs but latest isolatedRelease matches current. Root2 no default mutation."
+}

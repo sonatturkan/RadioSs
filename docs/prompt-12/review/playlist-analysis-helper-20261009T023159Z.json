@@ -1,0 +1,18 @@
+{
+  "observed_completion_checkpoint_utc": "2026-10-09 02:31:59 UTC",
+  "responsible_agent": "/root/source_review_resume_12",
+  "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p test_prompt12_playlist_analysis.py -v",
+  "cwd": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+  "exit_code": 0,
+  "test_count": 11,
+  "unittest_elapsed_seconds": 3.398,
+  "capture_type": "Exact completed stdout/stderr transcript copied from exec_command session55606 tool output chunks3bb45b and1d8cf8; not a new execution",
+  "live_provider_validation": false,
+  "fixture_scope": "Private synthetic complete WAV/Opus encoded audio and private synthetic account envelopes; actual ffmpeg/cache/copied helper CLI behavior; production root rejected",
+  "source_sha256": {
+    "RadioS/tools/radios_playlist_analysis.py": "5c2fc16f9df3ce64346db8e7f5b2cb2f2324ea561260a683bd0a4ed8718e1368",
+    "RadioS/tests/test_prompt12_playlist_analysis.py": "c1aa34930227d53abbd3d043bf2ea7bd4dabc923cd44b4ca753a0a0b1ad00f84",
+    "RadioS/tests/setup_prompt12_youtube_analysis.py": "f229a0178770810e823d56d373b4b528333e2edc9473fbb8f5cd8237671e054f"
+  },
+  "log_sha256": "c6c1c66dfee79823e14349c59d8bf8a6e7b6b831642299533eabb0dbed1d264c"
+}

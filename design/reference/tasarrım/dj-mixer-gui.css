@@ -1,0 +1,117 @@
+/* Compact vertical channel strips for the DJ performance workspace. */
+#dj-task-view { background: #000; color: #bbb; padding: 18px clamp(12px, 2vw, 28px) 24px; }
+#dj-task-view .task-view-heading { margin-bottom: 16px; }
+#dj-task-view .task-eyebrow { color: #999; }
+#dj-task-view .task-view-heading h2 { color: #ddd; font-size: 22px; }
+#dj-task-view .task-view-heading > div > p:last-child { color: #999; font-size: 11px; }
+#dj-task-view .task-draft-badge { border-color: #444; border-radius: 3px; background: #111; color: #999; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) { --profile-tab-active: #111; background: #000; box-shadow: inset 0 -1px #333; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-tabs button { color: #929292; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-tabs button::after { background: #333; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-tabs button[aria-selected="true"] { color: #eee; border-color: #333; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-tabs button[aria-selected="true"]::after { background: transparent; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-tabs button:hover:not([aria-selected="true"]) { background: #151515; color: #ddd; }
+#task-profile-nav:has(#profile-dj-tab[aria-selected="true"]) .task-profile-context { color: #777; }
+
+#dj-mixer { --dj-strip-width: 136px; --dj-strip-height: 650px; min-width: 0; margin-bottom: 18px; border: 1px solid #3c3c3c; border-radius: 5px; background: #070707; }
+#dj-mixer [hidden] { display: none !important; }
+#dj-mixer .dj-mixer-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #333; }
+#dj-mixer .dj-mixer-toolbar h3 { margin: 0; color: #eee; font-size: 13px; font-weight: 450; }
+#dj-mixer .dj-mixer-toolbar p { margin: 4px 0 0; color: #8b8b8b; font-size: 10px; }
+#dj-mixer .dj-mixer-toolbar > :last-child { display: flex; align-items: center; gap: 10px; }
+#dj-mixer .dj-mixer-toolbar output { color: #999; font-size: 10px; }
+#dj-mixer :where(button, select, input:not([type="range"]), textarea) { min-width: 0; min-height: 24px; padding: 4px 6px; border: 1px solid #464646; border-radius: 3px; background: #181818; color: #bbb; font: inherit; font-size: 10px; line-height: 1.3; color-scheme: dark; }
+#dj-mixer button:hover:not(:disabled) { border-color: #aaa; background: #303030; color: #eee; }
+#dj-mixer button:disabled { opacity: .45; cursor: default; }
+#dj-mixer :focus-visible { outline: 2px solid #ddd; outline-offset: 2px; }
+#dj-mixer .dj-mixer-rack { display: grid; grid-template-columns: minmax(0, 1fr) var(--dj-strip-width); gap: 8px; align-items: start; padding: 10px; min-width: 0; }
+#dj-mixer .dj-mixer-channels { display: grid; grid-auto-flow: column; grid-auto-columns: var(--dj-strip-width); grid-auto-rows: var(--dj-strip-height); justify-content: start; gap: 4px; align-items: start; min-width: 0; padding-bottom: 8px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #555 #080808; }
+#dj-mixer :is(.dj-channel, .dj-mixer-master) { display: flex; flex-direction: column; flex: 0 0 var(--dj-strip-width); gap: 6px; box-sizing: border-box; width: var(--dj-strip-width); min-width: var(--dj-strip-width); max-width: var(--dj-strip-width); height: var(--dj-strip-height); min-height: var(--dj-strip-height); max-height: var(--dj-strip-height); padding: 8px; border: 1px solid #3a3a3a; border-radius: 3px; background: linear-gradient(#2a2a2a, #171717); }
+#dj-mixer .dj-channel > * { flex-shrink: 0; }
+#dj-mixer .dj-mixer-master { border-color: #646464; background: linear-gradient(#333, #1a1a1a); }
+#dj-mixer .dj-channel-heading { display: flex; align-items: center; gap: 5px; min-height: 23px; }
+#dj-mixer .dj-channel-heading h3 { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: #ddd; font-size: 10px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
+#dj-mixer .dj-channel-number { color: #999; font-size: 9px; font-variant-numeric: tabular-nums; }
+#dj-mixer .dj-channel-heading button { min-height: 19px; width: 19px; padding: 0; color: #ad9691; font-size: 13px; }
+#dj-mixer .dj-channel-source { display: grid; gap: 3px; min-height: 40px; color: #aaa; font-size: 8px; }
+#dj-mixer .dj-channel-source select { width: 100%; height: 26px; padding: 3px 2px; font-size: 9px; }
+#dj-mixer .dj-channel-effector { margin-top: -2px; }
+#dj-mixer .dj-channel-buses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; min-height: 76px; padding: 7px 0; border-block: 1px solid #424242; }
+#dj-mixer .dj-knob-pan { min-height: 60px; }
+#dj-mixer .dj-master-effect-controls { display: grid; grid-template-columns: minmax(0, 1fr) 43px; align-items: center; gap: 6px; min-height: 60px; }
+#dj-mixer .dj-master-effect-controls .dj-knob { min-height: 60px; }
+#dj-mixer .dj-master-effect-controls .dj-knob > label { white-space: nowrap; font-size: 7px; }
+#dj-mixer .dj-master-effect-toggle { width: 43px; min-height: 25px; padding: 4px 2px; font-size: 8px; }
+#dj-mixer .dj-master-effect-toggle[aria-pressed="true"] { border-color: #b59b62; background: #40351f; color: #e1c47f; }
+#dj-mixer .dj-knob { --dial-size: 34px; --knob-color: #aaa; width: auto; min-width: 0; }
+#dj-mixer .dj-knob > label { margin: 0 0 2px; color: #b2b2b2; font-size: 8px; letter-spacing: .5px; }
+#dj-mixer .dj-knob .knob-ring { inset: 1px; border-color: #555; }
+#dj-mixer .dj-knob .knob-rotor { inset: 4px; border-color: #777; background: #242424; }
+#dj-mixer .dj-knob .knob-rotor::before { top: 3px; height: 6px; background: #ccc; }
+#dj-mixer .dj-knob-value { color: #a7a7a7; font-size: 9px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+#dj-mixer input[data-dj-knob] { position: absolute; width: 1px; height: 1px; opacity: 0; padding: 0; clip-path: inset(50%); }
+#dj-mixer .dj-knob .knob-shell:focus-within { outline-color: #ddd; }
+#dj-mixer .dj-channel-volume { display: flex; flex-direction: column; align-items: stretch; gap: 5px; margin-top: 2px; }
+#dj-mixer .dj-channel-volume > label { color: #b5b5b5; font-size: 8px; letter-spacing: .6px; text-align: center; }
+#dj-mixer .dj-fader-wrap { display: flex; justify-content: center; align-items: stretch; gap: 9px; min-height: 146px; }
+#dj-mixer .dj-volume-rails { display: flex; justify-content: center; align-items: stretch; gap: 9px; }
+#dj-mixer .dj-fader-scale { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; color: #888; font-size: 7px; line-height: 1; }
+#dj-mixer .dj-fader { writing-mode: vertical-lr; direction: rtl; width: 27px; height: 146px; min-width: 27px; margin: 0; padding: 0; appearance: none; -webkit-appearance: none; border: 0; border-radius: 0; background: repeating-linear-gradient(to bottom, transparent 0 13px, #777 13px 14px, transparent 14px 16px) left 2px top / 5px 100% no-repeat, repeating-linear-gradient(to bottom, transparent 0 13px, #777 13px 14px, transparent 14px 16px) right 2px top / 5px 100% no-repeat; cursor: ns-resize; }
+#dj-mixer .dj-fader::-webkit-slider-runnable-track { width: 5px; border: 1px solid #090909; border-radius: 2px; background: #101010; }
+#dj-mixer .dj-fader::-webkit-slider-thumb { width: 23px; height: 12px; margin-left: -10px; appearance: none; -webkit-appearance: none; border: 1px solid #888; border-radius: 1px; background: linear-gradient(#c6c6c6, #8a8a8a 45%, #4a4a4a 48%, #b2b2b2 54%, #858585); box-shadow: 0 2px 2px #0008; }
+#dj-mixer .dj-fader::-moz-range-track { width: 5px; border: 1px solid #090909; border-radius: 2px; background: #101010; }
+#dj-mixer .dj-fader::-moz-range-thumb { width: 23px; height: 12px; border: 1px solid #888; border-radius: 1px; background: #aaa; }
+#dj-mixer .dj-channel-level-meter { display: flex; align-items: stretch; justify-content: center; gap: 3px; min-width: 0; }
+#dj-mixer .dj-meter-bars { display: flex; gap: 2px; height: 146px; }
+#dj-mixer .dj-meter-lane { display: grid; grid-template-rows: repeat(20, minmax(0, 1fr)); gap: 2px; width: 5px; padding: 1px; border: 1px solid #151515; background: #0d0d0d; }
+#dj-mixer .dj-meter-segment { background: #233025; }
+#dj-mixer .dj-meter-segment:nth-child(-n+4) { background: #3b2c24; }
+#dj-mixer .dj-meter-scale { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; color: #777; font-size: 7px; line-height: 1; font-variant-numeric: tabular-nums; }
+#dj-mixer .dj-channel-volume-output { color: #ccc; font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+#dj-mixer .dj-measurement-status { color: #747474; font-size: 8px; text-align: center; }
+#dj-mixer .dj-channel-switches { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 3px; }
+#dj-mixer .dj-channel-switches button { min-height: 23px; padding: 3px 0; font-size: 9px; }
+#dj-mixer .dj-channel-switches button[aria-pressed="true"] { border-color: #bbb; background: #ddd; color: #151515; }
+#dj-mixer .dj-switch-mute { order: 1; }
+#dj-mixer .dj-switch-solo { order: 2; }
+#dj-mixer .dj-switch-cue { order: 3; }
+#dj-mixer .dj-master-channel .dj-channel-switches { grid-template-columns: 1fr 1.4fr; }
+#dj-mixer [data-dj-cue] { border-color: #755b2b; background: #48351a; color: #ddb66e; }
+#dj-mixer [data-dj-cue][aria-pressed="true"] { border-color: #e5bf71; background: #edb445; color: #21190d; }
+#dj-mixer .dj-channel-pads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, 45px); gap: 4px; height: 102px; margin: 0; padding: 0 0 7px; border-bottom: 1px solid #444; }
+#dj-mixer .dj-sampler-label { height: 10px; margin: 0; color: #919191; font-size: 8px; line-height: 10px; letter-spacing: .6px; }
+#dj-mixer .dj-pad { display: flex; position: relative; min-width: 0; }
+#dj-mixer .dj-sampler-pad { display: flex; flex-direction: column; justify-content: center; align-items: start; gap: 3px; width: 100%; min-height: 39px; padding: 5px 5px 5px 6px; border-color: #535353; background: #111; text-align: left; }
+#dj-mixer .dj-sampler-pad :is(span, small, strong) { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#dj-mixer .dj-sampler-pad span { color: #b5b5b5; font-size: 8px; }
+#dj-mixer .dj-sampler-pad .dj-pad-number { font-size: 9px; }
+#dj-mixer .dj-sampler-pad .dj-pad-state { color: #808080; font-size: 7px; }
+#dj-mixer .dj-sampler-pad small { color: #808080; font-size: 7px; }
+#dj-mixer .dj-sampler-pad[aria-pressed="true"] { border-color: #cab06a; background: #40391f; }
+#dj-mixer .dj-pad-edit { position: absolute; top: 1px; right: 1px; width: 17px; min-height: 15px; height: 15px; padding: 0; background: #252525; color: #969696; font-size: 11px; }
+#dj-mixer .dj-mixer-status { margin: 0; padding: 8px 12px; border-top: 1px solid #333; color: #8f8f8f; font-size: 10px; overflow-wrap: anywhere; }
+#dj-mixer .dj-sampler-dialog { width: min(440px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); margin: auto; overflow: auto; padding: 18px; border: 1px solid #666; border-radius: 5px; background: #0b0b0b; color: #bbb; font: inherit; font-size: 11px; }
+#dj-mixer .dj-sampler-dialog::backdrop { background: #000b; }
+#dj-mixer .dj-sampler-dialog h3 { margin: 0 0 13px; color: #eee; font-size: 14px; font-weight: 450; }
+#dj-mixer .dj-sampler-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#dj-mixer .dj-sampler-dialog-heading h2 { margin: 0; color: #eee; font-size: 14px; font-weight: 450; }
+#dj-mixer .dj-dialog-close { width: 24px; padding: 0; font-size: 17px; }
+#dj-mixer .dj-sampler-dialog-note { margin: 12px 0; color: #888; font-size: 10px; }
+#dj-mixer .dj-sampler-dialog-fields { display: grid; gap: 11px; }
+#dj-mixer .dj-sampler-dialog-fields label { display: grid; gap: 5px; color: #999; font-size: 10px; }
+#dj-mixer .dj-sampler-dialog :is(input, select) { width: 100%; }
+#dj-mixer .dj-dialog-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; margin-top: 16px; }
+#dj-mixer .dj-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Jingle and headphones remain beside the effect rack after the main sampler is removed. */
+#dj-task-view .dj-tools-shell { border-color: #333; border-radius: 4px; background: #050505; }
+#dj-task-view .quick-pad-banks { grid-template-columns: minmax(0, 1fr); max-width: 420px; }
+#dj-task-view .quick-pad-banks .jingle-bank { padding-left: 0; border-left: 0; }
+#dj-task-view .quick-tools { gap: 16px; padding: 12px; }
+#dj-task-view .fx-rack { border-top-color: #333; scrollbar-color: #555 #080808; }
+#dj-task-view .dj-speech-card { border-color: #333; background: #080808; }
+@media (max-width: 600px) {
+    #dj-mixer { --dj-strip-width: 120px; }
+    #dj-mixer .dj-mixer-rack { gap: 6px; padding: 6px; }
+    #dj-mixer .dj-mixer-toolbar { padding: 10px; }
+}

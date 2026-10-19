@@ -1,0 +1,31 @@
+{
+  "reviewer": "PROMPT-2/coordinator",
+  "reviewed_utc": "2026-10-09T02:40:24.091375+00:00",
+  "release_manifest_sha256": "b0b1d857aaf98e8dcaa311ee21f4c9f116aef5bd7c7079de7a2972f866b5c4f0",
+  "commands_exit0_log_sha_verified": true,
+  "source_count": 370,
+  "release_source_drift": [],
+  "binary_sha256": "116fc0aa16a5ce4d46cc606591188466bf6099b275cd0bcb07ef4b2dd20ab4a9",
+  "binary_actual_match": true,
+  "native_capture_actual_size": [
+    1920,
+    1042
+  ],
+  "native_capture_visual": "PASS: mapped real main window, idle P2 fields visible/readable in NEXT bar; no clipping or duplicate static programme; smoke8profiles. Actual1920x1042 is separate from prior synthetic fixed-size geometry evidence.",
+  "compile_flags_verified_in_actual_command": [
+    "-O3",
+    "-DNDEBUG",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror"
+  ],
+  "preferences_before": null,
+  "preferences_after": null,
+  "preferences_scope": "Absent before/after preserved; existing real atomic INI save/reopen proved by component/native tests, not this smoke",
+  "header_current_sha256": "2f8696092b4dfd8be3f7e9df0d95dd52885f277f2684a16882e4fd86ca536681",
+  "header_differs_old_functional_only": {
+    "src/ui/header.c": "2f8696092b4dfd8be3f7e9df0d95dd52885f277f2684a16882e4fd86ca536681"
+  },
+  "root2_default_binary_mutation": false
+}

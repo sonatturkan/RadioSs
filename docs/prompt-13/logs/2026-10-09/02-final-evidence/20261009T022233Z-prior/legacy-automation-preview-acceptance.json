@@ -1,0 +1,15 @@
+{
+  "recorded_at": "2026-10-09T02:08:06.220991+00:00",
+  "responsible": "/root/p13_architecture",
+  "case": "/native-playout/automation-preview-history-reopen",
+  "command": [
+    "python3",
+    "tests/run_playout_ui.py",
+    "build/prompt13/test_playout_ui",
+    "-p",
+    "/native-playout/automation-preview-history-reopen"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 28.498397916000613,
+  "output": "TAP version 14\n# random seed: R02S730c5ff0a5465ef103c065b7271241c0\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# Start of native-playout tests\n# Music to jingle: longest captured silent gap 1 frames\n# One-music batch append: longest captured silent gap 1 frames\nok 1 /native-playout/automation-preview-history-reopen\n# slow test /native-playout/automation-preview-history-reopen executed in 25.72 secs\n# End of native-playout tests\n1..1\n"
+}

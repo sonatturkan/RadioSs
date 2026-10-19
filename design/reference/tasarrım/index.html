@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RadioS — Automation software</title>
+    <style>
+        @font-face {
+            font-family: "Inter";
+            src: url("fonts/InterVariable.woff2") format("woff2");
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: swap;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            min-height: 100vh;
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Inter", sans-serif;
+            font-optical-sizing: auto;
+            font-synthesis: none;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .page-header {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 24px 32px;
+            padding: 32px clamp(24px, 4vw, 48px);
+        }
+
+        .page-header::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0;
+            height: 1px;
+            background: linear-gradient(90deg, #22252a, #41454c 50%, #22252a);
+        }
+
+        .header-meter {
+            display: flex;
+            align-items: center;
+            align-self: stretch;
+            padding-left: 32px;
+            border-left: 1px solid #292d33;
+        }
+
+        .main-interface {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+            grid-template-rows: minmax(204px, 1fr) auto;
+            gap: 16px;
+            flex: 1;
+            padding: 24px clamp(16px, 2vw, 32px);
+        }
+
+        .interface-panel {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .panel-tab {
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            margin: 0;
+            padding: 12px clamp(10px, 1.4vw, 20px);
+            border: 1px solid #292d33;
+            border-bottom: 0;
+            border-radius: 10px 10px 0 0;
+            background: #080a0d;
+            color: #aeb5bf;
+            font-size: 12px;
+            font-weight: 450;
+            letter-spacing: 0.3px;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+
+        .interface-panel:first-child .panel-tab {
+            border-top-color: #38baff;
+            color: #d5eaff;
+        }
+
+        .panel-content {
+            flex: 1;
+            min-height: 160px;
+            padding: 20px clamp(10px, 1.4vw, 20px);
+            border: 1px solid #292d33;
+            border-radius: 0 0 8px 8px;
+            background: #020304;
+        }
+
+        .bottom-interface {
+            --square-size: clamp(200px, 20vw, 260px);
+            display: grid;
+            grid-column: 1 / -1;
+            grid-template-columns: var(--square-size) minmax(0, 1fr);
+            align-items: end;
+            gap: 16px;
+        }
+
+        .lower-surface {
+            min-width: 0;
+            border: 1px solid #343b46;
+            border-radius: 8px;
+            background: #05070b;
+        }
+
+        .lower-square { aspect-ratio: 1; }
+
+        .lower-rectangle {
+            min-height: calc(var(--square-size) + 48px);
+        }
+
+        .status-footer {
+            display: flex;
+            flex-shrink: 0;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px 24px;
+            min-height: 32px;
+            padding: 6px clamp(16px, 2vw, 32px);
+            border-top: 1px solid #292d33;
+            background: #06080a;
+            color: #aeb5bf;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .footer-brand {
+            display: inline-flex;
+            min-width: 0;
+            max-width: 100%;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            color: #d5dbe4;
+        }
+
+        .footer-logo {
+            display: inline-grid;
+            grid-template-columns: max-content max-content;
+            align-items: start;
+            gap: 2px;
+        }
+
+        .footer-logo-copy { display: flex; flex-direction: column; }
+        .footer-logo-radio { font-size: 14px; font-weight: 100; letter-spacing: -.45px; line-height: 1; }
+        .footer-logo-s { font-size: 23.5px; font-weight: 300; letter-spacing: -.6px; line-height: .9; }
+        .footer-logo-rule { height: 1px; margin: 1px 0 2px; background: #bfc7d2; }
+        .footer-logo-subtitle { color: #929ba7; font-size: 3.4px; font-weight: 300; letter-spacing: .2px; line-height: 1.2; white-space: nowrap; }
+        .footer-separator { color: #404b57; font-size: 18px; font-weight: 200; line-height: 1; }
+        .footer-profile { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; min-width: 0; color: #aeb5bf; }
+        .footer-profile > span { white-space: nowrap; }
+        .footer-profile-value { color: #788a9d; }
+
+        .footer-info {
+            display: flex;
+            min-width: 0;
+            max-width: 100%;
+            margin-left: auto;
+            align-items: center;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 8px 20px;
+        }
+
+        .footer-error { display: inline-flex; align-items: center; gap: 6px; }
+        .footer-error > span { color: #788a9d; }
+        .footer-test-button {
+            min-height: 24px;
+            padding: 3px 8px;
+            border: 1px solid #303b48;
+            border-radius: 4px;
+            background: #0b1016;
+            color: #b7c8da;
+            font: inherit;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        .footer-test-button:disabled { color: #788a9d; cursor: default; }
+        .footer-test-button:focus-visible { outline: 2px solid #d7edff; outline-offset: 2px; }
+
+        .brand {
+            position: relative;
+            display: inline-grid;
+            grid-template-columns: max-content max-content;
+            column-gap: 1px;
+            align-items: start;
+            flex-shrink: 0;
+            padding-right: 0;
+        }
+
+        .brand-copy {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-name {
+            margin: 0;
+            font-size: 48px;
+            font-weight: 100;
+            letter-spacing: -1.5px;
+            line-height: 1;
+        }
+
+        .brand-letter {
+            font-size: 64px;
+            font-weight: 200;
+            letter-spacing: -2px;
+            line-height: 0.9;
+        }
+
+        .brand-rule {
+            height: 1px;
+            margin: 2px 0 4px;
+            background: #d6d9df;
+        }
+
+        .brand-subtitle {
+            margin: 0;
+            color: #aaa;
+            font-size: 11px;
+            font-weight: 300;
+            letter-spacing: 0.65px;
+            line-height: 1.3;
+        }
+
+        .level-meter {
+            display: grid;
+            gap: 10px;
+            width: clamp(200px, 24vw, 260px);
+            max-width: 100%;
+            margin: 0 0 0 auto;
+            padding: 8px 2px;
+            border: 0;
+            background: transparent;
+        }
+
+        .meter-track {
+            display: grid;
+            grid-template-columns: repeat(16, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .meter-led {
+            height: 6px;
+            border-radius: 999px;
+            color: #79dd86;
+            background: linear-gradient(180deg, #ffffff60, currentColor 45%);
+            box-shadow: 0 0 3px currentColor, 0 0 6px currentColor;
+        }
+
+        .meter-led:nth-child(n + 7) { color: #49fbb4; }
+        .meter-led:nth-child(n + 11) { color: #f7dd57; }
+        .meter-led:nth-child(n + 15) { color: #ff527f; }
+
+        .meter-track:first-child .meter-led:nth-child(n + 15),
+        .meter-track:last-child .meter-led:last-child {
+            opacity: 0.22;
+            box-shadow: none;
+        }
+
+        .meter-scale {
+            display: flex;
+            justify-content: space-between;
+            color: #8c9dab;
+            font-size: 9px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        .meter-scale span:nth-last-child(2) { color: #d7c572; }
+        .meter-scale span:last-child { color: #e87697; }
+
+        @media (max-width: 560px) {
+            .bottom-interface {
+                --square-size: clamp(100px, 26vw, 160px);
+            }
+
+            .header-meter {
+                justify-content: flex-end;
+                width: 100%;
+                padding: 24px 0 0;
+                border-left: 0;
+                border-top: 1px solid #292d33;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="knobs.css?v=compact2">
+    <link rel="stylesheet" href="broadcast.css?v=compact2">
+    <link rel="stylesheet" href="workbench.css">
+    <link rel="stylesheet" href="neon-tabs.css?v=header-paged">
+    <link rel="stylesheet" href="panel-selection.css">
+    <link rel="stylesheet" href="header-clock.css">
+    <link rel="stylesheet" href="header-layout.css?v=status-strip">
+    <link rel="stylesheet" href="cue-controls.css?v=three-independent-fx">
+    <link rel="stylesheet" href="programme-gui.css?v=operations">
+    <link rel="stylesheet" href="playlist-gui.css?v=1">
+    <link rel="stylesheet" href="operations-ui.css?v=compact-header-history">
+    <link rel="stylesheet" href="transition-editor.css?v=1">
+    <link rel="stylesheet" href="waveform-edit-gui.css?v=1">
+    <link rel="stylesheet" href="task-views.css?v=reduced-profiles">
+    <link rel="stylesheet" href="live-desk.css?v=1">
+    <link rel="stylesheet" href="broadcast-black.css?v=1">
+    <link rel="stylesheet" href="broadcast-workspace.css?v=broadcast-tools">
+    <link rel="stylesheet" href="live-player-gui.css?v=small-boxes">
+    <link rel="stylesheet" href="emergency-workspace.css?v=em-2">
+    <link rel="stylesheet" href="dj-mixer-gui.css?v=channel-effector">
+    <link rel="stylesheet" href="technical-management.css?v=2">
+    <link rel="stylesheet" href="advert-workspace.css?v=3">
+    <script src="knobs.js?v=linked-headphone-copy" defer></script>
+    <script src="workbench.js" defer></script>
+    <script src="panel-selection.js?v=live-desk" defer></script>
+    <script src="header-clock.js?v=brand-clock" defer></script>
+    <script src="pad-pages.js" defer></script>
+    <script src="cue-fx.js?v=five-effector-table" defer></script>
+    <script src="programme-gui.js?v=transition-transport" defer></script>
+    <script src="broadcast-details-gui.js?v=blocks" defer></script>
+    <script src="playlist-gui.js?v=shared-library" defer></script>
+    <script src="live-player-gui.js?v=block-inputs" defer></script>
+    <script src="dj-mixer-gui.js?v=channel-effector" defer></script>
+    <script src="dj-mixer-links.js?v=five-effector-table" defer></script>
+    <script src="track-library-gui.js?v=unified-catalog" defer></script>
+    <script src="broadcast-workspace.js?v=player-drag-tabs" defer></script>
+    <script src="transition-editor.js?v=block-inputs" defer></script>
+    <script src="operations-ui.js?v=block-inputs" defer></script>
+    <script src="emergency-workspace.js?v=em-2" defer></script>
+    <script src="header-monitor-gui.js?v=dynamic-monitor-routes" defer></script>
+    <script src="waveform-edit-gui.js?v=1" defer></script>
+    <script src="task-views.js?v=playlist-automation" defer></script>
+    <script src="technical-management.js?v=2" defer></script>
+    <script src="advert-workspace.js?v=3" defer></script>
+    <link rel="stylesheet" href="programme-blocks.css?v=event-queue-alignment">
+    <link rel="stylesheet" href="queue-waveform.css?v=1">
+    <script src="queue-waveform.js?v=1" defer></script>
+    <link rel="stylesheet" href="dj-performance-layout.css?v=five-effector-table">
+    <link rel="stylesheet" href="readability.css?v=1">
+    <link rel="stylesheet" href="playlist-workspace.css?v=1">
+    <link rel="stylesheet" href="automation-workspace.css?v=1">
+    <link rel="stylesheet" href="automation-calendar.css?v=1">
+    <script src="playlist-workspace.js?v=2" defer></script>
+    <link rel="stylesheet" href="programme-transition-controls.css?v=1">
+    <script src="automation-workspace.js?v=2" defer></script>
+</head>
+<body>
+    <header class="page-header">
+        <div class="header-brand-area">
+            <div class="brand" aria-label="RadioS Automation software">
+                <div class="brand-copy">
+                    <h1 class="brand-name" aria-label="Radio S">Radio</h1>
+                    <div class="brand-rule" aria-hidden="true"></div>
+                    <p class="brand-subtitle">Automation software</p>
+                </div>
+                <strong class="brand-letter" aria-hidden="true">S</strong>
+            </div>
+        </div>
+
+        <section class="header-onair" aria-labelledby="header-onair-label">
+            <div class="header-strip-heading">
+                <span class="broadcast-label" id="header-onair-label">YAYINDA</span>
+                            </div>
+            <p class="broadcast-content">—</p>
+            <dl class="broadcast-target">
+                <div><dt>Aktif kaynak</dt><dd>—</dd></div>
+                <div><dt>Hedef çıkış</dt><dd>—</dd></div>
+            </dl>
+            <ul class="header-live-indicators" aria-label="Çıkış zinciri">
+                <li class="header-live-indicator"><span class="header-live-led" aria-hidden="true"></span><span class="header-live-name">İnternet</span><span class="header-live-state">—</span></li>
+                <li class="header-live-indicator"><span class="header-live-led" aria-hidden="true"></span><span class="header-live-name">Karasal</span><span class="header-live-state">—</span></li>
+                <li class="header-live-indicator"><span class="header-live-led" aria-hidden="true"></span><span class="header-live-name">Stüdyo</span><span class="header-live-state">—</span></li>
+            </ul>
+        </section>
+
+        <section class="header-behavior" aria-labelledby="header-behavior-label">
+            <span class="broadcast-label" id="header-behavior-label">DEVAM DAVRANIŞI</span>
+            <p class="header-behavior-text">—</p>
+            <div class="header-health-row">
+                <ul class="broadcast-health" aria-label="Bağlantı, yedek ve kritik uyarı">
+                    <li>Bağlantı <span>—</span></li>
+                    <li><button type="button" class="broadcast-health-link" aria-controls="emergency-task-view">Yedek <span data-em-backup-summary>Bilinmiyor</span></button></li>
+                    <li>Uyarı <span>—</span></li>
+                </ul>
+                <button type="button" class="header-detail-button" data-open-diagnostic-details aria-haspopup="dialog" aria-controls="diagnostic-details-dialog">Ayrıntı</button>
+            </div>
+        </section>
+
+        <section class="header-next" aria-labelledby="header-next-label">
+            <div class="header-next-info">
+                <span class="broadcast-label" id="header-next-label">GERÇEK SIRADAKİ</span>
+                <p class="header-next-title">—</p>
+                <p class="header-next-advert">Reklama kalan <output id="header-advert-remaining" aria-label="Reklama kalan süre bilinmiyor">—:—</output></p>
+            </div>
+            <div class="broadcast-countdown">
+                <span class="broadcast-label">GEÇİŞE KALAN</span>
+                <output aria-label="Geçişe kalan süre bilinmiyor">—:—</output>
+            </div>
+        </section>
+
+        <section class="header-time" aria-label="Saat, tarih ve mevcut program">
+            <div class="header-clock-summary" role="group" aria-label="Saat ve tarih">
+                <svg class="header-analog-clock" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+                    <circle class="clock-face" cx="60" cy="60" r="57" />
+                    <g class="clock-ticks">
+                        <path d="M60 11v6" transform="rotate(0 60 60)" />
+                        <path d="M60 11v6" transform="rotate(30 60 60)" />
+                        <path d="M60 11v6" transform="rotate(60 60 60)" />
+                        <path d="M60 11v6" transform="rotate(90 60 60)" />
+                        <path d="M60 11v6" transform="rotate(120 60 60)" />
+                        <path d="M60 11v6" transform="rotate(150 60 60)" />
+                        <path d="M60 11v6" transform="rotate(180 60 60)" />
+                        <path d="M60 11v6" transform="rotate(210 60 60)" />
+                        <path d="M60 11v6" transform="rotate(240 60 60)" />
+                        <path d="M60 11v6" transform="rotate(270 60 60)" />
+                        <path d="M60 11v6" transform="rotate(300 60 60)" />
+                        <path d="M60 11v6" transform="rotate(330 60 60)" />
+                    </g>
+                    <g class="clock-numerals">
+                        <text x="60" y="29">12</text>
+                        <text x="94" y="64">3</text>
+                        <text x="60" y="99">6</text>
+                        <text x="26" y="64">9</text>
+                    </g>
+                    <line class="clock-hand clock-hour-hand" data-clock-hour x1="60" y1="64" x2="60" y2="36" />
+                    <line class="clock-hand clock-minute-hand" data-clock-minute x1="60" y1="65" x2="60" y2="22" />
+                    <line class="clock-hand clock-second-hand" data-clock-second x1="60" y1="69" x2="60" y2="20" />
+                    <circle class="clock-center" cx="60" cy="60" r="3" />
+                </svg>
+                <div class="header-clock-reading">
+                    <span class="header-clock-label">SAAT <span>UTC</span></span>
+                    <time id="header-clock-time" class="header-clock-time">--:--:--</time>
+                    <time id="header-calendar" class="header-calendar">—</time>
+                </div>
+            </div>
+            <div class="header-programme" aria-labelledby="header-programme-heading">
+                <span class="broadcast-label" id="header-programme-heading">MEVCUT PROGRAM</span>
+                <p id="header-current-programme">—</p>
+                <p class="header-programme-end">Bitimine <output id="header-programme-end-remaining" aria-label="Program bitimine kalan süre bilinmiyor">—:—</output></p>
+            </div>
+        </section>
+
+        <div class="header-meter" role="group" aria-label="Monitor çıkışı, kulaklık ön dinleme, çıkış seviyesi, master ve ekolayzır">
+            <section class="headphone-monitor header-headphone-monitor header-output-monitor" data-header-monitor-gui data-monitor-gui-kind="output" aria-labelledby="header-output-title">
+                <div class="cue-module-heading">
+                    <h3 id="header-output-title"><svg class="headphone-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3ZM16 8a6 6 0 0 1 0 8M19 5a10 10 0 0 1 0 14"/></svg>Monitor</h3>
+                    <span class="cue-module-context">ÇIKIŞ</span>
+                </div>
+                <div class="headphone-controls">
+                    <div class="knob-control knob-control--headphone">
+                        <label class="knob-label" for="header-output-gain">LEVEL</label>
+                        <div class="knob-shell">
+                            <div class="knob-ticks" aria-hidden="true">
+                            <i style="--tick-angle: -135deg"></i>
+                            <i style="--tick-angle: -108deg"></i>
+                            <i style="--tick-angle: -81deg"></i>
+                            <i style="--tick-angle: -54deg"></i>
+                            <i style="--tick-angle: -27deg"></i>
+                            <i style="--tick-angle: 0deg"></i>
+                            <i style="--tick-angle: 27deg"></i>
+                            <i style="--tick-angle: 54deg"></i>
+                            <i style="--tick-angle: 81deg"></i>
+                            <i style="--tick-angle: 108deg"></i>
+                            <i style="--tick-angle: 135deg"></i>
+                            </div>
+                            <div class="knob-ring" aria-hidden="true"></div>
+                            <div class="knob-rotor" aria-hidden="true"></div>
+                            <input class="knob-input" id="header-output-gain" type="range" min="-60" max="6" step="0.5" value="-12" data-center="0" data-reset-value="-12" data-unit="dB" aria-label="Monitor çıkış seviyesi">
+                        </div>
+                        <output class="knob-value" for="header-output-gain">−12 dB</output>
+                    </div>
+                    <div class="headphone-meter" role="img" aria-label="Monitor çıkışı için iki kanallı dikey seviye göstergesi; ölçüm bekleniyor">
+                        <div class="headphone-meter-bars" aria-hidden="true">
+                            <div class="headphone-meter-track"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                            <div class="headphone-meter-track"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                        </div>
+                        <div class="headphone-meter-scale" aria-hidden="true"><span>+6</span><span>0</span><span>−24</span><span>−60</span></div>
+                    </div>
+                </div>
+                <div class="headphone-cue-row">
+                    <div class="header-monitor-source">
+                        <label for="header-output-source">MONITOR</label>
+                        <select id="header-output-source" data-monitor-gui-source aria-describedby="header-output-monitor-status">
+                            <option value="">Kaynak seç</option>
+                            <option value="master">MASTER</option>
+                            <option value="player-a">Oynatıcı A</option>
+                            <option value="player-b">Oynatıcı B</option>
+                            <option value="sampler">Mixer sampler</option>
+                            <option value="jingle">Jingle</option>
+                            <optgroup label="Efekt 1">
+                                <option value="fx-1-send">FX 1 SEND</option>
+                                <option value="fx-1-return">FX 1 RETURN</option>
+                            </optgroup>
+                            <optgroup label="Efekt 2">
+                                <option value="fx-2-send">FX 2 SEND</option>
+                                <option value="fx-2-return">FX 2 RETURN</option>
+                            </optgroup>
+                            <optgroup label="Efekt 3">
+                                <option value="fx-3-send">FX 3 SEND</option>
+                                <option value="fx-3-return">FX 3 RETURN</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button class="headphone-cue-button header-monitor-cue-button" data-monitor-gui-cue type="button" disabled aria-pressed="false" aria-label="Seçili monitor çıkışını aç veya kapat" aria-describedby="header-output-monitor-status">MON</button>
+                    <div class="header-monitor-source header-monitor-output-field">
+                        <label for="header-output-destination">ÇIKIŞ</label>
+                        <select id="header-output-destination" data-monitor-gui-output aria-describedby="header-output-monitor-status">
+                            <option value="">Çıkış seç</option>
+                            <option value="monitor-a">Monitor A</option>
+                            <option value="monitor-b">Monitor B</option>
+                            <option value="line">Hat çıkışı</option>
+                        </select>
+                    </div>
+                    <span id="header-output-monitor-status" data-monitor-gui-status role="status">—</span>
+                </div>
+            </section>
+            <section class="headphone-monitor header-headphone-monitor" data-header-monitor-gui data-monitor-gui-kind="headphone" aria-labelledby="header-headphone-title">
+                <div class="cue-module-heading">
+                    <h3 id="header-headphone-title"><svg class="headphone-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 13h3v7H5a2 2 0 0 1-2-2v-3a2 2 0 0 1 1-2Zm16 0h-3v7h2a2 2 0 0 0 2-2v-3a2 2 0 0 0-1-2Z"/></svg>Kulaklık</h3>
+                    <span class="cue-module-context">CUE</span>
+                </div>
+                <div class="headphone-controls">
+                    <div class="knob-control knob-control--headphone">
+                        <label class="knob-label" for="headphone-gain">LEVEL</label>
+                        <div class="knob-shell">
+                            <div class="knob-ticks" aria-hidden="true">
+                            <i style="--tick-angle: -135deg"></i>
+                            <i style="--tick-angle: -108deg"></i>
+                            <i style="--tick-angle: -81deg"></i>
+                            <i style="--tick-angle: -54deg"></i>
+                            <i style="--tick-angle: -27deg"></i>
+                            <i style="--tick-angle: 0deg"></i>
+                            <i style="--tick-angle: 27deg"></i>
+                            <i style="--tick-angle: 54deg"></i>
+                            <i style="--tick-angle: 81deg"></i>
+                            <i style="--tick-angle: 108deg"></i>
+                            <i style="--tick-angle: 135deg"></i>
+                            </div>
+                            <div class="knob-ring" aria-hidden="true"></div>
+                            <div class="knob-rotor" aria-hidden="true"></div>
+                            <input class="knob-input" id="headphone-gain" type="range" min="-60" max="6" step="0.5" value="-12" data-center="0" data-reset-value="-12" data-unit="dB" aria-label="Kulaklık ön dinleme seviyesi">
+                        </div>
+                        <output class="knob-value" for="headphone-gain">−12 dB</output>
+                    </div>
+                    <div class="headphone-meter" role="img" aria-label="Kulaklık için iki kanallı dikey seviye göstergesi; ölçüm bekleniyor">
+                        <div class="headphone-meter-bars" aria-hidden="true">
+                            <div class="headphone-meter-track"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                            <div class="headphone-meter-track"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                        </div>
+                        <div class="headphone-meter-scale" aria-hidden="true"><span>+6</span><span>0</span><span>−24</span><span>−60</span></div>
+                    </div>
+                </div>
+                <div class="headphone-cue-row">
+                    <div class="header-monitor-source">
+                        <label for="header-monitor-source">MONITOR</label>
+                        <select id="header-monitor-source" data-monitor-gui-source aria-describedby="header-headphone-monitor-status">
+                            <option value="">Kaynak seç</option>
+                            <option value="master">MASTER</option>
+                            <option value="player-a">Oynatıcı A</option>
+                            <option value="player-b">Oynatıcı B</option>
+                            <option value="sampler">Mixer sampler</option>
+                            <option value="jingle">Jingle</option>
+                            <optgroup label="Efekt 1">
+                                <option value="fx-1-send">FX 1 SEND</option>
+                                <option value="fx-1-return">FX 1 RETURN</option>
+                            </optgroup>
+                            <optgroup label="Efekt 2">
+                                <option value="fx-2-send">FX 2 SEND</option>
+                                <option value="fx-2-return">FX 2 RETURN</option>
+                            </optgroup>
+                            <optgroup label="Efekt 3">
+                                <option value="fx-3-send">FX 3 SEND</option>
+                                <option value="fx-3-return">FX 3 RETURN</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button class="headphone-cue-button header-monitor-cue-button" data-monitor-gui-cue type="button" disabled aria-pressed="false" aria-label="Seçili kaynağın kulaklık CUE seçimini aç veya kapat" aria-describedby="header-headphone-monitor-status">CUE</button>
+                    <span id="header-headphone-monitor-status" data-monitor-gui-status role="status">—</span>
+                </div>
+            </section>
+            <div class="header-master-output">
+                <p class="meter-caption"><span>Çıkış seviyesi</span></p>
+                <div class="level-meter" role="img" aria-label="İki kanallı ses seviye göstergesi; ölçüm bekleniyor">
+                    <div class="meter-track" aria-hidden="true">
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                    </div>
+                    <div class="meter-scale" aria-hidden="true">
+                        <span>−40</span><span>−30</span><span>−20</span><span>−15</span><span>−10</span><span>−6</span><span>−3</span><span>0</span><span>+3</span>
+                    </div>
+                    <div class="meter-track" aria-hidden="true">
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                            <span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span><span class="meter-led"></span>
+                    </div>
+                </div>
+                <section class="mixer-strip" aria-label="Master ve üç bant ekolayzır">
+                    <div class="eq-section">
+                        <div class="eq-caption"><span>EQ / ISO</span><span>3 BAND</span></div>
+                        <div class="eq-controls">
+                            <div class="knob-control">
+                                <label class="knob-label" for="eq-hi">HI</label>
+                                <div class="knob-shell">
+                                    <div class="knob-ticks" aria-hidden="true">
+                                    <i style="--tick-angle: -135deg"></i>
+                                    <i style="--tick-angle: -108deg"></i>
+                                    <i style="--tick-angle: -81deg"></i>
+                                    <i style="--tick-angle: -54deg"></i>
+                                    <i style="--tick-angle: -27deg"></i>
+                                    <i style="--tick-angle: 0deg"></i>
+                                    <i style="--tick-angle: 27deg"></i>
+                                    <i style="--tick-angle: 54deg"></i>
+                                    <i style="--tick-angle: 81deg"></i>
+                                    <i style="--tick-angle: 108deg"></i>
+                                    <i style="--tick-angle: 135deg"></i>
+                                    </div>
+                                    <div class="knob-ring" aria-hidden="true"></div>
+                                    <div class="knob-rotor" aria-hidden="true"></div>
+                                    <input class="knob-input" id="eq-hi" type="range"
+                                           min="-26" max="6" step="0.5" value="0"
+                                           data-center="0" data-unit="dB"
+                                           aria-label="Yüksek frekans seviyesi">
+                                </div>
+                                <div class="knob-scale" aria-hidden="true"><span>−26</span><span>+6</span></div>
+                                <output class="knob-value" for="eq-hi">0 dB</output>
+                            </div>
+                            <div class="knob-control">
+                                <label class="knob-label" for="eq-mid">MID</label>
+                                <div class="knob-shell">
+                                    <div class="knob-ticks" aria-hidden="true">
+                                    <i style="--tick-angle: -135deg"></i>
+                                    <i style="--tick-angle: -108deg"></i>
+                                    <i style="--tick-angle: -81deg"></i>
+                                    <i style="--tick-angle: -54deg"></i>
+                                    <i style="--tick-angle: -27deg"></i>
+                                    <i style="--tick-angle: 0deg"></i>
+                                    <i style="--tick-angle: 27deg"></i>
+                                    <i style="--tick-angle: 54deg"></i>
+                                    <i style="--tick-angle: 81deg"></i>
+                                    <i style="--tick-angle: 108deg"></i>
+                                    <i style="--tick-angle: 135deg"></i>
+                                    </div>
+                                    <div class="knob-ring" aria-hidden="true"></div>
+                                    <div class="knob-rotor" aria-hidden="true"></div>
+                                    <input class="knob-input" id="eq-mid" type="range"
+                                           min="-26" max="6" step="0.5" value="0"
+                                           data-center="0" data-unit="dB"
+                                           aria-label="Orta frekans seviyesi">
+                                </div>
+                                <div class="knob-scale" aria-hidden="true"><span>−26</span><span>+6</span></div>
+                                <output class="knob-value" for="eq-mid">0 dB</output>
+                            </div>
+                            <div class="knob-control">
+                                <label class="knob-label" for="eq-low">LOW</label>
+                                <div class="knob-shell">
+                                    <div class="knob-ticks" aria-hidden="true">
+                                    <i style="--tick-angle: -135deg"></i>
+                                    <i style="--tick-angle: -108deg"></i>
+                                    <i style="--tick-angle: -81deg"></i>
+                                    <i style="--tick-angle: -54deg"></i>
+                                    <i style="--tick-angle: -27deg"></i>
+                                    <i style="--tick-angle: 0deg"></i>
+                                    <i style="--tick-angle: 27deg"></i>
+                                    <i style="--tick-angle: 54deg"></i>
+                                    <i style="--tick-angle: 81deg"></i>
+                                    <i style="--tick-angle: 108deg"></i>
+                                    <i style="--tick-angle: 135deg"></i>
+                                    </div>
+                                    <div class="knob-ring" aria-hidden="true"></div>
+                                    <div class="knob-rotor" aria-hidden="true"></div>
+                                    <input class="knob-input" id="eq-low" type="range"
+                                           min="-26" max="6" step="0.5" value="0"
+                                           data-center="0" data-unit="dB"
+                                           aria-label="Düşük frekans seviyesi">
+                                </div>
+                                <div class="knob-scale" aria-hidden="true"><span>−26</span><span>+6</span></div>
+                                <output class="knob-value" for="eq-low">0 dB</output>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="master-section">
+                            <div class="knob-control knob-control--master">
+                                <label class="knob-label" for="master-gain">MASTER</label>
+                                <div class="knob-shell">
+                                    <div class="knob-ticks" aria-hidden="true">
+                                    <i style="--tick-angle: -135deg"></i>
+                                    <i style="--tick-angle: -108deg"></i>
+                                    <i style="--tick-angle: -81deg"></i>
+                                    <i style="--tick-angle: -54deg"></i>
+                                    <i style="--tick-angle: -27deg"></i>
+                                    <i style="--tick-angle: 0deg"></i>
+                                    <i style="--tick-angle: 27deg"></i>
+                                    <i style="--tick-angle: 54deg"></i>
+                                    <i style="--tick-angle: 81deg"></i>
+                                    <i style="--tick-angle: 108deg"></i>
+                                    <i style="--tick-angle: 135deg"></i>
+                                    </div>
+                                    <div class="knob-ring" aria-hidden="true"></div>
+                                    <div class="knob-rotor" aria-hidden="true"></div>
+                                    <input class="knob-input" id="master-gain" type="range"
+                                           min="-60" max="6" step="0.5" value="0"
+                                           data-center="0" data-unit="dB"
+                                           aria-label="Master ana çıkış seviyesi">
+                                </div>
+                                <div class="knob-scale" aria-hidden="true"><span>−60</span><span>+6</span></div>
+                                <output class="knob-value" for="master-gain">0 dB</output>
+                            </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </header>
+    <main class="main-interface" aria-label="Yayın çalışma alanı">
+<nav class="task-profile-nav" id="task-profile-nav" aria-label="Çalışma profili">
+  <div class="task-profile-tabs" role="tablist" aria-label="Görev görünümleri">
+    <button type="button" id="profile-broadcast-tab" role="tab" aria-selected="true" aria-controls="live-task-view" data-task-profile="broadcast">Yayın</button>
+    <button type="button" id="profile-playlist-tab" role="tab" aria-selected="false" aria-controls="playlist-task-view" tabindex="-1" data-task-profile="playlist">Playlist</button>
+    <button type="button" id="profile-automation-tab" role="tab" aria-selected="false" aria-controls="automation-task-view" tabindex="-1" data-task-profile="automation">Otomasyon</button>
+    <button type="button" id="profile-dj-tab" role="tab" aria-selected="false" aria-controls="dj-task-view" tabindex="-1" data-task-profile="dj">DJ</button>
+    <button type="button" id="profile-emergency-tab" role="tab" aria-selected="false" aria-controls="emergency-task-view" tabindex="-1" data-task-profile="emergency">Acil</button>
+    <button type="button" id="profile-advert-tab" role="tab" aria-selected="false" aria-controls="advert-task-view" tabindex="-1" data-task-profile="advert">Reklam</button>
+    <button type="button" id="profile-technical-tab" role="tab" aria-selected="false" aria-controls="technical-task-view" tabindex="-1" data-task-profile="technical">Teknik yönetim</button>
+  </div>
+</nav>
+<div class="em-global-banner" role="alert" data-em-global-banner hidden><strong>ACİL YAYIN</strong><span data-em-global-text></span><button type="button" data-em-global-open aria-controls="emergency-task-view">Acil alanı</button></div>
+<section id="live-task-view" role="tabpanel" aria-labelledby="profile-broadcast-tab">
+  <div class="workbench-shell">
+    <div class="live-desk broadcast-workspace" data-live-desk>
+<section class="ld-panel ld-flow is-selected" id="flow-workspace" data-workspace-panel="flow" aria-labelledby="flow-tab">
+                    <header class="ld-head">
+                        <h2 id="flow-tab"><button class="workspace-tab ld-tab" type="button" aria-pressed="true" aria-controls="flow-workspace">Eventler · Yayın sırası</button></h2>
+                        <span class="ld-head-meta" data-programme-count>3 event · 7 içerik</span><span class="ld-head-meta" data-broadcast-flow-detail="duration" title="Toplam süre">—</span>
+                    </header>
+                    <div class="ld-body ld-flow-body" data-programme-gui>
+                        
+<div class="programme-queue-toolbar programme-playback-toolbar" role="group" aria-label="Seçili event veya içerik oynatma kontrolleri">
+  <div class="programme-square-controls"><button type="button" class="programme-square" data-programme-queue-action="previous" title="Önceki içeriğe geç" aria-label="Önceki içeriğe geç"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 8 12l11 7Z"/></svg></button><button type="button" class="programme-square" data-programme-queue-action="play" title="Seçili event veya içeriği oynat" aria-label="Seçili event veya içeriği oynat">▶</button><button type="button" class="programme-square" data-programme-queue-action="pause" title="Duraklat" aria-label="Duraklat">Ⅱ</button><button type="button" class="programme-square" data-programme-queue-action="stop" title="Durdur" aria-label="Durdur">■</button><button type="button" class="programme-square" data-programme-queue-action="next" title="Sonraki içeriğe geç" aria-label="Sonraki içeriğe geç"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l11 7-11 7Z"/></svg></button></div>
+  <div class="programme-transition-controls" role="group" aria-label="Otomatik geçiş biçimi"><label for="programme-transition-mode">Geçiş<select id="programme-transition-mode" data-programme-transition-mode><option value="end">Parça bitince</option><option value="crossfade" selected>Crossfade</option><option value="cue">Cue / Auto Next</option><option value="manual">Elle geç</option></select></label><label class="programme-overlap-control" for="programme-transition-overlap">Bindirme<input id="programme-transition-overlap" data-programme-transition-overlap type="number" min="0" max="30" step="0.1" value="3" aria-label="Geçiş bindirmesi, saniye"><span>sn</span></label><button type="button" class="programme-transition-settings" data-programme-transition-settings title="Geçiş otomasyonu ayarlarını aç" aria-label="Geçiş otomasyonu ayarlarını aç">⚙</button></div>
+  <output class="programme-placement" data-programme-placement></output>
+</div>
+<div class="programme-queue-frame">
+<div class="ld-table-wrap" tabindex="0" role="region" aria-label="Yayın eventleri ve içlerindeki parçalar">
+                            <table class="ld-table">
+                                <caption class="ld-sr">Numaralı yayın eventleri ve içlerindeki parça, jingle, anons ve reklamlar</caption>
+                                <colgroup><col class="broadcast-col-number"><col><col class="broadcast-col-duration"><col class="broadcast-col-state"></colgroup>
+                                <thead><tr><th scope="col">No</th><th scope="col">Event</th><th scope="col" class="ld-num">Süre</th><th scope="col">Kontroller</th></tr></thead>
+                                <tbody data-programme-rows></tbody>
+                            </table>
+                        </div>
+  <div class="programme-queue-side" role="group" aria-label="Katalogdan programı düzenle">
+    <button type="button" data-programme-queue-action="insert" title="Katalogdan araya ekle"><span aria-hidden="true">＋</span><small>Araya ekle</small></button>
+    <button type="button" data-programme-queue-action="replace" title="Seçili parçayı katalogdan değiştir"><span aria-hidden="true">⇄</span><small>Değiştir</small></button>
+    <button type="button" data-programme-queue-action="clear" title="Seçili event'in içeriğini temizle"><span aria-hidden="true">×</span><small>Temizle</small></button>
+    <button type="button" data-programme-queue-action="input" title="Parça, jingle, anons, reklam veya program seç"><span aria-hidden="true">▤</span><small>Girdi</small></button>
+  </div>
+</div>
+<div class="programme-queue-toolbar programme-queue-footer" role="group" aria-label="Seçili event veya içeriği sırala">
+  <div class="programme-square-controls"><button type="button" class="programme-square" data-programme-queue-action="top" title="En üste taşı" aria-label="Seçili öğeyi en üste taşı">⇈</button><button type="button" class="programme-square" data-programme-queue-action="up" title="Yukarı taşı" aria-label="Seçili öğeyi yukarı taşı">↑</button><button type="button" class="programme-square" data-programme-queue-action="down" title="Aşağı taşı" aria-label="Seçili öğeyi aşağı taşı">↓</button><button type="button" class="programme-square" data-programme-queue-action="bottom" title="En alta taşı" aria-label="Seçili öğeyi en alta taşı">⇊</button></div>
+  <div class="ld-add-buttons" role="group" aria-label="Yayın sırasına yeni event ekle">
+                                <button class="ld-add-btn ld-type--music" type="button" data-add-programme-item="music" aria-label="Yayın sırasına müzik eventi ekle">Müzik eventi</button>
+                                <button class="ld-add-btn ld-type--announcement" type="button" data-add-programme-item="announcement" aria-label="Yayın sırasına anons eventi ekle">Anons eventi</button>
+                                <button class="ld-add-btn ld-type--advert" type="button" data-add-programme-item="advert" aria-label="Yayın sırasına reklam eventi ekle">Reklam eventi</button>
+                            </div>
+</div>
+
+<div class="broadcast-flow-tools"><details class="broadcast-programme-settings"><summary>Program ve zamanlama</summary><div class="broadcast-settings-body"><div class="ld-prog">
+                            <div>
+                                <p class="ld-eyebrow">Program taslağı</p>
+                                <p class="ld-prog-name" data-programme-title>Örnek program</p>
+                                <p class="ld-prog-meta"><span data-programme-date>Tarih seçilmedi</span></p>
+                            </div>
+                            <div class="ld-actions" aria-label="Program düzenleme">
+                                <button type="button" class="ld-btn ld-btn--primary" data-open-programme-editor>Programı düzenle</button>
+                            </div>
+                        </div><div class="ld-revision" role="group" aria-label="Program revizyonu ve yayın hazırlığı">
+                            <dl class="ld-revision-states">
+                                <div><dt>Taslak</dt><dd><span data-programme-revision>Revizyon 1</span> · <span class="ld-stage" data-programme-stage data-stage="draft">Taslak</span></dd></div>
+                                <div><dt>Kayıt</dt><dd data-programme-save-state>Kaydedilmemiş değişiklikler</dd></div>
+                                <div><dt>Yayın motorunun kabul ettiği</dt><dd>—</dd></div>
+                            </dl>
+                            <div class="ld-actions">
+                                <button type="button" class="ld-btn" data-programme-save>Kaydet</button>
+                                <button type="button" class="ld-btn" data-programme-review>Değişiklikleri incele</button>
+                                <button type="button" class="ld-btn" data-programme-send-review>Yerel onaya gönder</button>
+                                <button type="button" class="ld-btn" disabled>Yayına yükle</button>
+                            </div>
+                        </div>
+
+                        <section class="ld-timed" aria-labelledby="programme-timed-heading">
+                            <div class="ld-timed-title">
+                                <span class="ld-timed-mark" aria-hidden="true"></span>
+                                <div><h3 id="programme-timed-heading">Kesin saat · Erken / geç</h3><p data-programme-timed-title>Kesin saatli olay</p></div>
+                            </div>
+                            <dl class="ld-timed-values">
+                                <div><dt>Hedef saat</dt><dd data-programme-target-time>—:—</dd></div>
+                                <div><dt>Tahmini giriş</dt><dd data-programme-estimated-time>Belirsiz</dd></div>
+                                <div><dt>Sapma</dt><dd data-programme-time-delta>Hesaplanamıyor</dd></div>
+                                <div><dt>Davranış</dt><dd data-programme-timing-policy>Hedef saatte kes</dd></div>
+                            </dl>
+                            <button type="button" class="ld-btn" data-programme-timing-edit>Ayarla</button>
+                            <p class="ld-timed-note" data-programme-timing-note></p>
+                        </section></div></details></div>
+<p class="ld-status" role="status" data-programme-status></p>
+                    </div>
+                </section>
+<section class="ops-card ops-history broadcast-history" aria-labelledby="history-card-title">
+            <div class="ops-card-heading"><h3 id="history-card-title">Yayın geçmişi</h3><button type="button" data-audit-download>Kaydı indir</button></div>
+            <div class="ops-history-tabs" role="tablist" aria-label="Geçmiş türü"><button id="actual-history-tab" type="button" role="tab" aria-selected="true" aria-controls="actual-history-panel" data-history-tab="actual">Gerçek yayın</button><button id="draft-history-tab" type="button" role="tab" aria-selected="false" aria-controls="draft-history-panel" tabindex="-1" data-history-tab="draft">Düzenleme kaydı</button></div>
+            <div id="actual-history-panel" role="tabpanel" aria-labelledby="actual-history-tab"><div class="ops-table-scroll"><table class="ops-table"><thead><tr><th scope="col">Saat</th><th scope="col">Sanatçı</th><th scope="col">Parça</th><th scope="col">Süre</th></tr></thead><tbody><tr><td colspan="4" class="ops-empty-cell">—</td></tr></tbody></table></div></div>
+            <div id="draft-history-panel" role="tabpanel" aria-labelledby="draft-history-tab" hidden><ol class="ops-audit-list" data-audit-list></ol></div>
+        </section>
+      <section class="broadcast-right" aria-label="Parça araması ve oynatıcı durumları">
+        <nav class="broadcast-right-tabs" id="broadcast-right-nav" role="tablist" aria-label="Yayın çalışma alanı"><button id="broadcast-library-tab" type="button" role="tab" aria-selected="true" aria-controls="broadcast-library-pane" data-broadcast-pane="library">Parça · Albüm · Program</button><button id="broadcast-players-tab" type="button" role="tab" aria-selected="false" aria-controls="broadcast-players-pane" tabindex="-1" data-broadcast-pane="players">Canlı oynatıcılar</button></nav>
+        <div class="broadcast-right-pane" id="broadcast-library-pane" role="tabpanel" aria-labelledby="broadcast-library-tab">
+<section class="ld-panel broadcast-track-library" id="track-library-workspace" data-workspace-panel="catalog" data-track-library-gui aria-labelledby="broadcast-library-tab">
+  <div class="ld-body broadcast-library-body">
+    <div class="broadcast-catalog-kinds" role="group" aria-label="Katalog içerik türü">
+      <button type="button" data-broadcast-catalog-kind="music" aria-pressed="true">Parçalar</button>
+      <button type="button" data-broadcast-catalog-kind="jingle" aria-pressed="false">Jingle</button>
+      <button type="button" data-broadcast-catalog-kind="announcement" aria-pressed="false">Anons</button>
+      <button type="button" data-broadcast-catalog-kind="advert" aria-pressed="false">Reklam</button>
+      <button type="button" data-broadcast-catalog-kind="programme" aria-pressed="false">Programlar</button>
+    </div>
+    <form class="broadcast-library-search" data-track-library-search role="search">
+      <div class="broadcast-catalog-source-row"><label for="broadcast-catalog-source">Kaynak</label><select id="broadcast-catalog-source" data-broadcast-catalog-source><option value="local">Yerel kayıtlar</option><option value="database">Veritabanı</option></select><label for="broadcast-library-field">Arama alanı</label><select id="broadcast-library-field" name="field"><option value="all">Tüm alanlar</option><option value="title">Başlık</option><option value="artist">Sanatçı</option><option value="album">Albüm</option></select></div>
+      <div class="ld-search-row"><label class="workbench-visually-hidden" for="broadcast-library-query">Parça, albüm veya içerik ara</label><input id="broadcast-library-query" name="query" type="search" placeholder="Parça, albüm, jingle, anons, reklam veya program…" autocomplete="off"><button class="ld-btn" type="submit">Ara</button></div>
+    </form>
+    <div class="broadcast-library-toolbar"><output data-track-library-count>— kayıt</output><button type="button" class="ld-btn" data-catalog-save-programme>Mevcut programı sakla</button></div>
+    <div class="broadcast-library-table-scroll" tabindex="0" role="region" aria-label="Katalog sonuçları"><table class="broadcast-library-table"><caption class="workbench-visually-hidden">Seçili tür ve kaynağa ait içerikler</caption><thead><tr><th scope="col">Sanatçı</th><th scope="col">Başlık</th><th scope="col">Albüm</th><th scope="col">Tür</th><th scope="col">Süre</th><th scope="col">Kaynak</th></tr></thead><tbody data-track-library-rows><tr><td colspan="6" class="broadcast-library-empty">—</td></tr></tbody></table></div>
+    <section class="broadcast-catalog-inspector" aria-labelledby="broadcast-catalog-selection-title">
+      <div class="broadcast-catalog-heading"><div><h3 id="broadcast-catalog-selection-title" data-catalog-detail-title>İçerik seçilmedi</h3></div><div class="broadcast-catalog-actions"><button type="button" class="ld-btn" data-edit-catalog-track disabled>Düzenle</button><button type="button" class="ld-btn ld-btn--primary" data-track-library-add data-catalog-insert disabled>Bloğa ekle</button><button type="button" class="ld-btn" data-catalog-replace disabled>Seçiliyle değiştir</button></div></div>
+      <details class="broadcast-catalog-programme" data-catalog-programme-detail hidden><summary>Program içeriği <span data-catalog-programme-count></span></summary><ol data-catalog-programme-items></ol></details>
+      <p class="workbench-visually-hidden" data-track-library-selection aria-live="polite">İçerik seçilmedi.</p>
+    </section>
+    <p class="ld-status" data-track-library-status role="status" aria-live="polite"></p>
+  </div>
+</section>
+<dialog class="ops-dialog broadcast-catalog-dialog" id="broadcast-catalog-editor" aria-labelledby="broadcast-catalog-editor-title">
+  <form data-broadcast-catalog-form>
+    <div class="ops-dialog-heading"><h2 id="broadcast-catalog-editor-title">İçeriği düzenle</h2><button type="button" data-catalog-editor-close aria-label="İçerik düzenleyicisini kapat">×</button></div>
+    <div class="broadcast-catalog-fields"><div><label for="broadcast-catalog-kind">Tür</label><select id="broadcast-catalog-kind" name="kind" disabled><option value="music">Parça</option><option value="jingle">Jingle</option><option value="announcement">Anons</option><option value="advert">Reklam</option><option value="programme">Program</option></select></div><div><label for="broadcast-catalog-version">Sürüm</label><input id="broadcast-catalog-version" name="version" maxlength="40" placeholder="v1"></div></div>
+    <label for="broadcast-catalog-title">Başlık</label><input id="broadcast-catalog-title" name="title" maxlength="160" required>
+    <div class="broadcast-catalog-fields"><div><label for="broadcast-catalog-artist">Sanatçı / yayıncı</label><input id="broadcast-catalog-artist" name="artist" maxlength="120"></div><div><label for="broadcast-catalog-album">Albüm / içerik grubu</label><input id="broadcast-catalog-album" name="album" maxlength="120"></div></div>
+    <label for="broadcast-catalog-duration">Süre · dk:ss</label><input id="broadcast-catalog-duration" name="duration" maxlength="6" pattern="[0-9]{1,3}:[0-5][0-9]">
+    <div class="ops-dialog-actions"><button type="button" data-catalog-editor-close>Vazgeç</button><button type="submit" data-catalog-editor-submit>Kaydet</button></div>
+    <p class="ops-status" data-catalog-editor-status role="status"></p>
+  </form>
+</dialog>
+<details class="broadcast-playlist-tools"><summary>Playlist yönetimi</summary><section class="ld-panel ld-library" id="library-workspace" data-workspace-panel="library" aria-label="Playlist yönetimi">
+                    <div class="ld-body ld-library-body" data-playlist-gui>
+                        <form class="ld-search" data-playlist-search role="search">
+                            <label for="playlist-query">Playlist, parça, sanatçı veya albüm ara</label>
+                            <div class="ld-search-row">
+                                <input id="playlist-query" name="query" type="search" placeholder="Ad, sanatçı, albüm…" autocomplete="off">
+                                <button class="ld-btn" type="submit">Ara</button>
+                            </div>
+                        </form>
+                        <div class="ld-subhead">
+                            <h3>Playlistler</h3>
+                            <button class="ld-btn ld-btn--quiet" type="button" data-playlist-new>+ Yeni</button>
+                        </div>
+                        <div class="ld-playlists" data-playlist-list role="group" aria-label="Playlist seçimi"></div>
+                        <div class="ld-empty" data-playlist-empty hidden>
+                            <strong>Sonuç bulunamadı</strong>
+                            <button class="ld-btn" type="button" data-playlist-clear-search>Aramayı temizle</button>
+                        </div>
+                        <section class="ld-tracks" data-playlist-details aria-labelledby="playlist-detail-name">
+                            <div class="ld-subhead">
+                                <div><h3 id="playlist-detail-name" data-playlist-name>Playlist seçilmedi</h3><p data-playlist-count></p></div>
+                                <div class="ld-actions">
+                                    <button class="ld-btn ld-btn--quiet" type="button" data-playlist-track-new>+ Parça</button>
+                                    <button class="ld-btn ld-btn--quiet" type="button" data-playlist-track-edit>Parçayı düzenle</button>
+                                    <button class="ld-btn ld-btn--quiet" type="button" data-playlist-edit>Düzenle</button>
+                                </div>
+                            </div>
+                            <div class="ld-track-list" data-playlist-tracks role="group" aria-label="Playlist parçaları"></div>
+                            <div class="ld-to-programme" role="group" aria-labelledby="playlist-to-programme">
+                                <p class="ld-eyebrow" id="playlist-to-programme">Programlara ekle</p>
+                                <button class="ld-btn ld-btn--primary" type="button" data-playlist-add-track>Seçili parçayı ekle</button>
+                                <button class="ld-btn" type="button" data-playlist-add-all>Playlisti ekle</button>
+                            </div>
+                        </section>
+                        <p class="ld-status" data-playlist-status role="status" aria-live="polite"></p>
+                    </div>
+                </section></details>
+
+        </div>
+        <div class="broadcast-right-pane" id="broadcast-players-pane" role="tabpanel" aria-labelledby="broadcast-players-tab" hidden>
+<section class="ld-panel ld-players" id="players-workspace" data-workspace-panel="players" aria-labelledby="broadcast-players-tab">
+  <div class="ld-body live-player-rack" data-live-player-gui>
+    <div class="live-player-toolbar"><div><output data-live-player-count>— oynatıcı</output><button class="ld-btn ld-btn--primary" type="button" data-add-live-player>+ Oynatıcı ekle</button></div></div>
+    <div class="live-player-list" data-live-player-list aria-label="Bağımsız canlı oynatıcılar"></div>
+    <p class="ld-status" role="status" data-live-player-status></p>
+  </div>
+</section>
+
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- playlist workspace -->
+<section class="task-view playlist-workspace" id="playlist-task-view" role="tabpanel" aria-labelledby="profile-playlist-tab" data-playlist-workspace hidden>
+  <header class="pw-heading"><div><p class="task-eyebrow">MÜZİK ARŞİVİ</p><h2>Playlist</h2><p>Listelerini düzenle, rekordbox koleksiyonunu içeri aktar ve yayın sırasına gönder.</p></div><button type="button" data-pw-import-open>rekordbox XML içe aktar</button></header>
+  <div class="pw-summary" aria-label="Arşiv özeti"><span><strong data-pw-list-count>0</strong> playlist</span><span><strong data-pw-track-count>0</strong> parça kaydı</span><span data-pw-storage>Bu tarayıcıda saklanır</span></div>
+  <div class="pw-layout">
+    <aside class="pw-sidebar" aria-label="Playlistler">
+      <form data-pw-create><label for="pw-new-name">Yeni playlist</label><div class="pw-input-action"><input id="pw-new-name" name="name" maxlength="120" required placeholder="Playlist adı" autocomplete="off"><button type="submit" aria-label="Playlist oluştur">+</button></div></form>
+      <label for="pw-list-search">Playlist veya parça ara</label><input id="pw-list-search" type="search" data-pw-list-search placeholder="Ad, sanatçı, albüm…" autocomplete="off">
+      <div class="pw-playlists" data-pw-lists></div>
+    </aside>
+    <section class="pw-content" aria-label="Seçili playlist">
+      <header class="pw-playlist-heading"><div><h3 data-pw-name>Playlist seçilmedi</h3><p data-pw-details>Playlist oluştur veya rekordbox XML dosyanı içeri aktar.</p></div><div class="pw-actions"><button type="button" data-pw-rename disabled>Adı değiştir</button><button type="button" data-pw-delete disabled>Sil</button></div></header>
+      <div class="pw-toolbar"><div class="pw-actions"><button type="button" data-pw-track-new disabled>+ Parça</button><button type="button" data-pw-track-edit disabled>Düzenle</button><button type="button" data-pw-track-remove disabled>Seçilenleri çıkar</button><button type="button" data-pw-up disabled aria-label="Seçili parçayı yukarı taşı">↑</button><button type="button" data-pw-down disabled aria-label="Seçili parçayı aşağı taşı">↓</button></div><div class="pw-filter"><label for="pw-track-search" class="pw-sr">Parçalarda ara</label><input id="pw-track-search" type="search" data-pw-track-search placeholder="Parçalarda ara…"><label for="pw-sort" class="pw-sr">Parçaları sırala</label><select id="pw-sort" data-pw-sort><option value="order">Playlist sırası</option><option value="title">Parça adı</option><option value="artist">Sanatçı</option><option value="album">Albüm</option><option value="duration">Süre</option><option value="bpm">BPM</option></select></div></div>
+      <div class="pw-table-scroll"><table class="pw-table"><thead><tr><th scope="col"><input type="checkbox" data-pw-select-all aria-label="Görünen tüm parçaları seç"></th><th scope="col">#</th><th scope="col">Parça / sanatçı</th><th scope="col">Albüm</th><th scope="col">Tür</th><th scope="col">BPM</th><th scope="col">Süre</th></tr></thead><tbody data-pw-tracks><tr><td colspan="7" class="pw-empty">Henüz playlist yok.</td></tr></tbody></table></div>
+      <div class="pw-pagination"><span data-pw-page-info>0 parça</span><div class="pw-actions"><button type="button" data-pw-page-prev disabled>Önceki</button><button type="button" data-pw-page-next disabled>Sonraki</button></div></div>
+      <div class="pw-bottom"><p data-pw-selection>0 parça seçili</p><div class="pw-actions"><button type="button" data-pw-add-selected disabled>Seçilenleri yayın sırasına ekle</button><button type="button" data-pw-add-all disabled>Playlisti yayın sırasına ekle</button><button type="button" data-pw-export="csv" disabled>CSV indir</button><button type="button" data-pw-export="m3u" disabled>M3U8 indir</button></div></div>
+      <details class="pw-source" data-pw-source hidden><summary>Seçili parçanın dosyası ve rekordbox bilgileri</summary><dl><div><dt>Dosya konumu</dt><dd data-pw-location>—</dd></div><div><dt>rekordbox kimliği</dt><dd data-pw-source-id>—</dd></div><div><dt>Ton / işaretler</dt><dd data-pw-cues>—</dd></div><div><dt>Yorum</dt><dd data-pw-comment>—</dd></div></dl><p>XML ses dosyalarını içermez. Yerel dosya yolları korunur; çalma için ses dosyalarının yayın motoruna veya medya arşivine ayrıca bağlanması gerekir.</p></details>
+    </section>
+  </div>
+  <p class="pw-status" data-pw-status role="status" aria-live="polite"></p>
+
+  <dialog class="pw-dialog pw-import-dialog" id="pw-import-dialog" aria-labelledby="pw-import-title">
+    <form data-pw-import-form>
+      <header class="pw-dialog-heading"><h2 id="pw-import-title">rekordbox XML içe aktar</h2><button type="button" data-pw-close aria-label="İçe aktarmayı kapat">×</button></header>
+      <p>rekordbox'ta File → Export Collection in xml format ile dışa aktar ve XML dosyasını seç. Playlist klasörleri, parça bilgileri, dosya yolları ve cue işaretleri korunur.</p>
+      <label for="pw-import-file">XML dosyası</label><input id="pw-import-file" data-pw-import-file type="file" accept=".xml,application/xml,text/xml">
+      <p class="pw-status" data-pw-import-status role="status" aria-live="polite">Dosya seçilmedi.</p>
+      <div data-pw-import-preview hidden>
+        <div class="pw-import-options"><div><label for="pw-name-policy">Aynı adlı playlist</label><select id="pw-name-policy" data-pw-name-policy><option value="merge">Mevcut listeye ekle</option><option value="copy">Yeni kopya oluştur</option></select></div><div><label for="pw-duplicate-policy">Aynı dosya tekrarları</label><select id="pw-duplicate-policy" data-pw-duplicate-policy><option value="skip">Aynı playlistte tekrarları atla</option><option value="keep">Tekrarları koru</option></select></div></div>
+        <div class="pw-import-selection"><h3>İçeri aktarılacak playlistler</h3><div class="pw-actions"><button type="button" data-pw-import-select="all">Tümünü seç</button><button type="button" data-pw-import-select="none">Seçimi temizle</button></div></div>
+        <div class="pw-import-lists" data-pw-import-lists></div>
+        <label class="pw-check"><input type="checkbox" data-pw-import-collection> Koleksiyondaki tüm parçaları ayrıca tek listeye al</label>
+        <p class="pw-import-notice">Dosya yolları içeri aktarılır; ses dosyaları kopyalanmaz ve yerel dosyalar tarayıcıda bu yollar üzerinden çalınmaz. DJ cue işaretleri metadata olarak saklanır; yayın geçişlerine otomatik uygulanmaz.</p>
+      </div>
+      <div class="pw-dialog-actions"><button type="button" data-pw-close>Vazgeç</button><button type="submit" data-pw-import-submit disabled>Seçilenleri içeri aktar</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="pw-dialog" id="pw-name-dialog" aria-labelledby="pw-name-title"><form data-pw-name-form><header class="pw-dialog-heading"><h2 id="pw-name-title">Playlist adını değiştir</h2><button type="button" data-pw-close aria-label="Düzenleyiciyi kapat">×</button></header><label for="pw-edit-name">Playlist adı</label><input id="pw-edit-name" name="name" maxlength="120" required><div class="pw-dialog-actions"><button type="button" data-pw-close>Vazgeç</button><button type="submit">Kaydet</button></div></form></dialog>
+  <dialog class="pw-dialog" id="pw-track-dialog" aria-labelledby="pw-track-title"><form data-pw-track-form><header class="pw-dialog-heading"><h2 id="pw-track-title">Parça ekle</h2><button type="button" data-pw-close aria-label="Parça düzenleyicisini kapat">×</button></header><div class="pw-fields"><div class="pw-wide"><label for="pw-edit-title">Parça adı</label><input id="pw-edit-title" name="title" maxlength="160" required></div><div><label for="pw-edit-artist">Sanatçı</label><input id="pw-edit-artist" name="artist" maxlength="120"></div><div><label for="pw-edit-album">Albüm</label><input id="pw-edit-album" name="album" maxlength="120"></div><div><label for="pw-edit-duration">Süre (dk:sn)</label><input id="pw-edit-duration" name="duration" placeholder="03:30" pattern="[0-9]{1,4}:[0-5][0-9]"></div><div><label for="pw-edit-bpm">BPM</label><input id="pw-edit-bpm" name="bpm" type="number" min="0" max="1000" step="0.01"></div><div><label for="pw-edit-genre">Tür</label><input id="pw-edit-genre" name="genre" maxlength="120"></div><div><label for="pw-edit-key">Ton</label><input id="pw-edit-key" name="tonality" maxlength="60"></div><div class="pw-wide"><label for="pw-edit-location">Dosya yolu veya URI</label><input id="pw-edit-location" name="location" maxlength="4096" placeholder="file://localhost/Music/parca.mp3"></div><div class="pw-wide"><label for="pw-edit-comment">Yorum</label><textarea id="pw-edit-comment" name="comment" rows="3" maxlength="2000"></textarea></div></div><div class="pw-dialog-actions"><button type="button" data-pw-close>Vazgeç</button><button type="submit">Kaydet</button></div></form></dialog>
+  <dialog class="pw-dialog" id="pw-delete-dialog" aria-labelledby="pw-delete-title"><form method="dialog"><header class="pw-dialog-heading"><h2 id="pw-delete-title">Playlisti sil</h2></header><p data-pw-delete-message></p><p>Ses dosyaları silinmez. Yayın sırasına önceden eklenen parçalar korunur.</p><div class="pw-dialog-actions"><button value="cancel">Vazgeç</button><button value="delete" class="pw-danger">Playlisti sil</button></div></form></dialog>
+</section>
+<!-- /playlist workspace -->
+
+<!-- automation workspace -->
+<section class="task-view automation-workspace" id="automation-task-view" role="tabpanel" aria-labelledby="profile-automation-tab" data-automation-workspace hidden>
+  <header class="task-view-heading automation-heading">
+    <div><p class="task-eyebrow">OTOMASYON</p><h2>Rotasyon ve otomatik akış</h2><p>Playlistleri birleştir, tekrarları sınırla ve deck dağılımıyla yayın sırasını hazırla.</p></div>
+    <span class="task-draft-badge" data-automation-save-badge>Yerel kural taslağı</span>
+  </header>
+  <div class="automation-state-strip">
+    <span class="automation-state-dot" aria-hidden="true"></span><strong data-automation-state>Planlayıcı beklemede</strong>
+    <span>Önizleme ve program taslağına aktarım hazır. Canlı yayın motoru bağlı değil.</span>
+  </div>
+  <form data-automation-form class="automation-form">
+    <div class="automation-rule-bar">
+      <div><label for="automation-rule-name">Rotasyon adı</label><input id="automation-rule-name" name="name" maxlength="80" value="Genel rotasyon" required></div>
+      <div class="automation-actions"><button type="submit" class="task-primary">Kuralları kaydet</button><button type="button" data-automation-export>Kuralları indir</button></div>
+    </div>
+    <nav class="automation-tabs" role="tablist" aria-label="Otomasyon ayarları">
+      <button type="button" role="tab" id="automation-rotation-tab" aria-controls="automation-rotation-pane" aria-selected="true" data-automation-pane="rotation">Rotasyon</button>
+      <button type="button" role="tab" id="automation-timing-tab" aria-controls="automation-timing-pane" aria-selected="false" tabindex="-1" data-automation-pane="timing">Saat ve geçiş</button>
+      <button type="button" role="tab" id="automation-decks-tab" aria-controls="automation-decks-pane" aria-selected="false" tabindex="-1" data-automation-pane="decks">Deck ve güvenlik</button>
+    </nav>
+    <div class="automation-layout">
+      <div class="automation-pane-stack">
+        <section id="automation-rotation-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-rotation-tab">
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Kaynak playlistler</h3><p>Sıra ve ağırlıklar, playlistler arasındaki geçişi belirler.</p></div><button type="button" data-automation-source-add>+ Playlist ekle</button></header>
+            <div class="automation-table-scroll"><table class="automation-source-table"><thead><tr><th scope="col">Playlist</th><th scope="col">Ağırlık</th><th scope="col">Turda parça</th><th scope="col"><span class="task-visually-hidden">Kaynağı taşı veya kaldır</span></th></tr></thead><tbody data-automation-sources></tbody></table></div>
+            <p class="automation-empty" data-automation-source-empty>Önce Playlist sekmesinde bir liste oluştur veya rekordbox'tan içe aktar. Ardından rotasyona kaynak ekle.</p>
+            <div class="automation-fields">
+              <div><label for="automation-source-mode">Playlistler arası seçim</label><select id="automation-source-mode" name="sourceMode"><option value="cycle">Sırayla tur · her listeden belirlenen adet</option><option value="weighted">Ağırlıklı rastgele · oranlara göre</option><option value="complete">Liste bitince diğerine geç</option></select></div>
+              <div><label for="automation-track-mode">Playlist içinden parça seçimi</label><select id="automation-track-mode" name="trackMode"><option value="random">Rastgele · tekrar kurallarıyla</option><option value="ordered">Playlist sırasını koru</option><option value="least-used">En az planlanan / en uzun süredir seçilmeyen</option></select></div>
+            </div>
+            <p class="automation-help" data-automation-selection-help>Her turda kaynak sırası ve parça adetleri uygulanır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Tekrar koruması</h3><p>Uygun parça bulunamazsa güvenlik politikası devreye girer.</p></div></header>
+            <div class="automation-fields automation-fields-three">
+              <div><label for="automation-track-gap">Aynı parça · dakika</label><input id="automation-track-gap" name="trackGap" type="number" min="0" max="10080" value="60" step="1" required></div>
+              <div><label for="automation-artist-gap">Aynı sanatçı · dakika</label><input id="automation-artist-gap" name="artistGap" type="number" min="0" max="10080" value="30" step="1" required></div>
+              <div><label for="automation-album-gap">Aynı albüm · dakika</label><input id="automation-album-gap" name="albumGap" type="number" min="0" max="10080" value="0" step="1" required></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="includeProgramme" checked> Mevcut program sırasını tekrar hesabına kat</label>
+            <p class="automation-help">0 değeri ilgili korumayı kapatır. Kontrol, bu önizleme ve mevcut program taslağını kullanır; gerçek yayın geçmişi henüz bağlı değildir. Sanatçı / albüm bilgisi eksik parçalar raporlanır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Jingle / istasyon kimliği</h3><p>Müzik aralarına ayrı playlistten kısa içerik ekle.</p></div></header>
+            <label class="automation-check"><input type="checkbox" name="jingleEnabled"> Düzenli jingle ekle</label>
+            <div class="automation-fields">
+              <div><label for="automation-jingle-playlist">Jingle playlisti</label><select id="automation-jingle-playlist" name="jinglePlaylist" data-automation-playlist-select><option value="">Playlist seç</option></select></div>
+              <div><label for="automation-jingle-every">Kaç müzik parçasında bir?</label><input id="automation-jingle-every" name="jingleEvery" type="number" min="1" max="100" value="3" step="1" required></div>
+            </div>
+            <p class="automation-help">Jingle ayrı bir sıra öğesi olur; müziğin intro bölümüne bindirme ve ducking, yayın motoru bağlantısı gerektirir.</p>
+          </section>
+        </section>
+        <section id="automation-timing-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-timing-tab" hidden>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Yayın saati ve gün bölümü</h3><p>Önizlemenin başlangıcını ve bu kuralın kullanılacağı günleri belirle.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-plan-date">Plan tarihi · UTC</label><input id="automation-plan-date" name="planDate" type="date" required></div>
+              <div><label for="automation-start-time">Plan başlangıcı · UTC</label><input id="automation-start-time" name="startTime" type="time" value="08:00" required></div>
+              <div><label for="automation-preview-count">Planlanacak müzik parçası</label><input id="automation-preview-count" name="previewCount" type="number" min="1" max="200" value="20" step="1" required></div>
+              <div><label for="automation-window-start">Gün bölümü başlangıcı · UTC</label><input id="automation-window-start" name="windowStart" type="time" value="00:00" required></div>
+              <div><label for="automation-window-end">Gün bölümü bitişi · UTC</label><input id="automation-window-end" name="windowEnd" type="time" value="00:00" required></div>
+            </div>
+            <fieldset class="automation-weekdays"><legend>Kullanılacak günler</legend><label><input name="weekday" type="checkbox" value="1" checked> Pzt</label><label><input name="weekday" type="checkbox" value="2" checked> Sal</label><label><input name="weekday" type="checkbox" value="3" checked> Çar</label><label><input name="weekday" type="checkbox" value="4" checked> Per</label><label><input name="weekday" type="checkbox" value="5" checked> Cum</label><label><input name="weekday" type="checkbox" value="6" checked> Cmt</label><label><input name="weekday" type="checkbox" value="7" checked> Paz</label></fieldset>
+            <p class="automation-help">Başlangıç ve bitiş aynıysa tüm gün açıktır. Gece yarısını aşan aralıklar desteklenir. Gün / saat kuralları önizlemede denetlenir; kendiliğinden yayını başlatan zamanlayıcı bağlı değildir.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Parça geçişleri</h3><p>Bindirme, program taslağındaki ardışık parçaların geçişine yazılır.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-transition">Otomatik parça geçişi</label><select id="automation-transition" name="transition"><option value="end">Açık · parça biter bitmez</option><option value="crossfade">Açık · sabit bindirme / crossfade</option><option value="markers">Açık · cue / auto-next işaretleri</option><option value="manual">Kapalı · manuel geçiş</option></select></div>
+              <div><label for="automation-overlap">Bindirme · saniye</label><input id="automation-overlap" name="overlap" type="number" min="0" max="30" step="0.1" value="3" required></div>
+              <div><label for="automation-boundary-transition">Playlist değişirken</label><select id="automation-boundary-transition" name="boundaryTransition"><option value="same">Parça geçiş kuralını kullan</option><option value="end">Mevcut parçayı bitir, sonra geç</option><option value="crossfade">Playlistler arasında bindirme</option><option value="markers">Cue / auto-next işaretinde geç</option><option value="manual">Operatör geçişini bekle</option></select></div>
+              <div><label for="automation-boundary-overlap">Playlist geçiş bindirmesi · saniye</label><input id="automation-boundary-overlap" name="boundaryOverlap" type="number" min="0" max="30" step="0.1" value="3" required></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="jingleDry" checked> Jingle öncesi ve sonrası bindirmeyi kapat</label>
+            <p class="automation-help">Cue işareti olmayan parçada bindirme değeri kullanılır. Manuel geçişte saatler tahminidir; otomatik ilerleme kapalı olarak plana yazılır. Bindirme her iki parçanın süresine sınırlandırılır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Tekrarlanabilir rastgelelik</h3><p>Aynı kaynaklar, kurallar ve anahtar aynı önizlemeyi üretir.</p></div><button type="button" data-automation-new-seed>Yeni anahtar</button></header>
+            <label for="automation-seed">Rastgelelik anahtarı</label><input id="automation-seed" name="seed" maxlength="64" value="radio-s-1" required autocomplete="off">
+          </section>
+        </section>
+        <section id="automation-decks-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-decks-tab" hidden>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Deck / oynatıcı dağılımı</h3><p>Yayın ekranında gerçekten bulunan oynatıcılar listelenir.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-deck-mode">Atama yöntemi</label><select id="automation-deck-mode" name="deckMode"><option value="alternate">Seçili deckleri sırayla kullan</option><option value="fixed">Tek deck kullan</option></select></div>
+              <div><label for="automation-jingle-deck">Jingle decki · isteğe bağlı</label><select id="automation-jingle-deck" name="jingleDeck" data-automation-deck-select><option value="">Müzik deck sırasını kullan</option></select></div>
+            </div>
+            <fieldset class="automation-deck-list"><legend>Otomasyona ayrılacak deckler</legend><div data-automation-decks></div></fieldset>
+            <p class="automation-help">Deck seçimi önizlemede gösterilir ve aktarılan öğenin notuna yazılır. Oynatıcıların ses çıkışını veya transport kontrolünü değiştirmez.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Boş kaynak ve kurala takılan parçalar</h3><p>Tekrar koruması sessizce gevşetilmez.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-fallback-mode">Uygun parça bulunamazsa</label><select id="automation-fallback-mode" name="fallbackMode"><option value="stop">Planı durdur ve sebebini göster</option><option value="next">Sonraki uygun playlisti dene</option><option value="playlist">Yedek playlisti dene</option></select></div>
+              <div><label for="automation-fallback-playlist">Yedek playlist</label><select id="automation-fallback-playlist" name="fallbackPlaylist" data-automation-playlist-select><option value="">Playlist seç</option></select></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="requireMetadata"> Sanatçı bilgisi olmayan müzikleri seçme</label>
+            <p class="automation-help">Süresi eksik / sıfır olan, geçersiz veya dosyası açıkça eksik işaretlenmiş öğeler seçilmez. Dosya adresi ve erişilebilirliği doğrulanmamış içerikler, program taslağında kontrol bekler.</p>
+          </section>
+          <section class="automation-card automation-capability-card">
+            <header class="automation-card-heading"><div><h3>Canlı otomasyon</h3><p>Canlı başlat / durdur kontrolü, yayın motoru bağlandığında kullanılabilir.</p></div></header>
+            <div class="automation-actions"><button type="button" disabled title="Canlı yayın motoru bağlantısı gerekli">Canlı otomasyonu başlat</button><button type="button" disabled title="Canlı yayın motoru bağlantısı gerekli">Canlı otomasyonu durdur</button></div>
+          </section>
+        </section>
+      </div>
+      <aside class="automation-sidebar">
+        <section class="automation-card automation-summary-card">
+          <header class="automation-card-heading"><div><h3>Akış özeti</h3><p data-automation-summary-name>Genel rotasyon</p></div><span class="automation-badge">PLAN</span></header>
+          <dl class="automation-facts"><div><dt>Kaynak playlist</dt><dd data-automation-summary="sources">0</dd></div><div><dt>Aday parça</dt><dd data-automation-summary="tracks">0</dd></div><div><dt>Parça seçimi</dt><dd data-automation-summary="mode">Rastgele</dd></div><div><dt>Hedef deck</dt><dd data-automation-summary="decks">Atanmadı</dd></div><div><dt>Tekrar · parça / sanatçı</dt><dd data-automation-summary="gaps">60 / 30 dk</dd></div><div><dt>Son kayıt</dt><dd data-automation-summary="saved">Kaydedilmedi</dd></div></dl>
+          <div class="automation-plan-actions"><button type="button" class="task-primary" data-automation-preview>Önizleme oluştur</button><button type="button" data-automation-cancel disabled>Önizlemeyi temizle</button></div>
+          <p class="automation-help">Önizleme ses çalmaz ve program sırasını değiştirmez. Aktarılan plan yeni bir program bloğu olarak eklenir.</p>
+        </section>
+      </aside>
+    </div>
+  </form>
+  <section class="automation-card automation-preview-card" aria-labelledby="automation-preview-title">
+    <header class="automation-card-heading"><div><h3 id="automation-preview-title">Üretilen yayın sırası</h3><p data-automation-preview-summary>Kuralları belirle ve önizleme oluştur.</p></div><div class="automation-actions"><button type="button" data-automation-download-plan disabled>Planı indir</button><button type="button" class="task-primary" data-automation-apply disabled>Program sırasına ekle</button></div></header>
+    <div class="automation-empty" data-automation-preview-empty><span aria-hidden="true">↻</span><strong>Henüz sıra üretilmedi</strong><p>Seçilen playlistlerden hangi parça, hangi saatte ve hangi deckte planlanacak burada görünür.</p></div>
+    <div class="automation-table-scroll" data-automation-preview-table hidden><table class="automation-preview-table"><thead><tr><th scope="col">Sıra / saat</th><th scope="col">Parça</th><th scope="col">Kaynak</th><th scope="col">Deck</th><th scope="col">Süre / bindirme</th><th scope="col">Seçim nedeni</th></tr></thead><tbody data-automation-preview-rows></tbody></table></div>
+    <div class="automation-diagnostics" data-automation-diagnostics hidden><h4>Plan kontrolü</h4><ul data-automation-diagnostic-list></ul></div>
+  </section>
+  <p class="task-feedback automation-status" role="status" aria-live="polite" data-automation-status>Kurallar bu tarayıcıda saklanır.</p>
+</section>
+<!-- /automation workspace -->
+
+<section class="task-view" id="dj-task-view" role="tabpanel" aria-labelledby="profile-dj-tab" hidden>
+  <section class="dj-mixer" id="dj-mixer" data-dj-mixer-gui aria-labelledby="dj-mixer-title">
+    <header class="dj-mixer-toolbar">
+      <div><h3 id="dj-mixer-title">Mixer</h3></div>
+      <div><output data-dj-mixer-count>— kanal</output><button type="button" data-dj-mixer-add>+ Kanal ekle</button></div>
+    </header>
+    <div class="dj-performance-tools quick-tools">
+  <section class="dj-effects-section" aria-labelledby="dj-effects-title">
+    <header class="dj-effects-heading"><div><h3 id="dj-effects-title">Effectorler</h3><span data-dj-effect-count>5 effector</span></div></header>
+    <div class="dj-effects-table-wrap" tabindex="0" role="region" aria-label="Beş mixer effectorünün ayarları">
+      <table class="dj-effects-table">
+        <caption class="dj-sr-only">Mixer kanalındaki Effector seçimi ile yönlendirilen beş efekt</caption>
+        <thead><tr><th scope="col">FX</th><th scope="col">Efekt türü</th><th scope="col">Gönderen kanallar</th><th scope="col">DEPTH</th><th scope="col">SEND</th><th scope="col">RETURN</th><th scope="col">Monitor</th><th scope="col">CUE</th><th scope="col">Durum</th></tr></thead>
+        <tbody data-dj-effects-rack></tbody>
+      </table>
+    </div>
+    <p class="dj-effects-status" data-dj-effects-status role="status"></p>
+  </section>
+<section class="ops-card dj-speech-card dj-speech-bar" aria-labelledby="speech-card-title">
+  <div class="dj-speech-main-row">
+    <header class="dj-speech-heading">
+      <h2 id="speech-card-title">Konuşma · Canlı kaynak</h2>
+    </header>
+
+    <div class="dj-speech-source">
+      <label for="speech-source">Tercih edilen kaynak</label>
+      <select id="speech-source">
+        <option value="microphone">Mikrofon</option>
+        <option value="remote">Dış bağlantı</option>
+        <option value="bed">Müzik yatağı</option>
+      </select>
+    </div>
+
+    <div class="dj-speech-bed">
+      <label for="speech-bed">Müzik yatağı <output for="speech-bed" data-speech-bed-value>−18 dB</output></label>
+      <input id="speech-bed" type="range" min="-36" max="0" step="1" value="-18">
+    </div>
+
+    <label class="ops-check dj-speech-ducking" for="speech-ducking">
+      <input id="speech-ducking" type="checkbox" checked>
+      <span>Konuşmada müziği kıs</span>
+    </label>
+
+    <div class="dj-speech-rehearsal">
+      <div class="dj-speech-rehearsal-clock">
+        <span id="speech-rehearsal-label">Prova süresi</span>
+        <output data-rehearsal-time aria-labelledby="speech-rehearsal-label">00:00</output>
+      </div>
+      <button type="button" data-rehearsal-toggle>Prova başlat</button>
+      <button type="button" data-rehearsal-reset aria-label="Prova süresini sıfırla">↺</button>
+    </div>
+  </div>
+
+  <div class="dj-speech-status-row">
+    <dl class="dj-speech-status" aria-label="Gerçek konuşma durumu">
+      <div><dt>Aktif mikrofon / kaynak</dt><dd>—</dd></div>
+      <div><dt>Yayın çıkışı</dt><dd>—</dd></div>
+      <div><dt>Konuşma süresi</dt><dd>—:—</dd></div>
+    </dl>
+  </div>
+</section>
+
+</div>
+<template id="dj-effect-template">
+  <tr class="fx-table-row" data-fx-control data-fx-slot="1" aria-labelledby="cue-fx-1-title">
+    <th scope="row" id="cue-fx-1-title"><span class="fx-slot-number">1</span></th>
+    <td><select id="cue-fx-1-type" data-fx-selector aria-label="FX 1 efekt türü"><option value="0">Delay</option><option value="1">Echo</option><option value="2">Spiral</option><option value="3">Reverb</option><option value="4">Trans</option><option value="5">Filter</option><option value="6">Flanger</option><option value="7">Phaser</option><option value="8">Robot</option><option value="9">Melodic</option><option value="10">Slip Roll</option><option value="11">Roll</option><option value="12">Rev Roll</option><option value="13">MIDI LFO</option></select></td>
+    <td><div class="fx-table-incoming" data-fx-incoming aria-label="FX 1 gönderen kanallar">—</div></td>
+    <td><div class="knob-control fx-table-knob"><div class="knob-shell"><div class="knob-ring" aria-hidden="true"></div><div class="knob-rotor" aria-hidden="true"></div><input class="knob-input" id="cue-fx-1-depth" data-fx-depth type="range" min="0" max="100" step="1" value="50" data-reset-value="50" data-unit="%" data-signed="false" aria-label="FX 1 derinlik"></div><output class="knob-value" for="cue-fx-1-depth">50 %</output></div></td>
+    <td><div class="knob-control fx-table-knob"><div class="knob-shell"><div class="knob-ring" aria-hidden="true"></div><div class="knob-rotor" aria-hidden="true"></div><input class="knob-input" id="cue-fx-1-send" data-fx-send type="range" min="-60" max="6" step="0.5" value="0" data-reset-value="0" data-unit="dB" data-signed="false" data-center="0" aria-label="FX 1 send seviyesi"></div><output class="knob-value" for="cue-fx-1-send">0 dB</output></div></td>
+    <td><div class="knob-control fx-table-knob"><div class="knob-shell"><div class="knob-ring" aria-hidden="true"></div><div class="knob-rotor" aria-hidden="true"></div><input class="knob-input" id="cue-fx-1-return" data-fx-return type="range" min="-60" max="6" step="0.5" value="-6" data-reset-value="-6" data-unit="dB" data-signed="false" data-center="0" aria-label="FX 1 return seviyesi"></div><output class="knob-value" for="cue-fx-1-return">-6 dB</output></div></td>
+    <td><select id="cue-fx-1-monitor" data-fx-monitor aria-label="FX 1 monitor yolu"><option value="send">SEND</option><option value="return" selected>RETURN</option><option value="mix">SEND + RETURN</option></select></td>
+    <td><button class="fx-monitor-button" type="button" data-fx-monitor-toggle aria-pressed="false" disabled aria-label="FX 1 CUE seçimi">CUE</button></td>
+    <td><button class="fx-power-button" type="button" aria-pressed="false" aria-label="FX 1 aç veya kapat">OFF</button></td>
+  </tr>
+</template>
+<div class="dj-mixer-rack">
+      <div class="dj-mixer-channels" data-dj-mixer-channels role="group" aria-label="Bağımsız mixer kanalları"></div>
+      <section class="dj-mixer-master" data-dj-mixer-master aria-label="DJ mixer master kanalı"></section>
+    </div>
+    <p class="dj-mixer-status" data-dj-mixer-status role="status"></p>
+  </section>
+  
+</section>
+
+<section class="task-view" id="emergency-task-view" role="tabpanel" aria-labelledby="profile-emergency-tab" data-emergency-workspace hidden>
+  <p class="em-sr-only" role="status" aria-live="polite" data-em-live></p>
+
+  <header class="em-command" data-em-command data-level="unknown" aria-labelledby="em-state-title">
+    <div class="em-command-state">
+      <p class="task-eyebrow">ACİL YAYIN</p>
+      <h2 class="em-state" id="em-state-title"><span class="em-state-icon" data-em-state-icon aria-hidden="true">?</span><span data-em-state-label>Durum bilinmiyor</span></h2>
+    </div>
+    <ol class="em-steps" aria-label="Acil yayın aşamaları">
+      <li data-em-step="normal">Normal</li>
+      <li data-em-step="ready">Hazır</li>
+      <li data-em-step="active">Acil yayında</li>
+      <li data-em-step="return">Dönüş</li>
+    </ol>
+    <p class="em-behavior" data-em-behavior aria-label="Devralma davranışı"></p>
+    <div class="em-command-actions">
+      <button type="button" class="em-takeover" data-open-emergency aria-haspopup="dialog" aria-controls="emergency-dialog">Devralmayı başlat…</button>
+      <button type="button" data-em-return disabled>Normal yayına dön</button>
+      <button type="button" data-em-abort disabled>Devralmayı iptal et</button>
+    </div>
+  </header>
+
+  <ul class="em-chips" aria-label="Hazırlık">
+    <li><button type="button" class="em-chip" data-em-chip="ownership" data-em-goto="takeover"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Sahiplik</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="coverage" data-em-goto="list"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Yerel kapsam</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="silence" data-em-goto="silence"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Sessizlik</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="chain" data-em-goto="chain" aria-controls="em-chain"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Yayın zinciri</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="alert" data-em-goto="alert"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Duyuru</span><span class="em-chip-value">—</span></button></li>
+    <li><button type="button" class="em-chip" data-em-chip="drill" data-em-goto="handover"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Tatbikat</span><span class="em-chip-value">—</span></button></li>
+    <li><span class="em-chip" data-em-chip="fresh"><span class="em-chip-icon" aria-hidden="true"></span><span class="em-chip-name">Son bilgi</span><span class="em-chip-value">—</span></span></li>
+  </ul>
+
+  <section class="em-chain" id="em-chain" aria-label="Yayın zinciri" data-em-chain hidden>
+    <ul class="em-chain-grid" data-em-chain-rows></ul>
+  </section>
+
+  <div class="em-desk">
+    <div class="em-main">
+      <section class="em-card em-queue-card" aria-label="Acil liste ve geçici sıra">
+        <div class="em-seg" role="tablist" aria-label="Sıra">
+          <button type="button" role="tab" id="em-left-tab-list" aria-controls="em-left-list" aria-selected="true" data-em-left-tab="list">Acil liste <span class="em-count" data-emergency-list-count>0</span></button>
+          <button type="button" role="tab" id="em-left-tab-queue" aria-controls="temporary-queue" aria-selected="false" tabindex="-1" data-em-left-tab="queue">Geçici sıra <span class="em-count" data-em-queue-count>0</span></button>
+        </div>
+
+        <div class="em-left-panel emergency-list-card" id="em-left-list" role="tabpanel" aria-labelledby="em-left-tab-list" data-em-left-panel="list">
+          <div class="em-source-row">
+            <label class="em-sr-only" for="emergency-source">Program veya playlist</label>
+            <select id="emergency-source" data-emergency-source><option value="">Program / playlist</option></select>
+            <button type="button" data-emergency-add-source>Ekle</button>
+            <button type="button" data-emergency-add-selected>+ Seçili parça</button>
+          </div>
+          <ol class="em-track-list" data-emergency-track-list aria-label="Acil yayın sırası"></ol>
+          <div class="em-row">
+            <button type="button" data-emergency-list-action="up" aria-label="Yukarı taşı">↑</button>
+            <button type="button" data-emergency-list-action="down" aria-label="Aşağı taşı">↓</button>
+            <button type="button" data-emergency-new-item>+ Yeni öğe</button>
+            <button type="button" data-emergency-list-action="remove">Kaldır</button>
+          </div>
+          <dl class="em-metrics" data-em-coverage>
+            <div><dt>Süre</dt><dd data-em-metric="total">—</dd></div>
+            <div><dt>Şimdi devralınırsa</dt><dd data-em-metric="until">—</dd></div>
+            <div><dt>Doğrulanan dosya</dt><dd data-em-metric="verified">—</dd></div>
+            <div><dt><label for="em-coverage-target">Hedef</label></dt><dd><select id="em-coverage-target" data-em-setting="coverageTarget"><option value="30">30 dk</option><option value="60">1 sa</option><option value="120">2 sa</option><option value="240">4 sa</option><option value="480">8 sa</option></select></dd></div>
+          </dl>
+        </div>
+
+        <section class="em-left-panel ops-card" id="temporary-queue" role="tabpanel" aria-labelledby="em-left-tab-queue" data-em-left-panel="queue" hidden>
+          <div class="ops-action-row"><button type="button" data-queue-from-selected>+ Seçili öğe</button><button type="button" data-queue-new>+ Yeni öğe</button></div>
+          <ol class="ops-queue-list" data-temporary-queue-list aria-label="Geçici yayın sırası"></ol>
+          <div class="ops-action-row"><button type="button" data-queue-action="up" aria-label="Yukarı taşı">↑</button><button type="button" data-queue-action="down" aria-label="Aşağı taşı">↓</button><button type="button" data-queue-action="edit">Düzenle</button><button type="button" data-queue-action="remove">Kaldır</button><span class="ops-count em-sr-only" data-queue-count>0 öğe</span></div>
+          <button class="ops-primary" type="button" data-queue-transfer>Program taslağına aktar</button>
+        </section>
+      </section>
+
+      <section class="em-card em-editor" aria-labelledby="em-editor-title">
+        <header class="em-card-head"><h3 id="em-editor-title" data-em-editor-title>Yeni öğe</h3><span class="em-head-note" data-em-file-info></span></header>
+        <form class="em-item-form" data-emergency-item-form>
+          <div class="em-fields em-fields--item">
+            <label class="em-span-2">İçerik adı<input name="title" maxlength="160" required></label>
+            <label>Sanatçı / kaynak<input name="artist" maxlength="120"></label>
+            <label>Albüm / program<input name="album" maxlength="120"></label>
+            <label>Tür<select name="type"><option value="music">Müzik</option><option value="announcement">Anons</option><option value="jingle">Jingle · kimlik</option><option value="apology">Arıza anonsu</option><option value="advert">Reklam</option></select></label>
+            <label>Süre<input name="duration" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+          </div>
+          <div class="em-wave" data-em-wave>
+            <canvas width="1200" height="112" data-em-wave-canvas aria-label="Dalga biçimi"></canvas>
+            <div class="em-wave-markers" data-em-markers>
+              <button type="button" class="em-marker" data-em-marker="cueStart" data-letter="A" aria-label="Cue başlangıcı" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="vocal" data-letter="V" aria-label="Vokal girişi" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="segue" data-letter="S" aria-label="Sonraki başlangıç" hidden></button>
+              <button type="button" class="em-marker" data-em-marker="cueOut" data-letter="B" aria-label="Çıkış noktası" hidden></button>
+            </div>
+            <div class="em-wave-scale" aria-hidden="true"><span>00:00</span><span data-em-wave-end></span></div>
+          </div>
+          <div class="em-fields em-fields--cue">
+            <label><span><b class="em-mark">A</b> Cue başlangıcı</span><input name="cueStart" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">V</b> Vokal girişi</span><input name="vocal" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">S</b> Sonraki başlangıç</span><input name="segue" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label><span><b class="em-mark">B</b> Çıkış noktası</span><input name="cueOut" inputmode="decimal" maxlength="10" placeholder="mm:ss.mmm"></label>
+            <label>Fade · ms<input name="fadeMs" type="number" min="0" max="20000" step="10"></label>
+          </div>
+          <div class="em-row em-editor-actions">
+            <label class="em-file-button">Ses dosyası<input type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-em-file></label>
+            <button type="button" class="em-cue" data-emergency-cue aria-pressed="false">CUE ▶</button>
+            <label class="em-gain">Kulaklık<input type="range" name="previewGain" min="-60" max="6" step="0.5" value="-12" data-emergency-preview-volume><output data-emergency-preview-volume-value>−12 dB</output></label>
+            <button type="submit" class="em-primary" data-emergency-item-save>Sıraya ekle</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="em-side">
+      <section class="em-card em-settings" aria-label="Acil ayarlar">
+        <div class="em-seg em-seg--fill" role="tablist" aria-label="Ayar bölümleri">
+          <button type="button" role="tab" id="em-tab-takeover" aria-controls="em-panel-takeover" aria-selected="true" data-em-tab="takeover">Devralma</button>
+          <button type="button" role="tab" id="em-tab-silence" aria-controls="em-panel-silence" aria-selected="false" tabindex="-1" data-em-tab="silence">Sessizlik</button>
+          <button type="button" role="tab" id="em-tab-alert" aria-controls="em-panel-alert" aria-selected="false" tabindex="-1" data-em-tab="alert">Duyuru</button>
+          <button type="button" role="tab" id="em-tab-access" aria-controls="em-panel-access" aria-selected="false" tabindex="-1" data-em-tab="access">Erişim</button>
+          <button type="button" role="tab" id="em-tab-handover" aria-controls="em-panel-handover" aria-selected="false" tabindex="-1" data-em-tab="handover">Devir</button>
+        </div>
+
+        <div class="em-panel" id="em-panel-takeover" role="tabpanel" aria-labelledby="em-tab-takeover" data-em-panel="takeover">
+          <fieldset class="em-checks"><legend>Etkilenecek çıkışlar</legend>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="studio">Stüdyo</label>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="internet">İnternet</label>
+            <label class="em-check"><input type="checkbox" data-em-setting="outputs" value="terrestrial">Karasal</label>
+          </fieldset>
+          <div class="em-fields">
+            <label>Devralacak oynatıcı<select data-em-setting="player" data-emergency-player><option value="">Oynatıcı seç</option></select></label>
+            <label>Devralma davranışı<select data-emergency-strategy><option value="playlist">Acil listeyi başlat</option><option value="next">Sıradaki olaya geç</option><option value="continue">Çalan öğeyi sürdür</option></select></label>
+            <label data-em-name-field>Acil liste adı<input maxlength="100" data-emergency-name></label>
+            <label>Liste bitince<select data-em-setting="listEnd"><option value="hold">Operatörü bekle</option><option value="repeat">Listeyi tekrarla</option></select></label>
+            <label>Normale dönüş<select data-em-setting="returnPolicy"><option value="manual">Operatör kontrollü</option><option value="next">Öğe sonunda hazırla</option></select></label>
+            <label>Yedek zincir anahtarı · GPO<input maxlength="40" data-em-setting="gpo"></label>
+          </div>
+          <h4 class="em-sub">Sahiplik ve yalıtım</h4>
+          <dl class="em-facts" data-em-ownership></dl>
+          <h4 class="em-sub">Reklam etkisi</h4>
+          <dl class="em-facts em-facts--3" data-em-adverts></dl>
+        </div>
+
+        <div class="em-panel" id="em-panel-silence" role="tabpanel" aria-labelledby="em-tab-silence" data-em-panel="silence" hidden>
+          <label class="em-switch"><input type="checkbox" data-em-setting="silenceEnabled">Sessizlikte otomatik devralma</label>
+          <div class="em-fields em-fields--3">
+            <label>İzlenen nokta<select data-em-setting="monitor"><option value="program">Program çıkışı</option><option value="internet">İnternet dönüşü</option><option value="terrestrial">Karasal dönüş</option><option value="studio">Stüdyo dönüşü</option></select></label>
+            <label>Eşik · dB<input type="number" min="-90" max="0" step="1" data-em-setting="silenceDb"></label>
+            <label>Süre · sn<input type="number" min="1" max="3600" step="1" data-em-setting="silenceSeconds"></label>
+          </div>
+          <ol class="em-ladder" aria-label="Kademeli müdahale">
+            <li><b aria-hidden="true">1</b><label>Süre dolunca<select data-em-setting="fallback"><option value="player">İkinci deck · yedek oynatıcı</option><option value="playlist">Acil liste</option><option value="alarm">Yalnız alarm</option></select></label></li>
+            <li><b aria-hidden="true">2</b><label>Sürerse · sn<input type="number" min="5" max="3600" step="1" data-em-setting="escalateSeconds"></label><label>Sonra<select data-em-setting="escalateTo"><option value="playlist">Acil liste</option><option value="alarm">Yalnız alarm</option><option value="none">Ek işlem yok</option></select></label></li>
+            <li><b aria-hidden="true">3</b><span class="em-ladder-text">İletişim zinciri · <span data-em-contacts-count>0 kişi</span></span></li>
+          </ol>
+          <div class="em-observe">
+            <div class="em-meter" role="meter" aria-label="Ölçülen seviye" aria-valuemin="-90" aria-valuemax="0" data-em-meter><span data-em-meter-bar></span></div><output data-em-meter-value>— dB</output>
+          </div>
+          <dl class="em-facts em-facts--4" data-em-obs></dl>
+          <div class="em-fields">
+            <label>Ses dönünce eşik · dB<input type="number" min="-90" max="0" step="1" data-em-setting="restoreDb"></label>
+            <label>Dönüş süresi · sn<input type="number" min="1" max="600" step="1" data-em-setting="restoreSeconds"></label>
+            <label>Sessiz sayılması<select data-em-setting="channels"><option value="both">İki kanal da</option><option value="any">Herhangi bir kanal</option></select></label>
+            <label>Ölçüm<select data-em-setting="measure"><option value="rms">RMS</option><option value="peak">Tepe</option></select></label>
+            <label>Harici dedektör · GPI<input maxlength="40" data-em-setting="gpi"></label>
+            <div class="em-field-action"><button type="button" disabled>Çıkış provası</button></div>
+          </div>
+          <h4 class="em-sub">Planlı sessizlik</h4>
+          <form class="em-inline-form" data-em-quiet-form>
+            <label>Başlangıç<input type="datetime-local" name="start" required></label>
+            <label>Dakika<input type="number" name="minutes" min="1" max="240" step="1" required></label>
+            <label>Gerekçe<input name="reason" maxlength="80" required></label>
+            <button type="submit">Ekle</button>
+          </form>
+          <ul class="em-mini-list" data-em-quiet-list></ul>
+        </div>
+
+        <div class="em-panel" id="em-panel-alert" role="tabpanel" aria-labelledby="em-tab-alert" data-em-panel="alert" hidden>
+          <ul class="em-mini-list em-alert-list" data-em-alert-list></ul>
+          <form class="em-alert-form" data-em-alert-form>
+            <fieldset class="em-checks"><legend>Amaç</legend>
+              <label class="em-check"><input type="radio" name="purpose" value="test" checked>Test</label>
+              <label class="em-check"><input type="radio" name="purpose" value="actual">Gerçek</label>
+            </fieldset>
+            <div class="em-fields">
+              <label>Başlangıç<input type="datetime-local" name="startsAt" required></label>
+              <label>Bitiş<input type="datetime-local" name="endsAt" required></label>
+              <label>Bölge kodları<input name="geoCodes" maxlength="300" placeholder="TR-34, TR-06"></label>
+              <label>Tekrar · dk<input type="number" name="repeatMinutes" min="0" max="1440" step="1" value="0"></label>
+            </div>
+            <fieldset class="em-checks"><legend>Çıkışlar</legend>
+              <label class="em-check"><input type="checkbox" name="outputs" value="studio" checked>Stüdyo</label>
+              <label class="em-check"><input type="checkbox" name="outputs" value="internet" checked>İnternet</label>
+              <label class="em-check"><input type="checkbox" name="outputs" value="terrestrial" checked>Karasal</label>
+            </fieldset>
+            <label class="em-block">Okunacak metin · TTS<textarea name="text" rows="3" maxlength="4000"></textarea></label>
+            <div class="em-fields">
+              <label>Metin dili<input name="language" maxlength="35" value="tr-TR" pattern="[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}"></label>
+              <label>Ses dosyası / medya kimliği<input name="media" maxlength="120"></label>
+            </div>
+            <div class="em-row"><button type="submit" class="em-primary" data-em-alert-save>Taslağı kaydet</button><button type="button" data-em-alert-new>Yeni</button><button type="button" disabled>Yayına gönder</button></div>
+          </form>
+          <h4 class="em-sub">Haber flaşı · zorunlu kesme</h4>
+          <div class="em-fields em-fields--3">
+            <label>Kesme<select data-em-setting="breakMode"><option value="fade">Kısa fade</option><option value="cut">Anında</option><option value="wait">Öğe bitince</option></select></label>
+            <label>Fade · ms<input type="number" min="0" max="10000" step="50" data-em-setting="breakFadeMs"></label>
+            <label>Sonra<select data-em-setting="breakAfter"><option value="resume">Akışa dön</option><option value="hold">Operatörü bekle</option></select></label>
+          </div>
+        </div>
+
+        <div class="em-panel" id="em-panel-access" role="tabpanel" aria-labelledby="em-tab-access" data-em-panel="access" hidden>
+          <div class="em-fields">
+            <label>Kilitli mod<select data-em-setting="protection"><option value="confirmation">Onaylı pencere</option><option value="password">Parola</option><option value="usb">USB anahtarı</option></select></label>
+            <label>Devralma yetkisi<select data-em-setting="takeoverRole"><option value="shift">Vardiya sorumlusu ve üstü</option><option value="technical">Yalnız teknik yönetici</option></select></label>
+            <label>Ayar yetkisi<select data-em-setting="configRole"><option value="technical">Teknik yönetici</option><option value="shift">Vardiya sorumlusu ve üstü</option></select></label>
+            <div class="em-fact"><span>Bu oturum</span><strong data-em-session-role>—</strong></div>
+          </div>
+          <h4 class="em-sub">USB anahtarları</h4>
+          <form class="em-inline-form" data-em-key-form>
+            <label>Etiket<input name="label" maxlength="60" required></label>
+            <label>Sahibi<input name="owner" maxlength="80" required></label>
+            <button type="submit">Anahtar ekle</button>
+          </form>
+          <ul class="em-mini-list" data-em-key-list></ul>
+          <h4 class="em-sub">Kilit açılamazsa</h4>
+          <div class="em-fields">
+            <label>İkinci yetkili<input maxlength="100" data-em-setting="breakGlassContact"></label>
+            <label>Mühürlü kod yeri<input maxlength="120" data-em-setting="breakGlassLocation"></label>
+          </div>
+        </div>
+
+        <div class="em-panel" id="em-panel-handover" role="tabpanel" aria-labelledby="em-tab-handover" data-em-panel="handover" hidden>
+          <div class="em-fields">
+            <label>Devreden<input maxlength="100" data-em-setting="responsible"></label>
+            <label>Devralan<input maxlength="100" data-em-setting="receiver"></label>
+          </div>
+          <div class="em-fields em-fields--3">
+            <label>Son durum<textarea rows="2" maxlength="600" data-em-setting="lastState"></textarea></label>
+            <label>Yapılan işlem<textarea rows="2" maxlength="600" data-em-setting="actions"></textarea></label>
+            <label>Kalan risk<textarea rows="2" maxlength="600" data-em-setting="risk"></textarea></label>
+          </div>
+          <div class="em-row"><button type="button" class="em-primary" data-em-handover>Devri kaydet</button></div>
+          <h4 class="em-sub">İletişim zinciri</h4>
+          <form class="em-inline-form" data-em-contact-form>
+            <label>Ad<input name="name" maxlength="80" required></label>
+            <label>Görev<input name="role" maxlength="60"></label>
+            <label>Telefon<input name="phone" type="tel" maxlength="30" required></label>
+            <label class="em-check"><input type="checkbox" name="offHours">Mesai dışı</label>
+            <button type="submit">Ekle</button>
+          </form>
+          <ol class="em-mini-list" data-em-contact-list></ol>
+          <h4 class="em-sub">Tatbikat</h4>
+          <dl class="em-facts em-facts--4" data-em-drill-last></dl>
+          <form class="em-drill-form" data-em-drill-form>
+            <div class="em-fields em-fields--4">
+              <label>Tarih<input type="datetime-local" name="at" required></label>
+              <label>Senaryo<select name="scenario"><option value="silence">Sessizlik</option><option value="engine">Motor arızası</option><option value="database">Veritabanı kaybı</option><option value="network">Ağ kaybı</option><option value="audio">Ses çıkışı arızası</option><option value="power">Elektrik kesintisi</option></select></label>
+              <label>Çift ses<select name="double"><option value="no">Yok</option><option value="yes">Var</option></select></label>
+              <label>Sonuç<select name="result"><option value="pass">Başarılı</option><option value="partial">Kısmi</option><option value="fail">Başarısız</option></select></label>
+              <label>Algılama · sn<input type="number" name="detect" min="0" max="86400" step="1" required></label>
+              <label>Karar · sn<input type="number" name="decide" min="0" max="86400" step="1" required></label>
+              <label>Devralma · sn<input type="number" name="takeover" min="0" max="86400" step="1" required></label>
+              <label>Toparlanma · sn<input type="number" name="recover" min="0" max="86400" step="1" required></label>
+              <label>Boşluk · ms<input type="number" name="gapMs" min="0" max="600000" step="1" required></label>
+              <label class="em-span-3">Not<input name="note" maxlength="200"></label>
+            </div>
+            <button type="submit">Tatbikatı kaydet</button>
+          </form>
+          <h4 class="em-sub">Kurtarma hedefleri</h4>
+          <div class="em-fields em-fields--4">
+            <label>Oynatma RTO · sn<input type="number" min="1" max="86400" step="1" data-em-setting="rto"></label>
+            <label>Yayın günlüğü RPO · dk<input type="number" min="0" max="1440" step="1" data-em-setting="rpoLog"></label>
+            <label>Katalog RPO · dk<input type="number" min="0" max="10080" step="1" data-em-setting="rpoCatalog"></label>
+            <label>Ses arşivi RPO · sa<input type="number" min="0" max="720" step="1" data-em-setting="rpoAudio"></label>
+          </div>
+          <h4 class="em-sub">Lisans</h4>
+          <div class="em-fields">
+            <div class="em-fact"><span>Yedek makinede</span><strong data-em-license>—</strong></div>
+            <label>Taşıma / destek dışı saat<textarea rows="2" maxlength="600" data-em-setting="licenseNote"></textarea></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="em-card em-log" aria-labelledby="em-log-title">
+        <header class="em-card-head"><h3 id="em-log-title">İşlem kaydı</h3><div class="em-row"><button type="button" data-emergency-save>Kaydet</button><button type="button" data-emergency-download>İndir</button></div></header>
+        <ol class="em-log-list" data-emergency-audit-list aria-label="İşlem kaydı"></ol>
+      </section>
+    </div>
+  </div>
+</section>
+
+<section class="task-view" id="advert-task-view" role="tabpanel" aria-labelledby="profile-advert-tab" hidden>
+<section class="advert-workspace" data-advert-workspace>
+  <section class="advert-card advert-notifications" data-advert-notifications aria-labelledby="advert-notifications-title">
+    <header class="advert-toolbar"><div><h3 id="advert-notifications-title">Bildirimler</h3></div><div class="advert-actions"><output data-advert-unread-count>— okunmamış</output><button type="button" data-advert-notification-filter="all" aria-pressed="true">Tümü</button><button type="button" data-advert-notification-filter="unread" aria-pressed="false">Okunmamış</button></div></header>
+    <div data-advert-notification-list></div>
+  </section>
+
+  <div class="advert-grid">
+    <section class="advert-card" aria-labelledby="advert-campaigns-title">
+      <header class="advert-toolbar"><div><h3 id="advert-campaigns-title">Kampanyalar</h3></div><button type="button" data-advert-new aria-haspopup="dialog" aria-controls="advert-campaign-dialog">+ Kampanya</button></header>
+      <label class="advert-search-label" for="advert-campaign-search">Kampanya ara</label><input id="advert-campaign-search" data-advert-search type="search" placeholder="Kampanya, reklamveren veya spot" autocomplete="off">
+      <div class="advert-table-scroll"><table class="advert-table"><thead><tr><th scope="col">Kampanya / spot</th><th scope="col">Geçerlilik</th><th scope="col">Plan</th><th scope="col">Onay</th></tr></thead><tbody data-advert-campaign-list></tbody></table></div>
+    </section>
+
+    <section class="advert-card advert-details" data-advert-details aria-labelledby="advert-details-title">
+      <header class="advert-toolbar"><div><h3 id="advert-details-title" data-advert-detail-name>Kampanya seçilmedi</h3><p class="advert-meta" data-advert-detail-spot>—</p></div><span class="advert-badge" data-advert-detail-approval>—</span></header>
+      <div class="advert-actions" data-advert-detail-actions><button type="button" data-advert-action="edit" aria-haspopup="dialog" aria-controls="advert-campaign-dialog" disabled>Düzenle</button><button type="button" data-advert-action="approve" disabled>Onayla</button><button type="button" data-advert-action="remove" disabled>Sil</button><button type="button" data-advert-action="download" disabled>Planı indir</button></div>
+      <dl class="advert-facts">
+        <div><dt>Reklamveren / sorumlu</dt><dd data-advert-fact="people">—</dd></div><div><dt>Sözleşme / sipariş</dt><dd data-advert-fact="contract">—</dd></div><div><dt>Hedef istasyon / çıkış</dt><dd data-advert-fact="target">Atanmadı</dd></div><div><dt>Planlanan yayın</dt><dd data-advert-fact="plan">—</dd></div><div><dt>İlk kuşak planı</dt><dd data-advert-fact="slot">Belirlenmedi</dd></div><div><dt>Ana / yedek dosya</dt><dd>—</dd></div><div><dt>Aktif listeye uygulanma</dt><dd>—</dd></div>
+      </dl>
+      <details class="advert-advanced-details"><summary>Sözleşme ve kuşak ayrıntıları</summary><dl class="advert-facts"><div><dt>Sözleşme bedeli</dt><dd data-advert-fact="price">Belirtilmedi</dd></div><div><dt>İletişim / satış notu</dt><dd data-advert-fact="contact">Belirtilmedi</dd></div><div><dt>Kuşak kapasitesi</dt><dd data-advert-fact="capacity">Belirlenmedi</dd></div><div><dt>Intro / outro / sabit anons</dt><dd data-advert-fact="overhead">—</dd></div><div><dt>Rekabet grubu / sıra</dt><dd data-advert-fact="competition">Belirtilmedi</dd></div><div><dt>Boş kuşak / dağıtım eksikliği</dt><dd data-advert-fact="distribution">—</dd></div></dl></details>
+      <details class="advert-version-history"><summary>Sürüm geçmişi</summary><div data-advert-version-history></div></details>
+      <section class="advert-reconciliation" aria-labelledby="advert-reconciliation-title">
+        <header class="advert-toolbar"><h4 id="advert-reconciliation-title">Gerçekleşme ve mutabakat</h4></header>
+        <dl class="advert-inline-summary"><div><dt>Planlanan</dt><dd data-advert-planned-count>—</dd></div><div><dt>Tamamlanan</dt><dd>—</dd></div><div><dt>Kesilen</dt><dd>—</dd></div><div><dt>Atlanan</dt><dd>—</dd></div><div><dt>Başarısız</dt><dd>—</dd></div><div><dt>Belirsiz</dt><dd>—</dd></div></dl>
+        <div class="advert-table-scroll"><table class="advert-table"><thead><tr><th scope="col">Saat</th><th scope="col">Sürüm</th><th scope="col">Çıkış</th><th scope="col">Sonuç / neden</th></tr></thead><tbody><tr><td colspan="4" class="advert-empty">—</td></tr></tbody></table></div>
+        <div class="advert-actions"><button type="button" disabled>Gerçekleşme kanıtını indir</button></div>
+      </section>
+    </section>
+  </div>
+  <p class="advert-status" data-advert-status role="status"></p>
+
+  <dialog class="advert-dialog" id="advert-campaign-dialog" aria-labelledby="advert-campaign-dialog-title">
+    <form class="advert-form" data-advert-form>
+      <header class="advert-dialog-heading"><h2 id="advert-campaign-dialog-title">Kampanya ekle</h2><button type="button" data-advert-close aria-label="Kampanya düzenleyicisini kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="advert-fields">
+        <div><label for="advert-campaign-name">Kampanya adı</label><input id="advert-campaign-name" name="name" maxlength="120" required></div>
+        <div><label for="advert-campaign-client">Reklamveren</label><input id="advert-campaign-client" name="client" maxlength="120" placeholder="Belirtilmedi"></div>
+        <div><label for="advert-campaign-owner">Sorumlu kişi</label><input id="advert-campaign-owner" name="owner" maxlength="120" placeholder="Atanmadı"></div>
+        <div><label for="advert-campaign-reference">Sözleşme / sipariş referansı</label><input id="advert-campaign-reference" name="reference" maxlength="120" placeholder="Belirtilmedi"></div>
+        <div><label for="advert-campaign-start">Başlangıç tarihi</label><input id="advert-campaign-start" name="start" type="date" required></div>
+        <div><label for="advert-campaign-end">Bitiş tarihi</label><input id="advert-campaign-end" name="end" type="date" required></div>
+        <div><label for="advert-campaign-target">Hedef istasyon / çıkış</label><input id="advert-campaign-target" name="target" maxlength="120" placeholder="Atanmadı"></div>
+        <div><label for="advert-campaign-spot">Spot / ses adı</label><input id="advert-campaign-spot" name="spot" maxlength="120" required></div>
+        <div><label for="advert-campaign-version">Spot sürümü</label><input id="advert-campaign-version" name="version" maxlength="40" value="v1" required></div>
+        <div><label for="advert-campaign-duration">Spot süresi · saniye</label><input id="advert-campaign-duration" name="duration" type="number" min="1" max="3600" step="1" value="30" required></div>
+        <div><label for="advert-campaign-count">Planlanan yayın adedi</label><input id="advert-campaign-count" name="count" type="number" min="0" max="100000" step="1" value="0" required></div>
+      </div>
+      <details class="advert-advanced-form"><summary>Satış ve kuşak ayrıntıları</summary>
+        <div class="advert-fields">
+          <div><label for="advert-campaign-price">Sözleşme bedeli · isteğe bağlı</label><input id="advert-campaign-price" name="price" type="number" min="0" max="1000000000" step="0.01" placeholder="Belirtilmedi"></div>
+          <div><label for="advert-campaign-currency">Para birimi</label><select id="advert-campaign-currency" name="currency"><option value="TRY">TRY</option><option value="EUR">EUR</option><option value="USD">USD</option></select></div>
+          <div><label for="advert-campaign-contact">İletişim / satış notu</label><textarea id="advert-campaign-contact" name="contact" maxlength="1000" rows="3" placeholder="İletişim ve satış notu"></textarea></div>
+          <div><label for="advert-campaign-slot">İlk reklam kuşağı · isteğe bağlı</label><input id="advert-campaign-slot" name="slot" type="time" step="60"></div>
+          <div><label for="advert-campaign-capacity">Kuşak kapasitesi · saniye</label><input id="advert-campaign-capacity" name="capacity" type="number" min="0" max="86400" step="1" value="0"></div>
+          <div><label for="advert-campaign-intro">Intro · saniye</label><input id="advert-campaign-intro" name="intro" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-outro">Outro · saniye</label><input id="advert-campaign-outro" name="outro" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-announcement">Sabit anons · saniye</label><input id="advert-campaign-announcement" name="announcement" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-competition">Rekabet grubu</label><input id="advert-campaign-competition" name="competitorGroup" maxlength="100" placeholder="Belirtilmedi"></div>
+          <div><label for="advert-campaign-position">Kuşaktaki sıra</label><select id="advert-campaign-position" name="position"><option value="any">Herhangi</option><option value="first">İlk</option><option value="last">Son</option></select></div>
+          <div><label for="advert-campaign-fallback">Dağıtım eksik olduğunda</label><select id="advert-campaign-fallback" name="fallback"><option value="skip">Eksik spotu atla</option><option value="approvedAlternative">Onaylı alternatifi kullan</option><option value="operator">Operatör kararı bekle</option></select></div>
+        </div>
+        <div class="advert-checks"><label><input type="checkbox" name="skipEmptyJingle" checked> Boş kuşakta reklam jingle'ını atla</label></div>
+        <p class="advert-inline-summary" data-advert-capacity-preview></p>
+      </details>
+      <p class="advert-status" data-advert-form-status role="status"></p>
+      <div class="advert-dialog-actions"><button type="button" data-advert-close>Vazgeç</button><button type="submit">Kampanyayı kaydet</button></div>
+    </form>
+  </dialog>
+</section>
+</section>
+<section class="task-view" id="technical-task-view" role="tabpanel" aria-labelledby="profile-technical-tab" hidden>
+<div class="technical-management" id="technical-management" data-technical-management>
+  <nav class="technical-tabs" data-tech-tabs role="tablist" aria-label="Teknik yönetim bölümleri">
+    <button type="button" role="tab" id="technical-servers-tab" data-tech-pane="servers" aria-selected="true" aria-controls="technical-servers-pane">Sunucular</button>
+    <button type="button" role="tab" id="technical-people-tab" data-tech-pane="people" aria-selected="false" aria-controls="technical-people-pane" tabindex="-1">Yayın kişileri</button>
+    <button type="button" role="tab" id="technical-web-tab" data-tech-pane="web" aria-selected="false" aria-controls="technical-web-pane" tabindex="-1">Web erişimi</button>
+    <button type="button" role="tab" id="technical-devices-tab" data-tech-pane="devices" aria-selected="false" aria-controls="technical-devices-pane" tabindex="-1">Aygıtlar ve görünüm</button>
+  </nav>
+
+  <section class="technical-pane" id="technical-servers-pane" role="tabpanel" aria-labelledby="technical-servers-tab" tabindex="0">
+    <section class="technical-card" aria-labelledby="technical-servers-title">
+      <header class="technical-toolbar"><div><h3 id="technical-servers-title">Sunucu bilgisayarlar</h3></div><button type="button" data-tech-server-new aria-haspopup="dialog" aria-controls="technical-server-dialog">+ Sunucu ekle</button></header>
+      <div class="technical-list" data-tech-server-list></div>
+      <dl class="technical-facts"><div><dt>Sunucu durumu</dt><dd>—</dd></div><div><dt>Veritabanı eşitlemesi</dt><dd>—</dd></div><div><dt>Gerçek çevrimdışı kapsam</dt><dd>—</dd></div></dl>
+      <div class="technical-actions"><button type="button" disabled>Bağlantıları test et</button></div>
+    </section>
+  </section>
+
+  <section class="technical-pane" id="technical-people-pane" role="tabpanel" aria-labelledby="technical-people-tab" tabindex="0" hidden>
+    <section class="technical-card" aria-labelledby="technical-people-title">
+      <header class="technical-toolbar"><div><h3 id="technical-people-title">Yayın kişileri ve yetkileri</h3></div><button type="button" data-tech-person-new aria-haspopup="dialog" aria-controls="technical-person-dialog">+ Kişi ata</button></header>
+      <div class="technical-list" data-tech-person-list></div>
+    </section>
+  </section>
+
+  <section class="technical-pane" id="technical-web-pane" role="tabpanel" aria-labelledby="technical-web-tab" tabindex="0" hidden>
+    <div class="technical-grid technical-web-grid">
+      <section class="technical-card" aria-labelledby="technical-web-title">
+        <header class="technical-toolbar"><div><h3 id="technical-web-title">Web üzerinden erişim</h3></div></header>
+        <form class="technical-form" data-tech-web-form>
+          <div class="technical-fields">
+            <div><label for="technical-management-url">Yönetim paneli adresi</label><input id="technical-management-url" name="managementUrl" type="url" placeholder="https://panel.istasyon.com" maxlength="500" required autocomplete="off"></div>
+            <div><label for="technical-listener-url">Dinleyici akışı adresi · isteğe bağlı</label><input id="technical-listener-url" name="listenerUrl" type="url" placeholder="https://yayin.istasyon.com/live" maxlength="500" autocomplete="off"></div>
+            <div><label for="technical-site-url">İstasyon sitesi · isteğe bağlı</label><input id="technical-site-url" name="siteUrl" type="url" placeholder="https://istasyon.com" maxlength="500" autocomplete="off"></div>
+            <div><label for="technical-site-api-path">Site bağlantı yolu</label><input id="technical-site-api-path" name="apiPath" type="text" maxlength="200" value="/api/radios" placeholder="/api/radios" autocomplete="off"></div>
+            <div><label for="technical-web-auth">Kimlik doğrulama</label><select id="technical-web-auth" name="auth"><option value="password">Parola</option><option value="mfa">Parola + ikinci doğrulama</option><option value="identity">Kurum kimliği</option></select></div>
+            <div><label for="technical-web-session">Oturum süresi · dakika</label><input id="technical-web-session" name="sessionMinutes" type="number" min="1" max="1440" step="1" value="30" required></div>
+            <div><label for="technical-web-permission">Varsayılan erişim</label><select id="technical-web-permission" name="permission"><option value="monitor">Yalnız izleme</option><option value="control">Yayın kontrolü</option><option value="limited">Seçili kapsam ve yetkiler</option></select></div>
+          </div>
+          <fieldset class="technical-checks"><legend>İstasyon sitesi bağlantıları</legend><label><input type="checkbox" name="siteSearch"> Parça / albüm araması</label><label><input type="checkbox" name="siteRequests"> İstek / iletişim formu</label><label><input type="checkbox" name="siteAdverts"> Şifreli reklam teslimi</label></fieldset>
+          <div class="technical-actions"><button type="submit">Web erişimini kaydet</button></div>
+        </form>
+      </section>
+      <section class="technical-card technical-preview" aria-labelledby="technical-web-preview-title">
+        <header class="technical-toolbar"><h3 id="technical-web-preview-title">Erişim özeti</h3></header>
+        <dl class="technical-facts"><div><dt>Yönetim paneli</dt><dd data-tech-web-preview="management">Tanımlanmadı</dd></div><div><dt>Dinleyici akışı</dt><dd data-tech-web-preview="listener">Tanımlanmadı</dd></div><div><dt>Site bağlantısı</dt><dd data-tech-web-preview="endpoint">Tanımlanmadı</dd></div><div><dt>Kimlik / oturum</dt><dd data-tech-web-preview="identity">—</dd></div><div><dt>Varsayılan yetki</dt><dd data-tech-web-preview="permission">Yalnız izleme</dd></div><div><dt>Site işlevleri</dt><dd data-tech-web-preview="features">Seçilmedi</dd></div><div><dt>Son doğrulanmış veri</dt><dd>—</dd></div></dl>
+        <div class="technical-actions"><a data-tech-web-open target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Web panelini aç ↗</a><button type="button" disabled>Erişimi test et</button></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="technical-pane" id="technical-devices-pane" role="tabpanel" aria-labelledby="technical-devices-tab" tabindex="0" hidden>
+      <form data-technical-form class="task-technical-grid task-form">
+    <section class="task-card"><div class="task-card-heading"><h3>Ses çıkışları</h3></div><label for="task-main-output">Yayın çıkışı</label><select id="task-main-output" name="mainOutput"><option value="">Atanmadı</option><option value="draft-a">Çıkış A</option><option value="draft-b">Çıkış B</option></select><label for="task-cue-output">CUE / Kulaklık çıkışı</label><select id="task-cue-output" name="cueOutput"><option value="">Atanmadı</option><option value="draft-cue">Kulaklık</option></select><label for="task-return-output">Uzak konuk geri dönüşü</label><select id="task-return-output" name="returnOutput"><option value="">Atanmadı</option><option value="draft-return">Geri dönüş</option></select><button type="button" disabled>Çıkışları test et</button></section>
+    <section class="task-card"><div class="task-card-heading"><h3>MIDI ve erişim</h3></div><label for="task-midi-profile">Denetleyici eşlemesi</label><select id="task-midi-profile" name="midi"><option value="none">Denetleyici bağlı değil</option><option value="keyboard">Klavye eşlemesi</option></select><label for="task-role">Çalışma yetkisi</label><select id="task-role" name="role"><option value="operator">Yayın operatörü</option><option value="planner">Program planlayıcısı</option><option value="administrator">Teknik yönetici</option></select><button type="button" disabled>Denetleyiciyi doğrula</button></section>
+    <section class="task-card"><div class="task-card-heading"><h3>Ağ ve API</h3></div><label for="task-api-endpoint">Servis adresi</label><input id="task-api-endpoint" name="endpoint" type="url" placeholder="https://..." autocomplete="off"><label for="task-api-secret">API anahtarı</label><input id="task-api-secret" name="secret" type="password" autocomplete="off"><label class="task-check"><input type="checkbox" name="requestBackup">Yedek bağlantı kontrolü iste</label><div class="task-actions"><button type="button" disabled>Bağlantıyı test et</button><button type="button" disabled>Geri dönüş testi</button></div></section>
+    <section class="task-card"><div class="task-card-heading"><h3>Görünüm tercihleri</h3></div><label for="task-text-size">Çalışma alanı yazı boyutu</label><select id="task-text-size" name="textSize"><option value="compact">Kompakt</option><option value="normal" selected>Standart</option><option value="large">Büyük</option></select><label for="task-default-profile">Başlangıç çalışma profili</label><select id="task-default-profile" name="defaultProfile"><option value="last" selected>Son kullanılan profil</option><option value="broadcast">Yayın</option><option value="playlist">Playlist</option><option value="automation">Otomasyon</option><option value="dj">DJ</option><option value="emergency">Acil</option><option value="advert">Reklam</option><option value="technical">Teknik yönetim</option></select><div class="task-actions"><button type="submit" class="task-primary">Tercihleri kaydet</button><button type="button" data-task-reset>Güvenli başlangıca dön</button></div><p class="task-feedback" role="status" data-technical-status></p></section>
+  </form>
+  </section>
+
+  <p class="technical-status" data-tech-status role="status"></p>
+  <section class="technical-card technical-audit" aria-labelledby="technical-audit-title"><header class="technical-toolbar"><div><h3 id="technical-audit-title">İşlem kaydı</h3></div></header><ol data-tech-audit-list></ol></section>
+
+  <dialog class="technical-dialog" id="technical-server-dialog" aria-labelledby="technical-server-dialog-title">
+    <form class="technical-form" data-tech-server-form>
+      <header class="technical-dialog-heading"><h2 id="technical-server-dialog-title">Sunucu ekle</h2><button type="button" data-tech-dialog-close aria-label="Sunucu düzenleyicisini kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="technical-fields">
+        <div><label for="technical-server-name">Sunucu adı</label><input id="technical-server-name" name="name" maxlength="100" required></div>
+        <div><label for="technical-server-architecture">Çalışma düzeni</label><select id="technical-server-architecture" name="architecture"><option value="local">Yerel</option><option value="cloud">Bulut</option><option value="hybrid">Hibrit</option></select></div>
+        <div><label for="technical-server-role">Sunucunun görevi</label><select id="technical-server-role" name="role"><option value="primary">Ana yayın</option><option value="backup">Yedek yayın</option><option value="management">Yönetim</option></select></div>
+        <div><label for="technical-server-station">İstasyon / hedef adı</label><input id="technical-server-station" name="station" maxlength="100" required></div>
+        <div><label for="technical-server-address">Sunucu adresi</label><input id="technical-server-address" name="address" type="url" placeholder="https://sunucu.istasyon.com" maxlength="500" required autocomplete="off"></div>
+        <div><label for="technical-server-database">Veritabanı profil adı · isteğe bağlı</label><input id="technical-server-database" name="database" maxlength="100" placeholder="Ana arşiv"></div>
+        <div><label for="technical-server-offline">Planlanan çevrimdışı kapsam · dakika</label><input id="technical-server-offline" name="offlineMinutes" type="number" min="0" max="100800" step="1" value="0" required></div>
+      </div>
+      <div class="technical-dialog-actions"><button type="button" data-tech-dialog-close>Vazgeç</button><button type="submit">Sunucuyu kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="technical-dialog" id="technical-person-dialog" aria-labelledby="technical-person-dialog-title">
+    <form class="technical-form" data-tech-person-form>
+      <header class="technical-dialog-heading"><h2 id="technical-person-dialog-title">Yayın kişisi ata</h2><button type="button" data-tech-dialog-close aria-label="Kişi atamasını kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="technical-fields">
+        <div><label for="technical-person-name">Kişinin adı</label><input id="technical-person-name" name="name" maxlength="100" required></div>
+        <div><label for="technical-person-login">Kullanıcı adı / kimliği</label><input id="technical-person-login" name="login" maxlength="120" required autocomplete="off"></div>
+        <div><label for="technical-person-role">Rol</label><select id="technical-person-role" name="role"><option value="operator">Yayın operatörü</option><option value="presenter">Sunucu / DJ</option><option value="technical">Teknik yönetici</option><option value="advert">Reklam sorumlusu</option><option value="custom">Özel rol</option></select></div>
+        <div data-tech-custom-role-field hidden><label for="technical-person-custom-role">Özel rol adı</label><input id="technical-person-custom-role" name="customRole" maxlength="100"></div>
+        <div><label for="technical-person-scope">Atama kapsamı</label><select id="technical-person-scope" name="scope"><option value="station">İstasyon</option><option value="programme">Program</option><option value="player">Oynatıcı</option></select></div>
+        <div data-tech-station-target-field><label for="technical-person-station">Hedef istasyon adı</label><input id="technical-person-station" name="station" maxlength="100" required list="technical-station-suggestions"><datalist id="technical-station-suggestions"></datalist></div>
+        <div data-tech-dynamic-target-field hidden><label for="technical-person-target">Hedef program / oynatıcı</label><select id="technical-person-target" name="target"></select></div>
+        <div><label for="technical-person-server">Atanacağı sunucu · isteğe bağlı</label><select id="technical-person-server" name="server"><option value="">Atanmadı</option></select></div>
+        <div><label for="technical-person-start">Vardiya başlangıcı · isteğe bağlı</label><input id="technical-person-start" name="start" type="datetime-local"></div>
+        <div><label for="technical-person-end">Vardiya bitişi</label><input id="technical-person-end" name="end" type="datetime-local"></div>
+        <div><label for="technical-person-period">Atama süresi</label><select id="technical-person-period" name="period"><option value="permanent">Kalıcı</option><option value="temporary">Geçici</option></select></div>
+      </div>
+      <fieldset class="technical-checks"><legend>Seçilen kapsamda izinler</legend><label><input type="checkbox" name="monitor" checked> İzleme</label><label><input type="checkbox" name="control"> Yayın kontrolü</label><label><input type="checkbox" name="cue"> CUE / ön dinleme</label><label><input type="checkbox" name="programmeEdit"> Program düzenleme</label><label><input type="checkbox" name="errorFix"> Hata düzeltme</label><label><input type="checkbox" name="serviceManagement"> Servis yönetimi</label><label><input type="checkbox" name="bulkTemporary"> Geçici toplu düzenleme</label><label><input type="checkbox" name="bulkPermanent"> Kalıcı toplu düzenleme</label></fieldset>
+      <div class="technical-dialog-actions"><button type="button" data-tech-dialog-close>Vazgeç</button><button type="submit">Atamayı kaydet</button></div>
+    </form>
+  </dialog>
+</div>
+</section>
+    </main>
+    <dialog class="playlist-dialog" id="playlist-editor" aria-labelledby="playlist-editor-heading">
+        <form data-playlist-editor-form>
+            <div class="playlist-dialog-heading"><h2 id="playlist-editor-heading">Playlisti düzenle</h2><button type="button" data-playlist-close aria-label="Playlist düzenleyicisini kapat">×</button></div>
+            <label for="playlist-edit-name">Playlist adı</label>
+            <input id="playlist-edit-name" name="name" required maxlength="120" autocomplete="off">
+            <div class="playlist-dialog-actions">
+                <button type="button" class="playlist-remove-button" data-playlist-remove>Playlisti sil</button>
+                <button type="button" data-playlist-close>Vazgeç</button>
+                <button type="submit" class="playlist-save-button">Kaydet</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog class="playlist-dialog" id="playlist-track-editor" aria-labelledby="playlist-track-editor-heading">
+        <form data-playlist-track-form>
+            <div class="playlist-dialog-heading"><h2 id="playlist-track-editor-heading">Parçayı düzenle</h2><button type="button" data-playlist-close aria-label="Parça düzenleyicisini kapat">×</button></div>
+            <label for="playlist-track-title">Parça adı</label>
+            <input id="playlist-track-title" name="title" required maxlength="160" autocomplete="off">
+            <div class="playlist-dialog-fields">
+                <div><label for="playlist-track-artist">Sanatçı</label><input id="playlist-track-artist" name="artist" maxlength="120" autocomplete="off"></div>
+                <div><label for="playlist-track-album">Albüm</label><input id="playlist-track-album" name="album" maxlength="120" autocomplete="off"></div>
+            </div>
+            <label for="playlist-track-duration">Süre (dk:sn)</label>
+            <input id="playlist-track-duration" name="duration" type="text" inputmode="numeric" placeholder="03:30" pattern="[0-9]{1,3}:[0-5][0-9]" maxlength="6">
+            <div class="playlist-dialog-actions">
+                <button type="button" class="playlist-remove-button" data-playlist-track-remove>Parçayı sil</button>
+                <button type="button" data-playlist-close>Vazgeç</button>
+                <button type="submit" class="playlist-save-button">Kaydet</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog class="programme-dialog" id="programme-editor" aria-labelledby="programme-editor-title">
+        <form data-programme-form>
+            <div class="programme-dialog-heading"><h2 id="programme-editor-title">Programı düzenle</h2><button type="button" data-close-programme-dialog aria-label="Program düzenleyicisini kapat">×</button></div>
+            <label for="programme-name">Program adı</label><input id="programme-name" name="name" type="text" required maxlength="80" autocomplete="off">
+            <label for="programme-date">Program tarihi</label><input id="programme-date" name="date" type="date">
+            <label for="programme-notes">Program notu</label><textarea id="programme-notes" name="notes" rows="3" maxlength="400"></textarea>
+            <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Vazgeç</button><button class="programme-dialog-save" type="submit">Taslağı kaydet</button></div>
+        </form>
+    </dialog>
+    <dialog class="programme-dialog" id="programme-item-editor" aria-labelledby="programme-item-editor-title">
+        <form data-programme-item-form>
+            <div class="programme-dialog-heading"><h2 id="programme-item-editor-title">Öğe özellikleri</h2><button type="button" data-close-programme-dialog aria-label="Öğe özelliklerini kapat">×</button></div>
+            <label for="programme-item-title">İçerik başlığı</label><input id="programme-item-title" name="title" type="text" required maxlength="160" autocomplete="off">
+            <div class="programme-dialog-fields"><div><label for="programme-item-artist">Sanatçı</label><input id="programme-item-artist" name="artist" type="text" maxlength="120" autocomplete="off"></div><div><label for="programme-item-album">Albüm</label><input id="programme-item-album" name="album" type="text" maxlength="120" autocomplete="off"></div></div>
+            <label for="programme-item-type">Öğe türü</label><select id="programme-item-type" name="type"><option value="music">Müzik</option><option value="announcement">Anons</option><option value="advert">Reklam</option><option value="jingle">Jingle</option><option value="programme">Program</option></select>
+            <div class="programme-dialog-fields"><div><label for="programme-item-time">Başlangıç saati</label><input id="programme-item-time" name="time" type="time"></div><div><label for="programme-item-duration">Süre (mm:ss)</label><input id="programme-item-duration" name="duration" type="text" inputmode="numeric" placeholder="03:30" pattern="[0-9]{1,3}:[0-5][0-9]" maxlength="6"></div></div>
+<fieldset class="programme-preparation-fields">
+    <legend>Sürüm ve hazırlık</legend>
+    <div class="programme-dialog-fields">
+        <div><label for="programme-item-version">İçerik sürümü</label><input id="programme-item-version" name="version" type="text" maxlength="32" required autocomplete="off" placeholder="v1"></div>
+        <div><label for="programme-item-readiness">Hazırlık durumu</label><select id="programme-item-readiness" name="readiness"><option value="pending">Kontrol bekliyor</option><option value="ready">Hazır</option><option value="missing">Dosya eksik</option><option value="approval">Onay bekliyor</option><option value="invalid">Geçersiz reklam</option><option value="locked">Kilitli</option></select></div>
+    </div>
+    <div class="programme-dialog-fields">
+        <div><label for="programme-item-primary">Ana sistem dosyası</label><select id="programme-item-primary" name="primaryState"><option value="unknown">Bilinmiyor</option><option value="present">Mevcut</option><option value="missing">Eksik</option></select></div>
+        <div><label for="programme-item-backup">Yedek sistem dosyası</label><select id="programme-item-backup" name="backupState"><option value="unknown">Bilinmiyor</option><option value="present">Mevcut</option><option value="missing">Eksik</option></select></div>
+    </div>
+</fieldset>
+            <label for="programme-item-notes">Öğe notu</label><textarea id="programme-item-notes" name="notes" rows="2" maxlength="300"></textarea>
+            <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Vazgeç</button><button class="programme-dialog-save" type="submit">Özellikleri kaydet</button></div>
+        </form>
+    </dialog>
+<dialog class="programme-dialog" id="programme-review-dialog" aria-labelledby="programme-review-title">
+    <div class="programme-dialog-heading"><h2 id="programme-review-title">Taslak incelemesi</h2><button type="button" data-close-programme-dialog aria-label="Taslak incelemesini kapat">×</button></div>
+    <div data-programme-review-content></div>
+    <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Kapat</button><button class="programme-dialog-save" type="button" data-programme-approve>Onayla</button></div>
+</dialog>
+<dialog class="programme-dialog" id="programme-timing-editor" aria-labelledby="programme-timing-editor-title">
+    <form data-programme-timing-form>
+        <div class="programme-dialog-heading"><h2 id="programme-timing-editor-title">Kesin saat davranışı</h2><button type="button" data-close-programme-dialog aria-label="Kesin saat düzenleyicisini kapat">×</button></div>
+        <label for="programme-timed-title">Hedef olay</label><input id="programme-timed-title" name="title" maxlength="80" required autocomplete="off">
+        <div class="programme-dialog-fields"><div><label for="programme-start-time">Program başlangıcı (UTC)</label><input id="programme-start-time" name="start" type="time" required></div><div><label for="programme-target-time">Hedef saat (UTC)</label><input id="programme-target-time" name="target" type="time" required></div></div>
+        <label for="programme-timed-policy">Hedef saatte davranış</label><select id="programme-timed-policy" name="policy"><option value="cut">Parçayı kes · hedef saatte gir</option><option value="finish">Bitmesini bekle · sınırlı bekleme</option></select>
+        <label for="programme-timed-wait">En fazla bekleme (saniye)</label><input id="programme-timed-wait" name="maxWait" type="number" min="0" max="600" step="1" value="30">
+        <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Vazgeç</button><button class="programme-dialog-save" type="submit">Uygula</button></div>
+    </form>
+</dialog>
+<dialog class="transition-editor-dialog" id="transition-editor" aria-labelledby="transition-editor-title">
+    <form data-transition-form>
+        <div class="transition-dialog-heading"><div><h2 id="transition-editor-title">Cue ve geçiş editörü</h2></div><button type="button" data-close-transition-editor aria-label="Geçiş editörünü kapat">×</button></div>
+        <div class="transition-source-grid">
+            <section class="transition-source" aria-labelledby="transition-a-title">
+                <h3 id="transition-a-title"><span class="transition-deck-tag">A</span> Çıkış öğesi</h3>
+                <label for="transition-source-a">Program öğesi</label><select id="transition-source-a" data-transition-source="a"></select>
+                <label class="transition-file-label" for="transition-file-a">Yerel ses dosyası <input id="transition-file-a" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-transition-file="a"></label>
+                <div class="transition-file-info"><span data-transition-file-info="a">Dosya yüklenmedi</span><button type="button" data-clear-transition-file="a" disabled>Kaldır</button></div>
+                <canvas class="transition-wave-canvas" width="600" height="96" data-transition-wave="a" aria-label="A öğesinin gerçek dalga biçimi; dosya bekleniyor"></canvas>
+            </section>
+            <section class="transition-source" aria-labelledby="transition-b-title">
+                <h3 id="transition-b-title"><span class="transition-deck-tag transition-deck-tag--b">B</span> Giriş öğesi</h3>
+                <label for="transition-source-b">Program öğesi</label><select id="transition-source-b" data-transition-source="b"></select>
+                <label class="transition-file-label" for="transition-file-b">Yerel ses dosyası <input id="transition-file-b" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-transition-file="b"></label>
+                <div class="transition-file-info"><span data-transition-file-info="b">Dosya yüklenmedi</span><button type="button" data-clear-transition-file="b" disabled>Kaldır</button></div>
+                <canvas class="transition-wave-canvas" width="600" height="96" data-transition-wave="b" aria-label="B öğesinin gerçek dalga biçimi; dosya bekleniyor"></canvas>
+            </section>
+        </div>
+        <fieldset class="transition-time-fields"><legend>İşaretler <span>saniye</span></legend>
+            <div><label for="transition-duration">A toplam süre</label><input id="transition-duration" name="duration" type="number" min="0.1" max="86400" step="0.1" required></div>
+            <div><label for="transition-cue-in">A cue başlangıcı</label><input id="transition-cue-in" name="cueIn" type="number" min="0" max="86400" step="0.1" value="0" required></div>
+            <div><label for="transition-intro">A vokal girişi</label><input id="transition-intro" name="intro" type="number" min="0" max="86400" step="0.1" placeholder="İsteğe bağlı"></div>
+            <div><label for="transition-out">A çıkış noktası</label><input id="transition-out" name="out" type="number" min="0.1" max="86400" step="0.1" required></div>
+            <div><label for="transition-b-in">B cue başlangıcı</label><input id="transition-b-in" name="bCueIn" type="number" min="0" max="86400" step="0.1" value="0" required></div>
+            <div><label for="transition-fade-in">B giriş fade’i</label><input id="transition-fade-in" name="fadeIn" type="number" min="0" max="30" step="0.1" value="2" required></div>
+        </fieldset>
+        <div class="transition-mix-fields">
+            <div><label for="transition-overlap">Bindirme <output data-transition-overlap-output>2 sn</output></label><input id="transition-overlap" name="overlap" type="range" min="0" max="30" step="0.1" value="2"></div>
+            <div><label for="transition-ducking">B sırasında A kısma <output data-transition-ducking-output>0 dB</output></label><input id="transition-ducking" name="ducking" type="range" min="-30" max="0" step="1" value="0"></div>
+        </div>
+        <label class="transition-lock"><input type="checkbox" name="locked"> Elle kilitle</label>
+        <div class="transition-preview-box">
+            <div><span class="transition-preview-title">Ön dinleme</span></div>
+            <div class="transition-preview-controls"><button type="button" data-transition-preview disabled>Ön dinle</button><button type="button" data-transition-stop disabled>Durdur</button><label for="transition-preview-level">Seviye <output data-transition-level-output>−12 dB</output><input id="transition-preview-level" type="range" min="-36" max="0" step="1" value="-12"></label></div>
+        </div>
+        <p class="transition-editor-status" data-transition-editor-status role="status" aria-live="polite"></p>
+        <div class="transition-dialog-actions"><button type="button" data-close-transition-editor>Vazgeç</button><button class="transition-save" type="submit">Geçişi kaydet</button></div>
+    </form>
+</dialog>
+<dialog class="ops-dialog" id="emergency-dialog" aria-labelledby="emergency-dialog-title">
+    <form data-emergency-form><div class="ops-dialog-heading"><h2 id="emergency-dialog-title">Acil yayın · Devralma</h2><button type="button" data-close-ops-dialog aria-label="Acil yayın penceresini kapat">×</button></div>
+        <dl class="ops-data-list"><div><dt>Etkilenecek çıkışlar</dt><dd data-em-dialog="outputs">—</dd></div><div><dt>Aktif / yedek motor</dt><dd data-em-dialog="engines">—</dd></div><div><dt>Doğrulanan dosya</dt><dd data-em-dialog="verified">—</dd></div><div><dt>Yerel kapsam</dt><dd data-em-dialog="coverage">—</dd></div><div><dt>Son tatbikat</dt><dd data-em-dialog="drill">—</dd></div></dl>
+        <label for="emergency-strategy">Devralma davranışı</label><select id="emergency-strategy" name="strategy"><option value="playlist">Acil listeyi başlat</option><option value="next">Sıradaki olaya geç</option><option value="continue">Çalan öğeyi sürdür</option></select>
+        <label for="emergency-list-name">Acil liste adı</label><input id="emergency-list-name" name="name" maxlength="100">
+        <label class="ops-check"><input type="checkbox" name="confirmed"> Hedef çıkışın etkileneceğini onaylıyorum</label>
+        <div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Hazırlık taslağını kaydet</button><button type="button" class="ops-emergency-button" disabled>Devralmayı başlat</button></div>
+    </form>
+</dialog>
+<dialog class="ops-dialog" id="temporary-queue-editor" aria-labelledby="temporary-queue-editor-title">
+    <form data-queue-form><div class="ops-dialog-heading"><h2 id="temporary-queue-editor-title">Geçici sıra öğesi</h2><button type="button" data-close-ops-dialog aria-label="Sıra düzenleyicisini kapat">×</button></div>
+        <label for="temporary-item-title">Başlık</label><input id="temporary-item-title" name="title" required maxlength="160">
+        <div class="ops-form-columns"><div><label for="temporary-item-artist">Sanatçı</label><input id="temporary-item-artist" name="artist" maxlength="120"></div><div><label for="temporary-item-album">Albüm</label><input id="temporary-item-album" name="album" maxlength="120"></div></div>
+        <div class="ops-form-columns"><div><label for="temporary-item-type">Tür</label><select id="temporary-item-type" name="type"><option value="music">Müzik</option><option value="announcement">Anons</option><option value="advert">Reklam</option><option value="jingle">Jingle</option></select></div><div><label for="temporary-item-duration">Süre (dk:sn)</label><input id="temporary-item-duration" name="duration" pattern="[0-9]{1,3}:[0-5][0-9]" maxlength="6" placeholder="03:30"></div></div>
+        <div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Kaydet</button></div>
+    </form>
+</dialog>
+<dialog class="ops-dialog" id="diagnostic-details-dialog" aria-labelledby="diagnostic-details-title">
+    <div class="ops-dialog-heading"><h2 id="diagnostic-details-title">Hata ayrıntıları</h2><button type="button" data-close-ops-dialog aria-label="Hata ayrıntılarını kapat">×</button></div>
+    <dl class="ops-data-list"><div><dt>Etkilenen hedef</dt><dd>—</dd></div><div><dt>Yayın etkisi</dt><dd>—</dd></div><div><dt>Sistemin uyguladığı davranış</dt><dd>—</dd></div><div><dt>Son güncelleme</dt><dd>—</dd></div></dl>
+    <div class="ops-dialog-actions"><button type="button" data-open-support-note>Yöneticiye bildir</button><button type="button" disabled>Uyarıyı kabul et</button></div>
+</dialog>
+<dialog class="ops-dialog" id="support-note-dialog" aria-labelledby="support-note-title">
+    <form data-support-note-form><div class="ops-dialog-heading"><h2 id="support-note-title">Yöneticiye bildirim</h2><button type="button" data-close-ops-dialog aria-label="Bildirim taslağını kapat">×</button></div><label for="support-note">Sorun / gözlem</label><textarea id="support-note" name="note" rows="5" required maxlength="1500"></textarea><div class="ops-dialog-actions"><button type="button" data-close-ops-dialog>Vazgeç</button><button type="submit">Bildirimi indir</button></div></form>
+</dialog>
+
+
+    <footer class="status-footer" aria-label="Sistem bilgileri">
+        <div class="footer-info">
+            <span>İstasyon: —</span>
+            <span>Son güncelleme: —</span>
+            <button class="footer-test-button" type="button" disabled>Test et</button>
+        </div>
+    </footer>
+<div hidden aria-hidden="true" id="legacy-transition-workspace">
+<section class="ld-panel ld-wave" id="waveform-workspace" data-workspace-panel="waveform" aria-labelledby="waveform-title">
+                    <header class="ld-head">
+                        <h2 id="waveform-title"><button class="workspace-tab ld-tab" type="button" aria-pressed="false" aria-controls="waveform-workspace">Dalga biçimi <span>· Cue · Geçiş</span></button></h2>
+                        <span class="ld-target-tag">ÖN DİNLEME</span>
+                    </header>
+                    <div class="ld-body ld-wave-body">
+                        <div class="ld-transition" data-transition-panel>
+                            <div class="ld-wave-toolbar">
+                                <div><p class="ld-transition-context" data-transition-context>Geçiş için Programlar’dan bir öğe seç</p><p class="ld-eyebrow">Geçiş taslağı · yayından bağımsız</p></div>
+                                <button class="ld-btn ld-btn--primary" type="button" data-open-transition-editor>Geçişi düzenle</button>
+                            </div>
+                            <div class="ld-decks" role="group" aria-label="Geçişteki iki öğe">
+                                <div class="ld-deck"><span class="ld-deck-tag">A</span><div><p data-transition-a>Öğe seçilmedi</p><small data-transition-a-meta>Çıkış öğesi</small></div></div>
+                                <svg viewBox="0 0 32 16" aria-hidden="true"><path d="M1 8h27M22 3l6 5-6 5"/></svg>
+                                <div class="ld-deck ld-deck--b"><span class="ld-deck-tag">B</span><div><p data-transition-b>Sonraki öğe seçilmedi</p><small data-transition-b-meta>Giriş öğesi</small></div></div>
+                            </div>
+                            <div class="ld-timeline" role="img" aria-label="Geçiş taslağının zaman şeması; ölçülmüş dalga biçimi değildir">
+                                <div class="ld-timeline-a">A çıkışı</div>
+                                <div class="ld-timeline-b">B girişi</div>
+                                <small data-transition-mini-overlap>Bindirme ayarlanmadı</small>
+                            </div>
+                            <dl class="ld-markers">
+                                <div><dt>Cue başlangıcı</dt><dd data-transition-summary="cueIn">—</dd></div>
+                                <div><dt>Vokal girişi</dt><dd data-transition-summary="intro">—</dd></div>
+                                <div><dt>Çıkış noktası</dt><dd data-transition-summary="out">—</dd></div>
+                                <div><dt>Bindirme</dt><dd data-transition-summary="overlap">—</dd></div>
+                            </dl>
+                            <p class="ld-status" data-transition-panel-status role="status">Gerçek dalga biçimi ve ön dinleme için düzenleyicide yerel ses dosyalarını yükle.</p>
+                        </div>
+                        <div class="ld-cue" role="group" aria-label="Dalga biçiminden kulaklık ön dinlemesi">
+                            <button class="headphone-cue-button ld-cue-btn" type="button" disabled aria-pressed="false" aria-label="Seçili içeriği kulaklıkta ön dinle" aria-describedby="waveform-headphone-status" title="Kulaklıkta ön dinlemek için bir ses kaynağı seç">CUE</button>
+                            <svg viewBox="0 0 52 16" aria-hidden="true"><path d="M1 8h47M42 3l6 5-6 5"/></svg>
+                            <div class="ld-cue-dest">
+                                <span class="ld-cue-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 13h3v7H5a2 2 0 0 1-2-2v-3a2 2 0 0 1 1-2Zm16 0h-3v7h2a2 2 0 0 0 2-2v-3a2 2 0 0 0-1-2Z"/></svg>Kulaklık <span>ÖN DİNLEME</span></span>
+                                <p id="waveform-headphone-status">Ön dinleme kaynağı bekleniyor</p>
+                            </div>
+                            <div class="ld-cue-level"><span>Seviye</span><output for="headphone-gain" aria-label="Kulaklık seviye ayarı">−12 dB</output></div>
+                        </div>
+                    </div>
+                </section>
+</div>
+<dialog class="qwf-dialog" id="queue-waveform-dialog" aria-labelledby="queue-waveform-title">
+  <form class="qwf-form" data-queue-waveform-form novalidate>
+    <header class="qwf-heading">
+      <div><p class="qwf-eyebrow">Parça işaretleri</p><h2 id="queue-waveform-title" data-qwf-title>Parça seçilmedi</h2><p class="qwf-meta" data-qwf-meta>—</p></div>
+      <button class="qwf-close" type="button" data-qwf-close aria-label="Parça işaretlerini kapat">×</button>
+    </header>
+    <dl class="qwf-overview"><div><dt>Parça süresi</dt><dd data-qwf-duration>—</dd></div><div><dt>Sonraki parça</dt><dd data-qwf-next>Yok</dd></div></dl>
+    <div class="qwf-toolbar" role="group" aria-label="Seçilen zaman konumuna işaret koy">
+      <button type="button" data-qwf-set="cueIn">Cue giriş</button><button type="button" data-qwf-set="intro">Vokal</button><button type="button" data-qwf-set="out">Cue çıkış</button><button type="button" data-qwf-set="fadeStart">Fade başlangıcı</button><button type="button" data-qwf-set="fadeEnd">Fade bitişi</button><button type="button" data-qwf-set="autoNext">Otomatik geçiş</button>
+    </div>
+    <section class="qwf-timeline-section" aria-labelledby="qwf-timeline-title">
+      <div class="qwf-timeline-heading"><h3 id="qwf-timeline-title">Zaman çizgisi</h3><output data-qwf-position>—:—</output></div>
+      <div class="qwf-timeline" data-qwf-timeline tabindex="0" role="group" aria-label="Parça zaman konumu ve sürüklenebilir işaretler">
+        <div class="qwf-marker-layer" data-qwf-marker-layer></div><div class="qwf-cursor" data-qwf-cursor aria-hidden="true"></div>
+      </div>
+      <div class="qwf-time-axis" data-qwf-time-axis aria-hidden="true"></div>
+    </section>
+    <div class="qwf-tools">
+      <div class="qwf-toolbar" role="group" aria-label="Görünüm ve değişiklikler"><button type="button" data-qwf-zoom="in" aria-label="Zaman çizgisini yakınlaştır">+</button><button type="button" data-qwf-zoom="out" aria-label="Zaman çizgisini uzaklaştır">−</button><button type="button" data-qwf-zoom="fit">Tüm süre</button><button type="button" data-qwf-undo>Geri al</button><button type="button" data-qwf-redo>İleri al</button><button type="button" data-qwf-reset>İşaretleri sıfırla</button></div>
+      <button type="button" class="qwf-preview-toggle" data-qwf-play aria-pressed="false">▶ Oynat</button>
+    </div>
+    <fieldset class="qwf-marker-fields" data-qwf-fields><legend>Parça işaretleri</legend>
+      <div><label for="qwf-cue-in">Cue giriş</label><input id="qwf-cue-in" name="cueIn" type="number" min="0" step="0.1" required></div>
+      <div><label for="qwf-intro">Vokal / intro</label><input id="qwf-intro" name="intro" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-out">Cue çıkış</label><input id="qwf-out" name="out" type="number" min="0" step="0.1" placeholder="Süre bilinmiyor"></div>
+      <div><label for="qwf-fade-start">Fade başlangıcı</label><input id="qwf-fade-start" name="fadeStart" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-fade-end">Fade bitişi</label><input id="qwf-fade-end" name="fadeEnd" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-auto-next">Otomatik geçiş noktası</label><input id="qwf-auto-next" name="autoNext" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-overlap">Sonraki parçayla bindirme</label><input id="qwf-overlap" name="overlap" type="number" min="0" step="0.1" value="0"></div>
+      <label class="qwf-check" for="qwf-automatic"><input id="qwf-automatic" name="automatic" type="checkbox"> Otomatik geçiş</label>
+    </fieldset>
+    <p class="qwf-status" data-qwf-status role="status" aria-live="polite"></p>
+    <div class="qwf-dialog-actions"><button type="button" data-qwf-close>Vazgeç</button><button class="qwf-save" type="submit" data-qwf-save>İşaretleri uygula</button></div>
+  </form>
+</dialog>
+
+</body>
+</html>

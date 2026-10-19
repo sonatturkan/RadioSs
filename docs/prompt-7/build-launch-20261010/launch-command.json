@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-10T23:32:41.582142+00:00",
+  "launcher_returncode": 0,
+  "host_launcher_pid": "56903",
+  "binary": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt7-open-20261010-2332/radios",
+  "log": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/build-launch-20261010/launch.log",
+  "command": [
+    "flatpak",
+    "run",
+    "--env=GDK_BACKEND=x11",
+    "--socket=wayland",
+    "--socket=x11",
+    "--socket=pulseaudio",
+    "--share=network",
+    "--filesystem=home",
+    "--talk-name=org.freedesktop.Flatpak",
+    "--talk-name=org.mpris.MediaPlayer2.spotify",
+    "--filesystem=/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+    "--command=/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt7-open-20261010-2332/radios",
+    "org.freedesktop.Sdk//25.08",
+    "--project-root",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+    "--profile",
+    "broadcast"
+  ],
+  "stderr": ""
+}

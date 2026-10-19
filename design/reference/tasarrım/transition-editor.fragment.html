@@ -1,0 +1,65 @@
+<!-- TRANSITION PANEL START -->
+<div class="transition-panel" data-transition-panel>
+    <div class="waveform-toolbar transition-toolbar">
+        <div><span class="transition-context" data-transition-context>Geçiş için Programlar’dan bir öğe seç</span><small>GEÇİŞ TASLAĞI · YAYINDAN BAĞIMSIZ</small></div>
+        <button type="button" data-open-transition-editor>Geçişi düzenle</button>
+    </div>
+    <div class="transition-decks" aria-label="Geçişteki iki öğe">
+        <div><span class="transition-deck-tag">A</span><p data-transition-a>Öğe seçilmedi</p><small data-transition-a-meta>Çıkış öğesi</small></div>
+        <svg viewBox="0 0 32 16" aria-hidden="true"><path d="M1 8h27M22 3l6 5-6 5"/></svg>
+        <div><span class="transition-deck-tag transition-deck-tag--b">B</span><p data-transition-b>Sonraki öğe seçilmedi</p><small data-transition-b-meta>Giriş öğesi</small></div>
+    </div>
+    <div class="transition-mini-timeline" role="img" aria-label="Geçiş taslağının zaman şeması; ölçülmüş dalga biçimi değildir"><div class="transition-timeline-a"></div><div class="transition-timeline-b"></div><span>A çıkışı</span><span>B girişi</span><small data-transition-mini-overlap>Bindirme ayarlanmadı</small></div>
+    <dl class="cue-markers transition-summary">
+        <div><dt>Cue başlangıcı</dt><dd data-transition-summary="cueIn">—</dd></div>
+        <div><dt>Vokal girişi</dt><dd data-transition-summary="intro">—</dd></div>
+        <div><dt>Çıkış noktası</dt><dd data-transition-summary="out">—</dd></div>
+        <div><dt>Bindirme</dt><dd data-transition-summary="overlap">—</dd></div>
+    </dl>
+    <p class="transition-panel-status" data-transition-panel-status role="status">Gerçek dalga biçimi ve ön dinleme için düzenleyicide yerel ses dosyalarını yükle.</p>
+</div>
+<!-- TRANSITION PANEL END -->
+
+<!-- TRANSITION DIALOG START -->
+<dialog class="transition-editor-dialog" id="transition-editor" aria-labelledby="transition-editor-title">
+    <form data-transition-form>
+        <div class="transition-dialog-heading"><div><p>GEÇİŞ TASLAĞI</p><h2 id="transition-editor-title">Cue ve geçiş editörü</h2></div><button type="button" data-close-transition-editor aria-label="Geçiş editörünü kapat">×</button></div>
+        <p class="transition-dialog-note">İki öğenin girişini, çıkışını ve bindirmesini düzenle. Ön dinleme tarayıcı ses çıkışında çalar; yayın çıkışına uygulanmaz.</p>
+        <div class="transition-source-grid">
+            <section class="transition-source" aria-labelledby="transition-a-title">
+                <h3 id="transition-a-title"><span class="transition-deck-tag">A</span> Çıkış öğesi</h3>
+                <label for="transition-source-a">Program öğesi</label><select id="transition-source-a" data-transition-source="a"></select>
+                <label class="transition-file-label" for="transition-file-a">Yerel ses dosyası <input id="transition-file-a" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-transition-file="a"></label>
+                <div class="transition-file-info"><span data-transition-file-info="a">Dosya yüklenmedi</span><button type="button" data-clear-transition-file="a" disabled>Kaldır</button></div>
+                <canvas class="transition-wave-canvas" width="600" height="96" data-transition-wave="a" aria-label="A öğesinin gerçek dalga biçimi; dosya bekleniyor"></canvas>
+            </section>
+            <section class="transition-source" aria-labelledby="transition-b-title">
+                <h3 id="transition-b-title"><span class="transition-deck-tag transition-deck-tag--b">B</span> Giriş öğesi</h3>
+                <label for="transition-source-b">Program öğesi</label><select id="transition-source-b" data-transition-source="b"></select>
+                <label class="transition-file-label" for="transition-file-b">Yerel ses dosyası <input id="transition-file-b" type="file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" data-transition-file="b"></label>
+                <div class="transition-file-info"><span data-transition-file-info="b">Dosya yüklenmedi</span><button type="button" data-clear-transition-file="b" disabled>Kaldır</button></div>
+                <canvas class="transition-wave-canvas" width="600" height="96" data-transition-wave="b" aria-label="B öğesinin gerçek dalga biçimi; dosya bekleniyor"></canvas>
+            </section>
+        </div>
+        <fieldset class="transition-time-fields"><legend>İşaretler <span>saniye</span></legend>
+            <div><label for="transition-duration">A toplam süre</label><input id="transition-duration" name="duration" type="number" min="0.1" max="86400" step="0.1" required placeholder="Dosya veya süre gir"></div>
+            <div><label for="transition-cue-in">A cue başlangıcı</label><input id="transition-cue-in" name="cueIn" type="number" min="0" max="86400" step="0.1" value="0" required></div>
+            <div><label for="transition-intro">A vokal girişi</label><input id="transition-intro" name="intro" type="number" min="0" max="86400" step="0.1" placeholder="İsteğe bağlı"></div>
+            <div><label for="transition-out">A çıkış noktası</label><input id="transition-out" name="out" type="number" min="0.1" max="86400" step="0.1" required placeholder="Çıkış saniyesi"></div>
+            <div><label for="transition-b-in">B cue başlangıcı</label><input id="transition-b-in" name="bCueIn" type="number" min="0" max="86400" step="0.1" value="0" required></div>
+            <div><label for="transition-fade-in">B giriş fade’i</label><input id="transition-fade-in" name="fadeIn" type="number" min="0" max="30" step="0.1" value="2" required></div>
+        </fieldset>
+        <div class="transition-mix-fields">
+            <div><label for="transition-overlap">Bindirme <output data-transition-overlap-output>2 sn</output></label><input id="transition-overlap" name="overlap" type="range" min="0" max="30" step="0.1" value="2"></div>
+            <div><label for="transition-ducking">B sırasında A kısma <output data-transition-ducking-output>0 dB</output></label><input id="transition-ducking" name="ducking" type="range" min="-30" max="0" step="1" value="0"></div>
+        </div>
+        <label class="transition-lock"><input type="checkbox" name="locked"> Elle kilitle <span>Otomatik geçiş önerilerine kapalı</span></label>
+        <div class="transition-preview-box">
+            <div><span class="transition-preview-title">Tarayıcı ön dinleme</span><p data-transition-preview-description>A ve B ses dosyaları yüklenince geçişi dinleyebilirsin.</p></div>
+            <div class="transition-preview-controls"><button type="button" data-transition-preview disabled>Ön dinle</button><button type="button" data-transition-stop disabled>Durdur</button><label for="transition-preview-level">Seviye <output data-transition-level-output>−12 dB</output><input id="transition-preview-level" type="range" min="-36" max="0" step="1" value="-12"></label></div>
+        </div>
+        <p class="transition-editor-status" data-transition-editor-status role="status" aria-live="polite">İşaretler yerel geçiş taslağı olarak kaydedilir. Ses dosyaları saklanmaz.</p>
+        <div class="transition-dialog-actions"><button type="button" data-close-transition-editor>Vazgeç</button><button class="transition-save" type="submit">Geçişi kaydet</button></div>
+    </form>
+</dialog>
+<!-- TRANSITION DIALOG END -->

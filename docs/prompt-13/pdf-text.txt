@@ -1,0 +1,32 @@
+=== PDF 13.pdf | Page 1/1 | PyMuPDF sorted text ===
+Otomasyon kısmı
+
+Otomasyon kısmını da baştan tasarlayacağız.
+
+Bu kısımda sayfa ikiye bölünecek.
+
+
+
+
+
+                                    Şema 1.
+
+Sayfa tasarımı Şema 1’deki gibi olacak. Burada programlar böyle ya; ilgili şeyi Excel’de olur gibi
+seçebileceğim, tamam mı? Burada seçtiğim şey, üst bilgiler kısmında olacak: saat ve tarih
+bilgisi, orada neye karşılık geliyorsa, tamam mı?
+
+Burada ayrıca şey olacak. İlgili kısmın üst barında, o seçilen, belki + / - olabilir. Burada seçilen
+şey aynı koordinat bilgisi. Koordinat bilgisi dediğim; saat ve dikey tarih bilgisi. Ama saat
+yazacak çünkü tarihi seçmiyorsun, aga.
+
+Neyse, seçtikten sonra o üst barda “Seçileni kaydet” olacak, tamam mı? Sonra o renk olacak ve
+üstüne tıkladığımda burada bir sayfa açılacak. O sayfanın içinde ise o programın ismi falan
+olacak.
+
+Altta aynı böyle satır satır dizilmiş şey olacak. En alt sağda ise “Rotasyon tanımla” olacak. Bu
+rotasyon olunca o satıra anında gelecek. Bu arada bu satırlar birbirleri arasında değişebilecek.
+
+O rotasyon ekranında, hangi playlist sorusu, sıklığı ve rastgeleliği, playlist içinde çalma
+rastgeleliği ve reklamlarla sweeper’ların rastgeleliği olacak.
+
+O barda ayrıca çoklu event seçebileyim ve onu diğer barlara kopyalama özelliği de olsun.

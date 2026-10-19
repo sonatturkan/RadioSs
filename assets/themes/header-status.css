@@ -1,0 +1,7 @@
+.radios .header-next.header-status-bound { padding-left: 8px; padding-right: 8px; }
+.header-status-panel { border-left: 1px solid #252d35; padding-left: 6px; }
+.header-status-caption { color: #8f9cab; font-size: 0.85em; }
+.header-status-value { color: #e3e8ee; font-size: 1em; }
+.header-status-remaining-value { color: #36caff; font-size: 1.1em; }
+.header-status-settings-title { color: #b5b5b5; font-weight: bold; padding-top: 8px; }
+.header-status-detail { color: #b5c2ce; font-size: 0.9em; }

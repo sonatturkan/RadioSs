@@ -1,0 +1,59 @@
+{
+  "utc": "2026-10-10 23:56:59 UTC",
+  "task": "Ayarlar arayüzünü mevcut RadioS tasarımına uyarlamak",
+  "state": "COMPLETE_DELIVERED",
+  "implementation_owner": "/root",
+  "record_owner": "/root/launch_coordination",
+  "source_claims": "Root preferences.c and assigned test narrow claims RELEASED",
+  "shared_write_allowed": false,
+  "source": {
+    "path": "src/ui/preferences.c",
+    "sha256": "81d8b6d68ba04012dbaf4b556a8576b542165af9fc979a0ab0a6f22aae5e18cd",
+    "before_sha256": "c264c91fd94bc28d0680b4506b30c725348cdc67c61f2e303d5eafb3cc6595b9",
+    "changes": [
+      "charcoal Inter theme",
+      "theme foreground category icons",
+      "Turkish labels and bilingual search; stable navigation preserved",
+      "compact window and scrollable routing",
+      "bounded status wrapping"
+    ]
+  },
+  "acceptance": {
+    "strict_release_build": "PASS with stable canonical source fence",
+    "distinct_existing_cases_passed": 9,
+    "fresh_delivery_gui_reruns_passed": 2,
+    "configuration_exit_code": 0,
+    "native_settings_visual": "root and QA PASS; screenshot SHA independently verified",
+    "native_settings_capture_sha256": "6de84c7fa79a09e4070a37235e82a1bd45c1a818a93a972cd6225ae1f8fb7087",
+    "production_settings_popup_opened": false,
+    "production_popup_note": "Accepted with real GTK panel and window tests; production popup input not claimed."
+  },
+  "delivery": {
+    "installed_binary": "build/radios",
+    "installed_sha256": "5becacf9f998120c890d729793a3d1bc5b788e0beb76de13a7df701b9075306b",
+    "candidate_installed_hash_matches": true,
+    "previous_binary_sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+    "backup": "docs/prompt-7/settings-ui-20261010/radios-before-settings",
+    "host_pid": 111676,
+    "window_id": "0x1600004",
+    "actual_normal_default_application_opened": true,
+    "visible_proof": "docs/prompt-7/settings-ui-20261010/delivery-visible.json",
+    "process_scope": "Only own previous app replaced; external GUI PID57201 untouched"
+  },
+  "evidence": [
+    "source-change.json",
+    "build.json",
+    "native-panel.json",
+    "window-integration.json",
+    "storage.log",
+    "delivery-install.json",
+    "installed-application-launch.json",
+    "delivery-visible.json"
+  ],
+  "pending": [],
+  "limitations": [
+    "All repository tests and physical audio device compatibility not claimed"
+  ],
+  "coordinator_source_test_binary_process_mutations": false,
+  "maximum_team_concurrency": 4
+}

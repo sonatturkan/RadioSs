@@ -1,0 +1,1022 @@
+#include "radios/automation_calendar.h"
+#include "radios/automation_calendar_plan.h"
+#include "radios/data.h"
+#include "radios/playout.h"
+#include "radios/playout_ui.h"
+#include "radios/widgets.h"
+#include <math.h>
+#include <string.h>
+
+/* The reference has dates in columns and time down the vertical axis. The
+ * drawing area shares the same minute coordinates as the persisted blocks. */
+typedef struct {
+    RadioSViewContext *ctx;
+    GtkWidget *page, *grid, *header, *date, *selection, *status, *editor, *name, *color;
+    GtkWidget *rows, *save_selection, *copy, *paste, *define, *rotation_dialog;
+    GtkWidget *preview_button, *append_button, *schedule_button;
+    GtkListStore *store;
+    RadioSDocument *document;
+    JsonNode *config, *clipboard, *row_clipboard, *playlists;
+    JsonNode *prepared, *preview_event;
+    gchar *preview_notes;
+    RadioSDataClient *preview_client;
+    RadioSPlayoutPlan *plan;
+    guint preview_generation;
+    gboolean preview_busy;
+    GDateTime *week;
+    GHashTable *selected;
+    gchar *current;
+    guint day_first, day_last, start, end, anchor_day, anchor_minute, step;
+    gboolean has_selection, dragging, moved, updating, dirty, disposed, loading;
+} Calendar;
+
+static void refresh(Calendar *view);
+static void commit(Calendar *view);
+static void programme_dialog(GtkButton *button, gpointer data);
+static void rotation_dialog(GtkButton *button, gpointer data);
+static void preview_selected(GtkButton *button, gpointer data);
+static void preview_append(GtkButton *button, gpointer data);
+static void preview_schedule(GtkButton *button, gpointer data);
+
+static JsonNode *object_node(JsonObject *object)
+{ JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_set_object(node, object); return node; }
+/* JSON-GLib node_copy retains object/array containers. Calendar clipboard
+ * and snapshots must own independent descendants before IDs or times change. */
+static JsonNode *deep_copy(JsonNode *node)
+{
+    gchar *text = json_to_string(node, FALSE);
+    JsonParser *parser = json_parser_new();
+    gboolean loaded = json_parser_load_from_data(parser, text, -1, NULL);
+    g_free(text);
+    JsonNode *copy = loaded ? json_parser_steal_root(parser) : NULL;
+    g_object_unref(parser); return copy;
+}
+static JsonArray *events(Calendar *view)
+{ return json_object_get_array_member(json_node_get_object(view->config), "events"); }
+static JsonObject *event_by_id(Calendar *view, const gchar *id)
+{
+    JsonArray *array = events(view);
+    for (guint i = 0; id && i < json_array_get_length(array); ++i) {
+        JsonObject *event = json_array_get_object_element(array, i);
+        if (g_str_equal(radios_json_string(event, "id", ""), id)) return event;
+    }
+    return NULL;
+}
+static gchar *date_at(Calendar *view, guint day)
+{
+    GDateTime *date = g_date_time_add_days(view->week, day);
+    if (!date) return g_strdup("");
+    gchar *text = g_date_time_format(date, "%Y-%m-%d"); g_date_time_unref(date); return text;
+}
+static gint event_day(Calendar *view, JsonObject *event)
+{
+    for (guint day = 0; day < 7; ++day) {
+        gchar *date = date_at(view, day);
+        gboolean match = g_str_equal(date, radios_json_string(event, "date", ""));
+        g_free(date); if (match) return (gint)day;
+    }
+    return -1;
+}
+static void notice(Calendar *view, const gchar *message)
+{
+    gtk_label_set_text(GTK_LABEL(view->status), message);
+    if (view->ctx->notify) view->ctx->notify(view->ctx->notify_data, message);
+}
+static gboolean overlaps(JsonArray *array, const gchar *date, guint start, guint end, const gchar *ignore)
+{
+    for (guint i = 0; i < json_array_get_length(array); ++i) {
+        JsonObject *event = json_array_get_object_element(array, i);
+        if (ignore && g_str_equal(ignore, radios_json_string(event, "id", ""))) continue;
+        if (g_str_equal(date, radios_json_string(event, "date", "")) &&
+            start < (guint)radios_json_int(event, "end_minute", 0) &&
+            end > (guint)radios_json_int(event, "start_minute", 0)) return TRUE;
+    }
+    return FALSE;
+}
+static void free_view(gpointer data)
+{
+    Calendar *view = data;
+    g_clear_pointer(&view->config, json_node_free);
+    g_clear_pointer(&view->clipboard, json_node_free);
+    g_clear_pointer(&view->row_clipboard, json_node_free);
+    g_clear_pointer(&view->playlists, json_node_free);
+    g_clear_pointer(&view->prepared, json_node_free); g_clear_pointer(&view->preview_event, json_node_free);
+    g_free(view->preview_notes);
+    if (view->preview_client) radios_data_client_unref(view->preview_client);
+    if (view->plan) radios_playout_plan_free(view->plan);
+    g_date_time_unref(view->week); g_hash_table_unref(view->selected);
+    g_free(view->current); g_free(view);
+}
+static void destroyed(GtkWidget *widget, gpointer data)
+{
+    (void)widget; Calendar *view = data; view->disposed = TRUE;
+    if (view->rotation_dialog) gtk_widget_destroy(view->rotation_dialog);
+}
+static void invalidate_preview(Calendar *view)
+{
+    ++view->preview_generation; view->preview_busy = FALSE;
+    g_clear_pointer(&view->prepared, json_node_free); g_clear_pointer(&view->preview_event, json_node_free);
+    g_clear_pointer(&view->preview_client, radios_data_client_unref); g_clear_pointer(&view->plan, radios_playout_plan_free);
+    g_clear_pointer(&view->preview_notes, g_free);
+    if (view->preview_button) gtk_widget_set_sensitive(view->preview_button, TRUE);
+    if (view->append_button) gtk_widget_set_sensitive(view->append_button, FALSE);
+    if (view->schedule_button) gtk_widget_set_sensitive(view->schedule_button, FALSE);
+}
+static void set_week(Calendar *view, GDateTime *date)
+{
+    GDateTime *monday = g_date_time_add_days(date, 1 - g_date_time_get_day_of_week(date));
+    if (!monday) { notice(view, "Hafta desteklenen tarih aralığının dışında."); return; }
+    invalidate_preview(view);
+    g_clear_pointer(&view->week, g_date_time_unref); view->week = monday;
+    gchar *text = g_date_time_format(monday, "%Y-%m-%d");
+    gtk_entry_set_text(GTK_ENTRY(view->date), text); g_free(text);
+    view->has_selection = FALSE; g_hash_table_remove_all(view->selected);
+    g_clear_pointer(&view->current, g_free); refresh(view);
+}
+static GDateTime *parse_date(const gchar *text)
+{
+    if (!g_regex_match_simple("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", text, 0, 0)) return NULL;
+    gchar *iso = g_strdup_printf("%sT00:00:00Z", text);
+    GDateTime *date = g_date_time_new_from_iso8601(iso, NULL); g_free(iso); return date;
+}
+static void date_changed(GtkEntry *entry, gpointer data)
+{
+    Calendar *view = data; GDateTime *date = parse_date(gtk_entry_get_text(entry));
+    if (!date) { notice(view, "Geçerli bir tarih girin: YYYY-AA-GG."); return; }
+    set_week(view, date); g_date_time_unref(date);
+}
+static void navigate(GtkButton *button, gpointer data)
+{
+    Calendar *view = data; gint direction = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "direction"));
+    GDateTime *date = direction ? g_date_time_add_days(view->week, direction * 7) : g_date_time_new_now_utc();
+    if (date) { set_week(view, date); g_date_time_unref(date); }
+}
+static gchar *playlist_name(Calendar *view, const gchar *id)
+{
+    JsonArray *array = view->playlists && JSON_NODE_HOLDS_OBJECT(view->playlists) ?
+        json_object_get_array_member(json_node_get_object(view->playlists), "playlists") : NULL;
+    for (guint i = 0; array && i < json_array_get_length(array); ++i) {
+        JsonObject *playlist = json_array_get_object_element(array, i);
+        if (!g_strcmp0(radios_json_string(playlist, "_id", ""), id))
+            return g_strdup(radios_json_string(playlist, "name", "Playlist"));
+    }
+    return g_strdup(id ? id : "Playlist seçilmedi");
+}
+static void refresh(Calendar *view)
+{
+    /* Background playlist names and save receipts may rebuild the table while
+     * the operator selects rows. Retain selection by stable rotation UUID. */
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view->rows));
+    GHashTable *chosen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    GList *paths = gtk_tree_selection_get_selected_rows(selection, NULL);
+    for (GList *item = paths; item; item = item->next) {
+        GtkTreeIter iter; gchar *id = NULL;
+        if (gtk_tree_model_get_iter(GTK_TREE_MODEL(view->store), &iter, item->data)) {
+            gtk_tree_model_get(GTK_TREE_MODEL(view->store), &iter, 0, &id, -1); if (id) g_hash_table_add(chosen, id);
+        }
+    }
+    g_list_free_full(paths, (GDestroyNotify)gtk_tree_path_free);
+    view->updating = TRUE;
+    if (view->has_selection) {
+        gchar *first = date_at(view, view->day_first), *last = date_at(view, view->day_last);
+        gchar *text = g_strdup_printf("%s%s%s  ·  %02u:%02u – %02u:%02u  ·  %u event seçili",
+            first, view->day_first == view->day_last ? "" : " → ", view->day_first == view->day_last ? "" : last,
+            view->start / 60, view->start % 60, view->end / 60, view->end % 60, g_hash_table_size(view->selected));
+        gtk_label_set_text(GTK_LABEL(view->selection), text); g_free(first); g_free(last); g_free(text);
+    } else gtk_label_set_text(GTK_LABEL(view->selection), "Takvimde saat aralığı seçin");
+    gtk_widget_set_sensitive(view->save_selection, view->has_selection);
+    gtk_widget_set_sensitive(view->copy, g_hash_table_size(view->selected) > 0);
+    gtk_widget_set_sensitive(view->paste, view->clipboard != NULL && view->has_selection);
+    JsonObject *event = event_by_id(view, view->current);
+    gtk_widget_set_sensitive(view->editor, event != NULL);
+    gtk_entry_set_text(GTK_ENTRY(view->name), event ? radios_json_string(event, "title", "") : "");
+    gtk_combo_box_set_active(GTK_COMBO_BOX(view->color), event &&
+        g_str_equal(radios_json_string(event, "color", ""), "#abfe33") ? 1 : 0);
+    gtk_list_store_clear(view->store);
+    JsonArray *rotations = event ? json_object_get_array_member(event, "rotations") : NULL;
+    for (guint i = 0; rotations && i < json_array_get_length(rotations); ++i) {
+        JsonObject *row = json_array_get_object_element(rotations, i); GtkTreeIter iter;
+        gchar *name = playlist_name(view, radios_json_string(row, "playlist_id", ""));
+        gchar *frequency = g_strdup_printf("%" G_GINT64_FORMAT, radios_json_int(row, "frequency", 1));
+        gtk_list_store_append(view->store, &iter);
+        gtk_list_store_set(view->store, &iter, 0, radios_json_string(row, "id", ""), 1, name, 2, frequency,
+            3, json_object_get_boolean_member(row, "random") ? "Rastgele" : "Sırayla",
+            4, json_object_get_boolean_member(row, "track_random") ? "Rastgele" : "Sırayla",
+            5, json_object_get_boolean_member(row, "advert_random") ? "Rastgele" : "Sırayla",
+            6, json_object_get_boolean_member(row, "sweeper_random") ? "Rastgele" : "Sırayla", -1);
+        if (g_hash_table_contains(chosen, radios_json_string(row, "id", ""))) gtk_tree_selection_select_iter(selection, &iter);
+        g_free(name); g_free(frequency);
+    }
+    g_hash_table_unref(chosen);
+    view->updating = FALSE; gtk_widget_queue_draw(view->grid); gtk_widget_queue_draw(view->header);
+}
+static void commit(Calendar *view)
+{
+    invalidate_preview(view);
+    view->dirty = TRUE;
+    if (view->document) {
+        radios_data_document_dirty(view->document, TRUE);
+        notice(view, radios_data_document_save(view->document, view->config) ?
+            "Takvim değişiklikleri kaydediliyor…" : "Bağlantı hazır değil; takvim değişiklikleri korunuyor. Kaydet ile tekrar deneyin.");
+    } else notice(view, "Oturum taslağı güncellendi. Veritabanı bağlantısı olmadan kalıcı kayıt yapılmadı.");
+    refresh(view);
+}
+static void applied(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer data)
+{
+    (void)ctx; Calendar *view = data;
+    JsonNode *incoming = object_node(config);
+    if (view->dirty && !g_object_get_data(G_OBJECT(owner), "radios-data-explicit-reload") &&
+        !json_node_equal(view->config, incoming)) { json_node_free(incoming); return; }
+    g_clear_pointer(&view->config, json_node_free); view->config = deep_copy(incoming); json_node_free(incoming);
+    invalidate_preview(view);
+    view->dirty = FALSE; refresh(view); notice(view, "Takvim veritabanıyla eşitlendi.");
+}
+static void save_all(GtkButton *button, gpointer data)
+{ (void)button; commit(data); }
+
+static void text_at(cairo_t *cr, GtkWidget *widget, const gchar *text, gdouble x, gdouble y, gint width)
+{
+    PangoLayout *layout = gtk_widget_create_pango_layout(widget, text);
+    PangoFontDescription *font = pango_font_description_from_string("Sans 10");
+    pango_layout_set_font_description(layout, font); pango_font_description_free(font);
+    if (width > 0) { pango_layout_set_width(layout, width * PANGO_SCALE); pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END); }
+    cairo_move_to(cr, x, y); pango_cairo_show_layout(cr, layout); g_object_unref(layout);
+}
+static gdouble row_height(Calendar *view) { return view->step == 15 ? 22.0 : view->step == 30 ? 26.0 : 32.0; }
+static gdouble minute_y(Calendar *view, guint minute) { return minute * row_height(view) / view->step; }
+static gboolean draw(GtkWidget *widget, cairo_t *cr, gpointer data)
+{
+    Calendar *view = data; GtkAllocation allocation; gtk_widget_get_allocation(view->grid, &allocation);
+    gdouble col = (allocation.width - 60.0) / 7.0, height = row_height(view);
+    cairo_set_source_rgb(cr, .09, .11, .14); cairo_paint(cr);
+    const gchar *days[] = { "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz" };
+    if (widget == view->header) {
+      GtkAdjustment *horizontal = g_object_get_data(G_OBJECT(view->header), "horizontal");
+      cairo_translate(cr, -gtk_adjustment_get_value(horizontal), 0);
+      for (guint day = 0; day < 7; ++day) {
+        GDateTime *date = g_date_time_add_days(view->week, day); gchar *stamp = date ? g_date_time_format(date, "%d.%m.%Y") : g_strdup("—");
+        if (date) g_date_time_unref(date);
+        cairo_set_source_rgb(cr, .27, .28, .29); cairo_rectangle(cr, 60 + col * day, 0, col - 1, 41); cairo_fill(cr);
+        cairo_set_source_rgb(cr, .95, .95, .95);
+        text_at(cr, widget, days[day], 65 + col * day, 2, (gint)col - 10);
+        text_at(cr, widget, stamp, 65 + col * day, 21, (gint)col - 10); g_free(stamp);
+      }
+      return FALSE;
+    }
+    for (guint minute = 0; minute < 1440; minute += view->step) {
+        gdouble y = minute_y(view, minute);
+        cairo_set_source_rgb(cr, .25, .28, .32); cairo_set_line_width(cr, minute % 60 ? .5 : 1);
+        cairo_move_to(cr, 60, y); cairo_line_to(cr, allocation.width, y); cairo_stroke(cr);
+        if (!(minute % 60)) {
+            gchar *time = g_strdup_printf("%02u:00", minute / 60); cairo_set_source_rgb(cr, .8, .83, .86);
+            text_at(cr, widget, time, 4, y + 2, 55); g_free(time);
+        }
+    }
+    for (guint day = 0; day <= 7; ++day) {
+        cairo_set_source_rgb(cr, .4, .42, .44); cairo_move_to(cr, 60 + col * day, 0);
+        cairo_line_to(cr, 60 + col * day, minute_y(view, 1440)); cairo_stroke(cr);
+    }
+    JsonArray *array = events(view);
+    for (guint i = 0; i < json_array_get_length(array); ++i) {
+        JsonObject *event = json_array_get_object_element(array, i); gint day = event_day(view, event); if (day < 0) continue;
+        guint start = (guint)radios_json_int(event, "start_minute", 0), end = (guint)radios_json_int(event, "end_minute", 0);
+        gdouble x = 62 + day * col, y = minute_y(view, start), h = minute_y(view, end) - y;
+        GdkRGBA color; gdk_rgba_parse(&color, radios_json_string(event, "color", "#abd6e4"));
+        cairo_set_source_rgba(cr, color.red, color.green, color.blue, 1); cairo_rectangle(cr, x, y + 1, col - 4, h - 2); cairo_fill(cr);
+        cairo_save(cr); cairo_rectangle(cr, x + 2, y + 1, col - 8, MAX(0.0, h - 2)); cairo_clip(cr);
+        cairo_set_source_rgb(cr, .06, .12, .15); gchar *time = g_strdup_printf("%02u:%02u–%02u:%02u", start / 60, start % 60, end / 60, end % 60);
+        text_at(cr, widget, time, x + 4, y + 3, (gint)col - 12); g_free(time);
+        text_at(cr, widget, radios_json_string(event, "title", ""), x + 4, y + 20, (gint)col - 12); cairo_restore(cr);
+        if (g_hash_table_contains(view->selected, radios_json_string(event, "id", ""))) {
+            cairo_set_source_rgb(cr, .05, .35, 1); cairo_set_line_width(cr, 3); cairo_rectangle(cr, x + 1, y + 2, col - 6, MAX(0.0, h - 4)); cairo_stroke(cr);
+        }
+    }
+    if (view->has_selection && (!g_hash_table_size(view->selected) || view->dragging)) {
+        gdouble x = 61 + view->day_first * col, y = minute_y(view, view->start), w = (view->day_last - view->day_first + 1) * col - 2;
+        cairo_set_source_rgba(cr, .2, .55, 1, .22); cairo_rectangle(cr, x, y, w, minute_y(view, view->end) - y); cairo_fill_preserve(cr);
+        cairo_set_source_rgb(cr, .3, .65, 1); cairo_set_line_width(cr, 2); cairo_stroke(cr);
+    }
+    (void)height; return FALSE;
+}
+static gboolean coordinates(Calendar *view, gdouble x, gdouble y, guint *day, guint *minute)
+{
+    GtkAllocation a; gtk_widget_get_allocation(view->grid, &a);
+    if (x < 60 || x >= a.width || y < 0 || y >= minute_y(view, 1440)) return FALSE;
+    *day = MIN(6u, (guint)((x - 60) / ((a.width - 60.0) / 7.0)));
+    gchar *date = date_at(view, *day); gboolean valid = *date != '\0'; g_free(date);
+    if (!valid) return FALSE;
+    *minute = MIN(1440u - view->step, (guint)(y / row_height(view)) * view->step); return TRUE;
+}
+static JsonObject *event_at(Calendar *view, guint day, guint minute)
+{
+    JsonArray *array = events(view); gchar *date = date_at(view, day); JsonObject *found = NULL;
+    for (guint i = 0; i < json_array_get_length(array); ++i) {
+        JsonObject *event = json_array_get_object_element(array, i);
+        if (g_str_equal(date, radios_json_string(event, "date", "")) &&
+            minute >= (guint)radios_json_int(event, "start_minute", 0) && minute < (guint)radios_json_int(event, "end_minute", 0)) { found = event; break; }
+    }
+    g_free(date); return found;
+}
+void radios_automation_calendar_select(GtkWidget *page, guint day, guint start, guint end, gboolean extend)
+{
+    Calendar *view = g_object_get_data(G_OBJECT(page), "automation-calendar");
+    if (!view || day > 6 || start >= end || end > 1440) return;
+    gchar *date = date_at(view, day); gboolean valid = *date != '\0'; g_free(date);
+    if (!valid) return;
+    invalidate_preview(view);
+    if (!extend) g_hash_table_remove_all(view->selected);
+    view->has_selection = TRUE; view->day_first = view->day_last = day; view->start = start; view->end = end;
+    JsonObject *event = event_at(view, day, start);
+    g_clear_pointer(&view->current, g_free);
+    if (event) {
+        view->current = g_strdup(radios_json_string(event, "id", ""));
+        if (extend && g_hash_table_contains(view->selected, view->current)) g_hash_table_remove(view->selected, view->current);
+        else g_hash_table_add(view->selected, g_strdup(view->current));
+        view->start = (guint)radios_json_int(event, "start_minute", start); view->end = (guint)radios_json_int(event, "end_minute", end);
+    }
+    refresh(view);
+}
+JsonNode *radios_automation_calendar_snapshot(GtkWidget *page)
+{
+    Calendar *view = g_object_get_data(G_OBJECT(page), "automation-calendar");
+    return view ? deep_copy(view->config) : NULL;
+}
+static gboolean press(GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    (void)widget; Calendar *view = data; guint day, minute;
+    if (event->button != 1 || !coordinates(view, event->x, event->y, &day, &minute)) return FALSE;
+    gtk_widget_grab_focus(view->grid);
+    if (event->state & GDK_SHIFT_MASK && view->has_selection) {
+        view->dragging = TRUE; view->moved = TRUE;
+    } else {
+        view->anchor_day = day; view->anchor_minute = minute; view->moved = FALSE;
+        radios_automation_calendar_select(view->page, day, minute, minute + view->step, event->state & GDK_CONTROL_MASK);
+        view->dragging = !(event->state & GDK_CONTROL_MASK);
+    }
+    if (event->type == GDK_2BUTTON_PRESS && view->current) programme_dialog(NULL, view);
+    return TRUE;
+}
+static gboolean motion(GtkWidget *widget, GdkEventMotion *event, gpointer data)
+{
+    (void)widget; Calendar *view = data; guint day, minute;
+    if (!view->dragging || !coordinates(view, event->x, event->y, &day, &minute)) return FALSE;
+    if (day != view->anchor_day || minute != view->anchor_minute || view->moved) {
+        view->moved = TRUE; view->has_selection = TRUE; g_hash_table_remove_all(view->selected); g_clear_pointer(&view->current, g_free);
+        view->day_first = MIN(day, view->anchor_day); view->day_last = MAX(day, view->anchor_day);
+        view->start = MIN(minute, view->anchor_minute); view->end = MAX(minute, view->anchor_minute) + view->step;
+        refresh(view);
+    }
+    return TRUE;
+}
+static gboolean release(GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    (void)widget; Calendar *view = data;
+    if (event->button != 1) return FALSE;
+    view->dragging = FALSE;
+    if (!view->moved && view->current && !(event->state & (GDK_CONTROL_MASK | GDK_SHIFT_MASK)))
+        gtk_widget_grab_focus(view->name);
+    refresh(view); return TRUE;
+}
+static void zoom(GtkButton *button, gpointer data)
+{
+    Calendar *view = data; gint direction = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "direction"));
+    view->step = direction > 0 ? MAX(15u, view->step / 2) : MIN(60u, view->step * 2);
+    gtk_widget_set_size_request(view->grid, 840, (gint)minute_y(view, 1440)); gtk_widget_queue_draw(view->grid);
+}
+static void header_scrolled(GtkAdjustment *adjustment, gpointer data)
+{ (void)adjustment; gtk_widget_queue_draw(GTK_WIDGET(data)); }
+static void grid_resized(GtkWidget *widget, GtkAllocation *allocation, gpointer data)
+{ (void)widget; (void)allocation; Calendar *view = data; gtk_widget_queue_draw(view->header); }
+static JsonObject *new_event(const gchar *title, const gchar *date, guint start, guint end, const gchar *color)
+{
+    JsonObject *event = json_object_new(); gchar *id = g_uuid_string_random();
+    json_object_set_string_member(event, "id", id); g_free(id);
+    json_object_set_string_member(event, "title", title); json_object_set_string_member(event, "date", date);
+    json_object_set_int_member(event, "start_minute", start); json_object_set_int_member(event, "end_minute", end);
+    json_object_set_string_member(event, "color", color); json_object_set_array_member(event, "rotations", json_array_new()); return event;
+}
+static void programme_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    Calendar *view = data;
+    if (response != GTK_RESPONSE_ACCEPT) { gtk_widget_destroy(GTK_WIDGET(dialog)); return; }
+    GtkWidget *entry = g_object_get_data(G_OBJECT(dialog), "name"), *color = g_object_get_data(G_OBJECT(dialog), "color");
+    gchar *title = g_strdup(gtk_entry_get_text(GTK_ENTRY(entry))); g_strstrip(title);
+    if (!*title) { notice(view, "Program adı gerekli."); g_free(title); return; }
+    const gchar *paint = gtk_combo_box_get_active(GTK_COMBO_BOX(color)) == 1 ? "#abfe33" : "#abd6e4";
+    const gchar *edit_id = g_object_get_data(G_OBJECT(dialog), "edit-id");
+    JsonObject *current = edit_id ? event_by_id(view, edit_id) : NULL;
+    if (edit_id && !current) { notice(view, "Program değişti veya kaldırıldı; yeniden seçin."); g_free(title); return; }
+    if (current) { json_object_set_string_member(current, "title", title); json_object_set_string_member(current, "color", paint); }
+    else {
+        guint first = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(dialog), "day-first"));
+        guint last = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(dialog), "day-last"));
+        guint start = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(dialog), "start"));
+        guint end = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(dialog), "end"));
+        const gchar *week = g_object_get_data(G_OBJECT(dialog), "week");
+        GDateTime *base = parse_date(week); JsonArray *array = events(view);
+        if (json_array_get_length(array) + last - first + 1 > 500) {
+            notice(view, "Takvim en fazla 500 program içerebilir."); g_date_time_unref(base); g_free(title); return;
+        }
+        for (guint day = first; day <= last; ++day) {
+            GDateTime *date = g_date_time_add_days(base, day); gchar *stamp = g_date_time_format(date, "%Y-%m-%d"); g_date_time_unref(date);
+            gboolean conflict = overlaps(array, stamp, start, end, NULL); g_free(stamp);
+            if (conflict) { notice(view, "Seçim mevcut bir programla çakışıyor; boş bir aralık seçin."); g_date_time_unref(base); g_free(title); return; }
+        }
+        g_hash_table_remove_all(view->selected);
+        for (guint day = first; day <= last; ++day) {
+            GDateTime *date = g_date_time_add_days(base, day); gchar *stamp = g_date_time_format(date, "%Y-%m-%d"); g_date_time_unref(date);
+            JsonObject *event = new_event(title, stamp, start, end, paint); g_free(stamp);
+            g_free(view->current); view->current = g_strdup(radios_json_string(event, "id", ""));
+            g_hash_table_add(view->selected, g_strdup(view->current)); json_array_add_object_element(array, event);
+        }
+        g_date_time_unref(base);
+    }
+    g_free(title); gtk_widget_destroy(GTK_WIDGET(dialog)); commit(view);
+}
+static void programme_dialog(GtkButton *button, gpointer data)
+{
+    Calendar *view = data; gboolean edit = button == NULL || g_object_get_data(G_OBJECT(button), "edit") != NULL;
+    JsonObject *current = edit ? event_by_id(view, view->current) : NULL;
+    if ((edit && !current) || (!edit && !view->has_selection)) return;
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(edit ? "Program bilgileri" : "Seçileni kaydet", view->ctx->parent,
+        GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL, "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL);
+    gtk_widget_set_name(dialog, "automation-calendar-event-dialog");
+    GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(dialog)); gtk_container_set_border_width(GTK_CONTAINER(box), 16);
+    GtkWidget *entry = radios_ui_entry("Program adı"); gtk_widget_set_name(entry, "automation-calendar-event-name"); gtk_entry_set_max_length(GTK_ENTRY(entry), 160);
+    gtk_entry_set_text(GTK_ENTRY(entry), current ? radios_json_string(current, "title", "") : "Yeni program");
+    const gchar *colors[] = { "Açık mavi", "Yeşil", NULL }; GtkWidget *color = radios_ui_combo(colors, current && g_str_equal(radios_json_string(current, "color", ""), "#abfe33") ? 1 : 0);
+    gtk_widget_set_name(color, "automation-calendar-event-color");
+    gtk_box_pack_start(GTK_BOX(box), radios_ui_label("Program adı", NULL), FALSE, FALSE, 4); gtk_box_pack_start(GTK_BOX(box), entry, FALSE, FALSE, 4);
+    gtk_box_pack_start(GTK_BOX(box), color, FALSE, FALSE, 4);
+    g_object_set_data(G_OBJECT(dialog), "name", entry); g_object_set_data(G_OBJECT(dialog), "color", color);
+    if (edit) g_object_set_data_full(G_OBJECT(dialog), "edit-id", g_strdup(view->current), g_free);
+    g_object_set_data(G_OBJECT(dialog), "day-first", GUINT_TO_POINTER(view->day_first)); g_object_set_data(G_OBJECT(dialog), "day-last", GUINT_TO_POINTER(view->day_last));
+    g_object_set_data(G_OBJECT(dialog), "start", GUINT_TO_POINTER(view->start)); g_object_set_data(G_OBJECT(dialog), "end", GUINT_TO_POINTER(view->end));
+    g_object_set_data_full(G_OBJECT(dialog), "week", date_at(view, 0), g_free);
+    /* Owner destruction disconnects the response before the view is freed. */
+    g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
+    g_signal_connect(dialog, "response", G_CALLBACK(programme_response), view); gtk_widget_show_all(dialog);
+}
+static void inspector_changed(GtkWidget *widget, gpointer data)
+{
+    (void)widget; Calendar *view = data; if (view->updating) return;
+    JsonObject *event = event_by_id(view, view->current); if (!event) return;
+    invalidate_preview(view);
+    json_object_set_string_member(event, "title", gtk_entry_get_text(GTK_ENTRY(view->name)));
+    json_object_set_string_member(event, "color", gtk_combo_box_get_active(GTK_COMBO_BOX(view->color)) == 1 ? "#abfe33" : "#abd6e4");
+    view->dirty = TRUE; if (view->document) radios_data_document_dirty(view->document, TRUE); gtk_widget_queue_draw(view->grid);
+}
+static void save_programme(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; gchar *title = g_strdup(gtk_entry_get_text(GTK_ENTRY(view->name))); g_strstrip(title);
+    if (!*title) { g_free(title); notice(view, "Program adı gerekli."); return; }
+    JsonObject *event = event_by_id(view, view->current); if (event) json_object_set_string_member(event, "title", title); g_free(title); commit(view);
+}
+static void remove_programme_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    Calendar *view = data;
+    if (response == GTK_RESPONSE_ACCEPT) {
+        JsonArray *array = events(view); JsonArray *ids = g_object_get_data(G_OBJECT(dialog), "ids");
+        for (gint i = (gint)json_array_get_length(array) - 1; i >= 0; --i) {
+            const gchar *id = radios_json_string(json_array_get_object_element(array, (guint)i), "id", "");
+            for (guint j = 0; j < json_array_get_length(ids); ++j)
+                if (g_str_equal(id, json_array_get_string_element(ids, j))) { json_array_remove_element(array, (guint)i); break; }
+        }
+        g_hash_table_remove_all(view->selected); g_clear_pointer(&view->current, g_free); commit(view);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+static void remove_programme(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; if (!g_hash_table_size(view->selected)) return;
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Seçili programları kaldır", view->ctx->parent,
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Vazgeç", GTK_RESPONSE_CANCEL, "Kaldır", GTK_RESPONSE_ACCEPT, NULL);
+    JsonArray *ids = json_array_new(); GHashTableIter iter; gpointer id; g_hash_table_iter_init(&iter, view->selected);
+    while (g_hash_table_iter_next(&iter, &id, NULL)) json_array_add_string_element(ids, id);
+    g_object_set_data_full(G_OBJECT(dialog), "ids", ids, (GDestroyNotify)json_array_unref);
+    g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
+    g_signal_connect(dialog, "response", G_CALLBACK(remove_programme_response), view); gtk_widget_show_all(dialog);
+}
+static void new_ids(JsonObject *event)
+{
+    gchar *id = g_uuid_string_random(); json_object_set_string_member(event, "id", id); g_free(id);
+    JsonArray *array = json_object_get_array_member(event, "rotations");
+    for (guint i = 0; i < json_array_get_length(array); ++i) {
+        id = g_uuid_string_random(); json_object_set_string_member(json_array_get_object_element(array, i), "id", id); g_free(id);
+    }
+}
+static void copy_blocks(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; JsonArray *copy = json_array_new(), *array = events(view);
+    for (guint i = 0; i < json_array_get_length(array); ++i) {
+        JsonObject *event = json_array_get_object_element(array, i);
+        if (g_hash_table_contains(view->selected, radios_json_string(event, "id", "")))
+            json_array_add_element(copy, deep_copy(json_array_get_element(array, i)));
+    }
+    g_clear_pointer(&view->clipboard, json_node_free); view->clipboard = json_node_new(JSON_NODE_ARRAY); json_node_take_array(view->clipboard, copy);
+    refresh(view); notice(view, "Seçili eventler kopyalandı. Hedef gün/saat aralığını seçip Yapıştır'a basın.");
+}
+static gint64 absolute_minute(const gchar *date, guint minute)
+{
+    GDateTime *stamp = parse_date(date); if (!stamp) return -1;
+    gint64 result = g_date_time_to_unix(stamp) / 60 + minute; g_date_time_unref(stamp); return result;
+}
+static void paste_blocks(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; if (!view->clipboard || !view->has_selection) return;
+    JsonArray *source = json_node_get_array(view->clipboard), *array = events(view);
+    if (!json_array_get_length(source)) return;
+    if (json_array_get_length(array) + json_array_get_length(source) > 500) { notice(view, "Takvim en fazla 500 program içerebilir."); return; }
+    gint64 base = G_MAXINT64;
+    for (guint i = 0; i < json_array_get_length(source); ++i) {
+        JsonObject *event = json_array_get_object_element(source, i);
+        base = MIN(base, absolute_minute(radios_json_string(event, "date", ""), (guint)radios_json_int(event, "start_minute", 0)));
+    }
+    gchar *target_date = date_at(view, view->day_first); gint64 target = absolute_minute(target_date, view->start); g_free(target_date);
+    JsonArray *pending = json_array_new();
+    for (guint i = 0; i < json_array_get_length(source); ++i) {
+        JsonNode *copy = deep_copy(json_array_get_element(source, i)); JsonObject *event = json_node_get_object(copy);
+        guint old_start = (guint)radios_json_int(event, "start_minute", 0), duration = (guint)radios_json_int(event, "end_minute", 0) - old_start;
+        gint64 moment = absolute_minute(radios_json_string(event, "date", ""), old_start) - base + target;
+        GDateTime *stamp = g_date_time_new_from_unix_utc(moment * 60);
+        if (!stamp) { json_node_free(copy); json_array_unref(pending); notice(view, "Hedef tarih desteklenen aralığın dışında."); return; }
+        gchar *date = g_date_time_format(stamp, "%Y-%m-%d"); guint start = (guint)(g_date_time_get_hour(stamp) * 60 + g_date_time_get_minute(stamp)); g_date_time_unref(stamp);
+        if (start + duration > 1440 || overlaps(array, date, start, start + duration, NULL) || overlaps(pending, date, start, start + duration, NULL)) {
+            g_free(date); json_node_free(copy); json_array_unref(pending); notice(view, "Yapıştırma çakışıyor veya gece yarısını aşıyor; hiçbir event eklenmedi."); return;
+        }
+        json_object_set_string_member(event, "date", date); g_free(date); json_object_set_int_member(event, "start_minute", start);
+        json_object_set_int_member(event, "end_minute", start + duration); new_ids(event); json_array_add_element(pending, copy);
+    }
+    g_hash_table_remove_all(view->selected);
+    for (guint i = 0; i < json_array_get_length(pending); ++i) {
+        JsonObject *event = json_array_get_object_element(pending, i);
+        g_free(view->current); view->current = g_strdup(radios_json_string(event, "id", "")); g_hash_table_add(view->selected, g_strdup(view->current));
+        json_array_add_element(array, deep_copy(json_array_get_element(pending, i)));
+    }
+    json_array_unref(pending); commit(view);
+}
+static gboolean key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
+{
+    (void)widget; Calendar *view = data;
+    if (event->state & GDK_CONTROL_MASK) {
+        if (event->keyval == GDK_KEY_c || event->keyval == GDK_KEY_C) { copy_blocks(NULL, view); return TRUE; }
+        if (event->keyval == GDK_KEY_v || event->keyval == GDK_KEY_V) { paste_blocks(NULL, view); return TRUE; }
+    }
+    if (event->keyval == GDK_KEY_Return) { programme_dialog(view->save_selection == NULL ? NULL : GTK_BUTTON(view->save_selection), view); return TRUE; }
+    if (!view->has_selection) return FALSE;
+    gint day = (gint)view->day_first, minute = (gint)view->start;
+    if (event->keyval == GDK_KEY_Left) --day; else if (event->keyval == GDK_KEY_Right) ++day;
+    else if (event->keyval == GDK_KEY_Up) minute -= (gint)view->step; else if (event->keyval == GDK_KEY_Down) minute += (gint)view->step; else return FALSE;
+    day = CLAMP(day, 0, 6); minute = CLAMP(minute, 0, 1440 - (gint)view->step);
+    if (event->state & GDK_SHIFT_MASK) {
+        g_hash_table_remove_all(view->selected); g_clear_pointer(&view->current, g_free);
+        view->day_last = (guint)day; view->day_first = MIN(view->anchor_day, (guint)day); view->day_last = MAX(view->anchor_day, (guint)day);
+        view->start = MIN(view->anchor_minute, (guint)minute); view->end = MAX(view->anchor_minute, (guint)minute) + view->step; refresh(view);
+    } else { view->anchor_day = (guint)day; view->anchor_minute = (guint)minute; radios_automation_calendar_select(view->page, (guint)day, (guint)minute, (guint)minute + view->step, FALSE); }
+    return TRUE;
+}
+
+static void playlist_choices(Calendar *view)
+{
+    if (!view->rotation_dialog) return;
+    GtkComboBoxText *combo = g_object_get_data(G_OBJECT(view->rotation_dialog), "playlist");
+    gchar *current = g_strdup(gtk_combo_box_get_active_id(GTK_COMBO_BOX(combo)));
+    gtk_combo_box_text_remove_all(combo);
+    JsonArray *array = view->playlists ? json_object_get_array_member(json_node_get_object(view->playlists), "playlists") : NULL;
+    for (guint i = 0; array && i < json_array_get_length(array); ++i) {
+        JsonObject *row = json_array_get_object_element(array, i);
+        gtk_combo_box_text_append(combo, radios_json_string(row, "_id", ""), radios_json_string(row, "name", "Playlist"));
+    }
+    if (current && *current) gtk_combo_box_set_active_id(GTK_COMBO_BOX(combo), current);
+    g_free(current);
+}
+static void playlists_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)owner; Calendar *view = data; view->loading = FALSE;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { if (error) notice(view, error->message); return; }
+    g_clear_pointer(&view->playlists, json_node_free); view->playlists = deep_copy(result); playlist_choices(view); refresh(view);
+}
+static void load_playlists(RadioSViewContext *ctx, GtkWidget *owner)
+{
+    Calendar *view = g_object_get_data(G_OBJECT(owner), "automation-calendar");
+    if (view->loading || !radios_data_connected(ctx)) return;
+    JsonNode *body = radios_data_body(ctx); view->loading = radios_data_request(ctx, owner, "POST", "/v1/workflows/desktop-playlists/list", body, playlists_received, view, NULL); json_node_free(body);
+}
+static void rotation_closed(GtkWidget *dialog, gpointer data)
+{ Calendar *view = data; if (view->rotation_dialog == dialog) view->rotation_dialog = NULL; }
+static void rotation_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    Calendar *view = data;
+    if (response != GTK_RESPONSE_ACCEPT) { gtk_widget_destroy(GTK_WIDGET(dialog)); return; }
+    const gchar *event_id = g_object_get_data(G_OBJECT(dialog), "event-id"); JsonObject *event = event_by_id(view, event_id);
+    if (!event) { notice(view, "Hedef program değişti veya kaldırıldı."); return; }
+    GtkComboBox *playlist = g_object_get_data(G_OBJECT(dialog), "playlist"); const gchar *id = gtk_combo_box_get_active_id(playlist);
+    if (!id || !g_uuid_string_is_valid(id)) { notice(view, "Rotasyon için kayıtlı bir playlist seçin."); return; }
+    JsonArray *array = json_object_get_array_member(event, "rotations");
+    if (json_array_get_length(array) >= 50) { notice(view, "Bir program en fazla 50 rotasyon içerebilir."); return; }
+    JsonObject *row = json_object_new(); gchar *row_id = g_uuid_string_random(); json_object_set_string_member(row, "id", row_id); g_free(row_id);
+    json_object_set_string_member(row, "playlist_id", id);
+    GtkSpinButton *frequency = g_object_get_data(G_OBJECT(dialog), "frequency"); gtk_spin_button_update(frequency);
+    json_object_set_int_member(row, "frequency", gtk_spin_button_get_value_as_int(frequency));
+    const gchar *fields[] = { "random", "track_random", "advert_random", "sweeper_random" };
+    for (guint i = 0; i < G_N_ELEMENTS(fields); ++i)
+        json_object_set_boolean_member(row, fields[i], gtk_toggle_button_get_active(g_object_get_data(G_OBJECT(dialog), fields[i])));
+    json_array_add_object_element(array, row); gtk_widget_destroy(GTK_WIDGET(dialog)); commit(view);
+}
+static void rotation_dialog(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; if (!event_by_id(view, view->current)) return;
+    if (view->rotation_dialog) { gtk_window_present(GTK_WINDOW(view->rotation_dialog)); return; }
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Rotasyon tanımla", view->ctx->parent,
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, "Vazgeç", GTK_RESPONSE_CANCEL, "Rotasyon ekle", GTK_RESPONSE_ACCEPT, NULL);
+    view->rotation_dialog = dialog; gtk_widget_set_name(dialog, "automation-calendar-rotation-dialog");
+    GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(dialog)); gtk_container_set_border_width(GTK_CONTAINER(box), 16);
+    GtkWidget *playlist = gtk_combo_box_text_new(); gtk_widget_set_name(playlist, "automation-calendar-rotation-playlist");
+    GtkWidget *frequency = gtk_spin_button_new_with_range(1, 100, 1); gtk_widget_set_name(frequency, "automation-calendar-rotation-frequency");
+    gtk_widget_set_tooltip_text(frequency, "Her rotasyon turunda bu playlistten seçilecek parça adedi");
+    gtk_box_pack_start(GTK_BOX(box), radios_ui_label("Hangi playlist?", NULL), FALSE, FALSE, 4); gtk_box_pack_start(GTK_BOX(box), playlist, FALSE, FALSE, 4);
+    gtk_box_pack_start(GTK_BOX(box), radios_ui_label("Sıklık · her rotasyon turundaki parça adedi", NULL), FALSE, FALSE, 4); gtk_box_pack_start(GTK_BOX(box), frequency, FALSE, FALSE, 4);
+    g_object_set_data(G_OBJECT(dialog), "playlist", playlist); g_object_set_data(G_OBJECT(dialog), "frequency", frequency);
+    const gchar *fields[] = { "random", "track_random", "advert_random", "sweeper_random" };
+    const gchar *names[] = { "random", "track-random", "advert-random", "sweeper-random" };
+    const gchar *labels[] = { "Playlistler arasından rastgele seç", "Playlist içindeki parçaları rastgele çal", "Reklamları rastgele seç", "Sweeper'ları rastgele seç" };
+    for (guint i = 0; i < G_N_ELEMENTS(fields); ++i) {
+        GtkWidget *check = gtk_check_button_new_with_label(labels[i]); gchar *name = g_strdup_printf("automation-calendar-rotation-%s", names[i]);
+        gtk_widget_set_name(check, name); g_free(name); gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(check), TRUE);
+        g_object_set_data(G_OBJECT(dialog), fields[i], check); gtk_box_pack_start(GTK_BOX(box), check, FALSE, FALSE, 4);
+    }
+    g_object_set_data_full(G_OBJECT(dialog), "event-id", g_strdup(view->current), g_free);
+    g_signal_connect(dialog, "destroy", G_CALLBACK(rotation_closed), view);
+    g_signal_connect(dialog, "response", G_CALLBACK(rotation_response), view);
+    playlist_choices(view); if (view->ctx->data) load_playlists(view->ctx, view->page); gtk_widget_show_all(dialog);
+}
+static void rows_reordered(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gint *order, gpointer data)
+{
+    (void)path; (void)iter; (void)order; Calendar *view = data; if (view->updating) return;
+    JsonObject *event = event_by_id(view, view->current); if (!event) return;
+    JsonArray *old = json_object_get_array_member(event, "rotations"), *replacement = json_array_new(); GtkTreeIter cursor;
+    gboolean valid = gtk_tree_model_get_iter_first(model, &cursor);
+    while (valid) {
+        gchar *id = NULL; gtk_tree_model_get(model, &cursor, 0, &id, -1);
+        for (guint i = 0; i < json_array_get_length(old); ++i)
+            if (g_str_equal(id, radios_json_string(json_array_get_object_element(old, i), "id", "")))
+                json_array_add_element(replacement, deep_copy(json_array_get_element(old, i)));
+        g_free(id); valid = gtk_tree_model_iter_next(model, &cursor);
+    }
+    if (json_array_get_length(replacement) != json_array_get_length(old)) { json_array_unref(replacement); refresh(view); return; }
+    json_object_set_array_member(event, "rotations", replacement); commit(view);
+}
+static void row_action(GtkButton *button, gpointer data)
+{
+    Calendar *view = data; JsonObject *event = event_by_id(view, view->current); if (!event) return;
+    gint action = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "action"));
+    JsonArray *array = json_object_get_array_member(event, "rotations"); GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view->rows));
+    GList *paths = gtk_tree_selection_get_selected_rows(selection, NULL);
+    if (action == 3) {
+        g_clear_pointer(&view->row_clipboard, json_node_free); view->row_clipboard = json_node_new(JSON_NODE_ARRAY); JsonArray *copy = json_array_new(); json_node_take_array(view->row_clipboard, copy);
+        for (GList *item = paths; item; item = item->next) {
+            gint index = gtk_tree_path_get_indices(item->data)[0]; json_array_add_element(copy, deep_copy(json_array_get_element(array, (guint)index)));
+        }
+        notice(view, "Seçili rotasyon eventleri kopyalandı; hedef programda Eventleri yapıştır'a basın.");
+    } else if (action == 4) {
+        JsonArray *copy = view->row_clipboard ? json_node_get_array(view->row_clipboard) : NULL;
+        if (copy && json_array_get_length(copy) + json_array_get_length(array) <= 50) {
+            for (guint i = 0; i < json_array_get_length(copy); ++i) {
+                JsonNode *node = deep_copy(json_array_get_element(copy, i)); gchar *id = g_uuid_string_random();
+                json_object_set_string_member(json_node_get_object(node), "id", id); g_free(id); json_array_add_element(array, node);
+            }
+            commit(view);
+        } else notice(view, "Yapıştırılacak event yok veya 50 rotasyon sınırı aşılıyor.");
+    } else if (paths) {
+        if (action == 0) {
+            for (GList *item = g_list_last(paths); item; item = item->prev) json_array_remove_element(array, (guint)gtk_tree_path_get_indices(item->data)[0]);
+            commit(view);
+        } else {
+            guint index = (guint)gtk_tree_path_get_indices(paths->data)[0]; gint other = (gint)index + action;
+            if (g_list_length(paths) == 1 && other >= 0 && other < (gint)json_array_get_length(array)) {
+                JsonArray *replacement = json_array_new();
+                for (guint i = 0; i < json_array_get_length(array); ++i)
+                    json_array_add_element(replacement, deep_copy(json_array_get_element(array, i == index ? (guint)other : i == (guint)other ? index : i)));
+                json_object_set_array_member(event, "rotations", replacement); commit(view);
+                GtkTreePath *path = gtk_tree_path_new_from_indices(other, -1); gtk_tree_selection_select_path(selection, path); gtk_tree_path_free(path);
+            }
+        }
+    }
+    g_list_free_full(paths, (GDestroyNotify)gtk_tree_path_free);
+}
+typedef struct {
+    JsonNode *event, *diagnostics;
+    RadioSDataClient *client;
+    guint generation;
+    gboolean programme;
+} PreviewJob;
+static void preview_job_free(gpointer data)
+{
+    PreviewJob *job = data; json_node_free(job->event);
+    g_clear_pointer(&job->diagnostics, json_node_free); radios_data_client_unref(job->client); g_free(job);
+}
+static void append_diagnostics(JsonArray *messages, JsonNode *node)
+{
+    if (!node || !JSON_NODE_HOLDS_ARRAY(node)) return;
+    JsonArray *array = json_node_get_array(node);
+    for (guint i = 0; i < json_array_get_length(array); ++i)
+        json_array_add_element(messages, deep_copy(json_array_get_element(array, i)));
+}
+static gchar *preview_notes(JsonNode *selection, JsonNode *verified, JsonNode *planned)
+{
+    guint unavailable = 0, boundary = 0, other = 0;
+    JsonNode *groups[] = { selection, verified, planned };
+    for (guint group = 0; group < G_N_ELEMENTS(groups); ++group) {
+        JsonNode *node = groups[group]; if (!node || !JSON_NODE_HOLDS_ARRAY(node)) continue;
+        JsonArray *array = json_node_get_array(node);
+        for (guint i = 0; i < json_array_get_length(array); ++i) {
+            JsonNode *item = json_array_get_element(array, i);
+            if (!JSON_NODE_HOLDS_OBJECT(item)) { ++other; continue; }
+            JsonObject *message = json_node_get_object(item);
+            const gchar *reason = radios_json_string(message, "reason", radios_json_string(message, "code", ""));
+            if (g_str_equal(reason, "calendar_media_unavailable")) ++unavailable;
+            else if (g_str_equal(reason, "calendar_end_boundary")) ++boundary;
+            else ++other;
+        }
+    }
+    if (!unavailable && !boundary && !other) return NULL;
+    GString *notes = g_string_new(NULL);
+    if (unavailable) g_string_append_printf(notes, "%u medya kaydı doğrulanamadığı için atlandı. ", unavailable);
+    if (boundary) g_string_append_printf(notes, "%u sonraki öğe blok sonunu aşacağı için eklenmedi. ", boundary);
+    if (other) g_string_append_printf(notes, "%u ek hazırlık bildirimi var.", other);
+    g_strchomp(notes->str); return g_string_free(notes, FALSE);
+}
+static gboolean preview_input_matches(Calendar *view, JsonNode *event, RadioSDataClient *client)
+{
+    JsonObject *current = event_by_id(view, view->current); if (!current || !radios_data_connected(view->ctx)) return FALSE;
+    JsonNode *node = object_node(current); gboolean equal = json_node_equal(node, event); json_node_free(node);
+    RadioSDataClient *actual = radios_data_client_acquire(view->ctx);
+    gboolean identity = actual == client; if (actual) radios_data_client_unref(actual); return equal && identity;
+}
+static void preview_dialog(Calendar *view)
+{
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Program önizlemesi", view->ctx->parent,
+        GTK_DIALOG_DESTROY_WITH_PARENT, "Kapat", GTK_RESPONSE_CLOSE, NULL);
+    gtk_widget_set_name(dialog, "automation-calendar-preview-dialog"); gtk_window_set_default_size(GTK_WINDOW(dialog), 900, 600);
+    const gchar *columns[] = { "Sıra / saat", "Parça", "Sanatçı", "Tür", "Süre" };
+    GtkWidget *table = radios_ui_table(columns, G_N_ELEMENTS(columns));
+    GtkListStore *store = g_object_get_data(G_OBJECT(table), "list-store");
+    JsonArray *entries = json_object_get_array_member(json_node_get_object(view->plan->display), "entries");
+    for (guint i = 0; entries && i < json_array_get_length(entries); ++i) {
+        JsonObject *entry = json_array_get_object_element(entries, i); GtkTreeIter iter;
+        gchar *order = g_strdup_printf("%u · %s", i + 1, radios_json_string(entry, "start_utc", ""));
+        gint64 duration = radios_json_int(entry, "duration_ms", 0);
+        gchar *time = g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, duration / 60000, duration / 1000 % 60);
+        gtk_list_store_append(store, &iter); gtk_list_store_set(store, &iter, 0, order,
+            1, radios_json_string(entry, "title", ""), 2, radios_json_string(entry, "artist", ""),
+            3, radios_json_string(entry, "kind", ""), 4, time, -1); g_free(order); g_free(time);
+    }
+    GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    gtk_box_pack_start(GTK_BOX(box), radios_ui_label("Önizleme ses çalmaz. Takvim aralığına sığan en çok 200 öğe hazırlanır.", "task-help"), FALSE, FALSE, 8);
+    if (view->preview_notes) {
+        GtkWidget *notes = radios_ui_label(view->preview_notes, "task-help");
+        gtk_widget_set_name(notes, "automation-calendar-preview-notes");
+        gtk_label_set_line_wrap(GTK_LABEL(notes), TRUE);
+        gtk_box_pack_start(GTK_BOX(box), notes, FALSE, FALSE, 8);
+    }
+    gtk_box_pack_start(GTK_BOX(box), table, TRUE, TRUE, 0);
+    g_signal_connect_swapped(dialog, "response", G_CALLBACK(gtk_widget_destroy), dialog);
+    g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED); gtk_widget_show_all(dialog);
+}
+static gint64 event_start_us(JsonObject *event)
+{ return absolute_minute(radios_json_string(event, "date", ""), (guint)radios_json_int(event, "start_minute", 0)) * 60 * G_USEC_PER_SEC; }
+static void preview_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
+{
+    Calendar *view = g_object_get_data(G_OBJECT(owner), "automation-calendar"); PreviewJob *job = data;
+    if (job->generation != view->preview_generation) return;
+    if (!preview_input_matches(view, job->event, job->client)) {
+        invalidate_preview(view); notice(view, "Program veya veri oturumu değişti; önizlemeyi yeniden hazırlayın."); return;
+    }
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) {
+        invalidate_preview(view); notice(view, error ? error->message : "Program hazırlığı alınamadı."); return;
+    }
+    GError *failure = NULL; JsonObject *event = json_node_get_object(job->event);
+    if (!job->programme) {
+        JsonNode *selection = radios_automation_calendar_prepared_programme(event, json_node_get_object(result),
+            radios_data_station_id(ctx), radios_json_string(event, "id", ""), 200, &failure);
+        if (!selection) { invalidate_preview(view); notice(view, failure ? failure->message : "Program sırası üretilemedi."); g_clear_error(&failure); return; }
+        JsonObject *selected = json_node_get_object(selection);
+        JsonNode *programme = deep_copy(json_object_get_member(selected, "config"));
+        JsonNode *body = radios_data_body(ctx); JsonObject *object = json_node_get_object(body);
+        json_object_set_string_member(object, "kind", "programme"); json_object_set_member(object, "config", programme);
+        PreviewJob *next = g_new0(PreviewJob, 1); next->event = deep_copy(job->event); next->client = radios_data_client_ref(job->client);
+        next->generation = job->generation; next->programme = TRUE;
+        next->diagnostics = deep_copy(json_object_get_member(selected, "diagnostics"));
+        JsonArray *messages = json_node_get_array(next->diagnostics);
+        append_diagnostics(messages, json_object_get_member(json_node_get_object(result), "diagnostics"));
+        json_node_free(selection);
+        gboolean accepted = radios_data_request(ctx, owner, "POST", "/v1/workflows/desktop-playout/prepare", body, preview_received, next, preview_job_free);
+        json_node_free(body);
+        if (!accepted) { invalidate_preview(view); notice(view, "Program medyası yeniden doğrulanamadı."); }
+        return;
+    }
+    RadioSPlayoutRequest request = { .station_id = radios_data_station_id(ctx), .database_file = ctx->config->database_file,
+        .mode = 0, .now_utc_us = g_get_real_time(), .start_utc_us = event_start_us(event) };
+    RadioSPlayoutPlan *plan = radios_playout_plan_build(json_node_get_object(result), &request, &failure);
+    if (!plan) { invalidate_preview(view); notice(view, failure ? failure->message : "Doğrulanmış önizleme üretilemedi."); g_clear_error(&failure); return; }
+    view->plan = plan; view->prepared = deep_copy(result); view->preview_event = deep_copy(job->event);
+    view->preview_client = radios_data_client_ref(job->client); view->preview_busy = FALSE;
+    view->preview_notes = preview_notes(job->diagnostics, json_object_get_member(json_node_get_object(result), "diagnostics"),
+        json_object_get_member(json_node_get_object(plan->display), "diagnostics"));
+    gtk_widget_set_sensitive(view->preview_button, TRUE); gtk_widget_set_sensitive(view->append_button, plan->entries->len > 0);
+    gtk_widget_set_sensitive(view->schedule_button, ctx->playout != NULL && plan->entries->len > 0);
+    gchar *message = g_strdup_printf("%u öğe hazır. Rotasyon sıklığı ve ayrı parça/reklam/sweeper seçimleri uygulandı.", plan->entries->len);
+    notice(view, message); g_free(message); preview_dialog(view);
+}
+static void preview_selected(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; JsonObject *event = event_by_id(view, view->current); if (!event || view->preview_busy) return;
+    if (!radios_data_connected(view->ctx)) { notice(view, "Önizleme için veritabanı bağlantısı gerekli."); return; }
+    invalidate_preview(view);
+    GtkWidget *legacy = g_object_get_data(G_OBJECT(view->page), "legacy-rules");
+    JsonNode *defaults = legacy ? radios_automation_rules_configuration(legacy) : NULL; GError *error = NULL;
+    JsonNode *config = radios_automation_calendar_prepare_config(event, defaults ? json_node_get_object(defaults) : NULL, &error);
+    g_clear_pointer(&defaults, json_node_free);
+    if (!config) { notice(view, error ? error->message : "Rotasyon hazırlığı geçersiz."); g_clear_error(&error); return; }
+    JsonNode *body = radios_data_body(view->ctx); JsonObject *object = json_node_get_object(body);
+    json_object_set_string_member(object, "kind", "automation"); json_object_set_member(object, "config", config);
+    PreviewJob *job = g_new0(PreviewJob, 1); JsonNode *node = object_node(event); job->event = deep_copy(node); json_node_free(node);
+    job->generation = view->preview_generation; job->client = radios_data_client_acquire(view->ctx);
+    view->preview_busy = TRUE; gtk_widget_set_sensitive(view->preview_button, FALSE);
+    gboolean accepted = radios_data_request(view->ctx, view->page, "POST", "/v1/workflows/desktop-playout/prepare", body, preview_received, job, preview_job_free);
+    json_node_free(body); if (!accepted) invalidate_preview(view); else notice(view, "Programın playlist ve medya kayıtları doğrulanıyor…");
+}
+static void preview_append(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; if (!view->prepared || !view->preview_event || !view->plan) return;
+    if (!preview_input_matches(view, view->preview_event, view->preview_client)) { invalidate_preview(view); notice(view, "Önizleme değişti; yeniden hazırlayın."); return; }
+    GError *error = NULL; JsonArray *entries = json_object_get_array_member(json_node_get_object(view->plan->display), "entries");
+    if (!radios_broadcast_append_event(view->ctx, entries, radios_json_string(json_node_get_object(view->preview_event), "title", ""), &error))
+        notice(view, error ? error->message : "Yayın sırası hazır değil.");
+    else notice(view, "Doğrulanmış takvim programı yayın sırasına ekleniyor.");
+    g_clear_error(&error);
+}
+static void preview_schedule(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; if (!view->prepared || !view->preview_event) return;
+    if (!preview_input_matches(view, view->preview_event, view->preview_client)) { invalidate_preview(view); notice(view, "Önizleme değişti; yeniden hazırlayın."); return; }
+    gint64 start = event_start_us(json_node_get_object(view->preview_event));
+    if (start <= g_get_real_time()) { notice(view, "Zamanlama için gelecekteki bir program aralığı seçin."); return; }
+    GError *error = NULL;
+    if (!radios_playout_ui_start_prepared(view->ctx, view->page, json_node_get_object(view->prepared), start, &error))
+        notice(view, error ? error->message : "Program zamanlanamadı.");
+    else notice(view, "Program seçili UTC başlangıç saati için zamanlandı.");
+    g_clear_error(&error);
+}
+static GtkWidget *button_new(const gchar *label, const gchar *name, GCallback callback, Calendar *view)
+{
+    GtkWidget *button = radios_ui_button(label); gtk_widget_set_name(button, name);
+    if (callback) g_signal_connect(button, "clicked", callback, view);
+    return button;
+}
+static void legacy_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    (void)response; Calendar *view = data;
+    GtkWidget *legacy = g_object_get_data(G_OBJECT(view->page), "legacy-rules");
+    GtkWidget *holder = g_object_get_data(G_OBJECT(view->page), "legacy-holder");
+    GtkWidget *parent = gtk_widget_get_parent(legacy);
+    if (parent != holder) { gtk_container_remove(GTK_CONTAINER(parent), legacy); gtk_box_pack_start(GTK_BOX(holder), legacy, FALSE, FALSE, 0); }
+    gtk_widget_hide(GTK_WIDGET(dialog)); gtk_widget_hide(holder);
+}
+static gboolean legacy_delete(GtkWidget *dialog, GdkEvent *event, gpointer data)
+{
+    (void)event; (void)data; gtk_dialog_response(GTK_DIALOG(dialog), GTK_RESPONSE_CLOSE); return TRUE;
+}
+static void legacy_dialog(GtkButton *button, gpointer data)
+{
+    (void)button; Calendar *view = data; GtkWidget *legacy = g_object_get_data(G_OBJECT(view->page), "legacy-rules");
+    if (!legacy) return;
+    GtkWidget *dialog = g_object_get_data(G_OBJECT(view->page), "legacy-dialog");
+    if (!dialog) {
+        dialog = gtk_dialog_new_with_buttons("Gelişmiş rotasyon ve AutoDJ", view->ctx->parent, GTK_DIALOG_DESTROY_WITH_PARENT,
+            "Kapat", GTK_RESPONSE_CLOSE, NULL); gtk_window_set_default_size(GTK_WINDOW(dialog), 1180, 800);
+        GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+        gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), scroll, TRUE, TRUE, 0);
+        g_object_set_data(G_OBJECT(dialog), "legacy-scroll", scroll);
+        g_object_set_data(G_OBJECT(view->page), "legacy-dialog", dialog);
+        g_signal_connect(dialog, "response", G_CALLBACK(legacy_response), view);
+        g_signal_connect(dialog, "delete-event", G_CALLBACK(legacy_delete), view);
+        g_signal_connect_object(view->page, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
+    }
+    GtkWidget *parent = gtk_widget_get_parent(legacy);
+    if (parent) gtk_container_remove(GTK_CONTAINER(parent), legacy);
+    GtkWidget *scroll = g_object_get_data(G_OBJECT(dialog), "legacy-scroll");
+    GtkWidget *viewport = gtk_bin_get_child(GTK_BIN(scroll));
+    gtk_container_add(GTK_CONTAINER(viewport ? viewport : scroll), legacy);
+    gtk_widget_show_all(dialog); gtk_window_present(GTK_WINDOW(dialog));
+}
+GtkWidget *radios_automation_calendar_new(RadioSViewContext *ctx, GtkWidget *legacy_rules)
+{
+    Calendar *view = g_new0(Calendar, 1); view->ctx = ctx; view->step = 30;
+    view->selected = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    JsonObject *config = json_object_new(); json_object_set_int_member(config, "schema", 1); json_object_set_array_member(config, "events", json_array_new());
+    view->config = object_node(config); json_object_unref(config);
+    GtkWidget *page = radios_ui_box(GTK_ORIENTATION_VERTICAL, 8, "task-view automation-calendar"); view->page = page;
+    gtk_widget_set_name(page, "automation-calendar"); g_object_set_data_full(G_OBJECT(page), "automation-calendar", view, free_view);
+    g_signal_connect(page, "destroy", G_CALLBACK(destroyed), view);
+    GtkWidget *heading = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 8, NULL);
+    gtk_box_pack_start(GTK_BOX(heading), radios_ui_label("Otomasyon · haftalık yayın takvimi", "h2 heading"), TRUE, TRUE, 0);
+    GtkWidget *advanced = button_new("Gelişmiş rotasyon ve AutoDJ", "automation-calendar-advanced", G_CALLBACK(legacy_dialog), view);
+    gtk_box_pack_end(GTK_BOX(heading), advanced, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(page), heading, FALSE, FALSE, 0);
+    if (legacy_rules) {
+        g_object_ref_sink(legacy_rules); g_object_set_data_full(G_OBJECT(page), "legacy-rules", legacy_rules, g_object_unref);
+        GtkWidget *holder = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); gtk_widget_set_no_show_all(holder, TRUE);
+        gtk_box_pack_start(GTK_BOX(holder), legacy_rules, FALSE, FALSE, 0);
+        gtk_box_pack_end(GTK_BOX(page), holder, FALSE, FALSE, 0); g_object_set_data(G_OBJECT(page), "legacy-holder", holder);
+    }
+    else gtk_widget_hide(advanced);
+    GtkWidget *bar = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 5, NULL);
+    const gchar *nav_labels[] = { "‹", "Bugün", "›", "+", "−" }, *nav_names[] = {
+        "automation-calendar-prev", "automation-calendar-today", "automation-calendar-next", "automation-calendar-zoom-in", "automation-calendar-zoom-out" };
+    const gint directions[] = { -1, 0, 1, 1, -1 };
+    for (guint i = 0; i < G_N_ELEMENTS(nav_labels); ++i) {
+        GtkWidget *button = button_new(nav_labels[i], nav_names[i], i < 3 ? G_CALLBACK(navigate) : G_CALLBACK(zoom), view);
+        g_object_set_data(G_OBJECT(button), "direction", GINT_TO_POINTER(directions[i])); gtk_box_pack_start(GTK_BOX(bar), button, FALSE, FALSE, 0);
+    }
+    view->date = radios_ui_entry("YYYY-AA-GG"); gtk_widget_set_name(view->date, "automation-calendar-date"); gtk_entry_set_width_chars(GTK_ENTRY(view->date), 10);
+    gtk_entry_set_max_length(GTK_ENTRY(view->date), 10); gtk_widget_set_tooltip_text(view->date, "Görüntülenecek hafta · UTC");
+    g_signal_connect(view->date, "activate", G_CALLBACK(date_changed), view); gtk_box_pack_start(GTK_BOX(bar), view->date, FALSE, FALSE, 0);
+    GtkWidget *save = button_new("Kaydet", "automation-calendar-save", G_CALLBACK(save_all), view); gtk_box_pack_end(GTK_BOX(bar), save, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(page), bar, FALSE, FALSE, 0);
+    GtkWidget *selection_bar = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 5, NULL);
+    view->selection = radios_ui_label("", NULL); gtk_label_set_ellipsize(GTK_LABEL(view->selection), PANGO_ELLIPSIZE_END);
+    gtk_widget_set_name(view->selection, "automation-calendar-selection"); gtk_box_pack_start(GTK_BOX(selection_bar), view->selection, TRUE, TRUE, 0);
+    view->save_selection = button_new("Seçileni kaydet", "automation-calendar-save-selection", G_CALLBACK(programme_dialog), view);
+    view->copy = button_new("Eventleri kopyala", "automation-calendar-copy", G_CALLBACK(copy_blocks), view);
+    view->paste = button_new("Yapıştır", "automation-calendar-paste", G_CALLBACK(paste_blocks), view);
+    gtk_box_pack_end(GTK_BOX(selection_bar), view->paste, FALSE, FALSE, 0); gtk_box_pack_end(GTK_BOX(selection_bar), view->copy, FALSE, FALSE, 0);
+    gtk_box_pack_end(GTK_BOX(selection_bar), view->save_selection, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(page), selection_bar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(page), radios_ui_label("Sürükleyerek hücre seçin · Ctrl ile çoklu event · Shift ile aralık seçin · Ctrl+C / Ctrl+V", "task-help"), FALSE, FALSE, 0);
+    GtkWidget *paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL); gtk_widget_set_name(paned, "automation-calendar-split"); gtk_widget_set_vexpand(paned, TRUE);
+    GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL); gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+    view->grid = gtk_drawing_area_new(); gtk_widget_set_name(view->grid, "automation-calendar-grid"); gtk_widget_set_size_request(view->grid, 840, (gint)minute_y(view, 1440));
+    gtk_widget_set_can_focus(view->grid, TRUE); atk_object_set_name(gtk_widget_get_accessible(view->grid), "Haftalık otomasyon takvimi · gün ve saat hücreleri");
+    gtk_widget_add_events(view->grid, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_POINTER_MOTION_MASK | GDK_KEY_PRESS_MASK);
+    g_signal_connect(view->grid, "draw", G_CALLBACK(draw), view); g_signal_connect(view->grid, "button-press-event", G_CALLBACK(press), view);
+    g_signal_connect(view->grid, "motion-notify-event", G_CALLBACK(motion), view); g_signal_connect(view->grid, "button-release-event", G_CALLBACK(release), view);
+    g_signal_connect(view->grid, "key-press-event", G_CALLBACK(key_press), view); gtk_container_add(GTK_CONTAINER(scroll), view->grid);
+    GtkWidget *calendar_box = radios_ui_box(GTK_ORIENTATION_VERTICAL, 0, NULL);
+    view->header = gtk_drawing_area_new(); gtk_widget_set_name(view->header, "automation-calendar-days"); gtk_widget_set_size_request(view->header, -1, 42);
+    GtkAdjustment *horizontal = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(scroll));
+    g_object_set_data(G_OBJECT(view->header), "horizontal", horizontal);
+    g_signal_connect(view->header, "draw", G_CALLBACK(draw), view);
+    g_signal_connect_object(horizontal, "value-changed", G_CALLBACK(header_scrolled), view->header, 0);
+    g_signal_connect(view->grid, "size-allocate", G_CALLBACK(grid_resized), view);
+    gtk_box_pack_start(GTK_BOX(calendar_box), view->header, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(calendar_box), scroll, TRUE, TRUE, 0);
+    gtk_paned_pack1(GTK_PANED(paned), calendar_box, TRUE, FALSE);
+    view->editor = radios_ui_box(GTK_ORIENTATION_VERTICAL, 8, "automation-calendar-programme"); gtk_widget_set_size_request(view->editor, 350, 420);
+    gtk_box_pack_start(GTK_BOX(view->editor), radios_ui_label("Seçili program", "h3 heading"), FALSE, FALSE, 0);
+    view->name = radios_ui_entry("Program adı"); gtk_widget_set_name(view->name, "automation-calendar-programme-name"); gtk_entry_set_max_length(GTK_ENTRY(view->name), 160);
+    const gchar *colors[] = { "Açık mavi", "Yeşil", NULL }; view->color = radios_ui_combo(colors, 0);
+    g_signal_connect(view->name, "changed", G_CALLBACK(inspector_changed), view); g_signal_connect(view->color, "changed", G_CALLBACK(inspector_changed), view);
+    gtk_box_pack_start(GTK_BOX(view->editor), view->name, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(view->editor), view->color, FALSE, FALSE, 0);
+    GtkWidget *edit_bar = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 4, NULL);
+    GtkWidget *edit = button_new("Program bilgileri", "automation-calendar-edit-programme", G_CALLBACK(programme_dialog), view); g_object_set_data(G_OBJECT(edit), "edit", GINT_TO_POINTER(TRUE));
+    gtk_box_pack_start(GTK_BOX(edit_bar), edit, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(edit_bar), button_new("Programı kaydet", "automation-calendar-save-programme", G_CALLBACK(save_programme), view), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(edit_bar), button_new("Kaldır", "automation-calendar-remove-programme", G_CALLBACK(remove_programme), view), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(view->editor), edit_bar, FALSE, FALSE, 0);
+    view->store = gtk_list_store_new(7, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+    view->rows = gtk_tree_view_new_with_model(GTK_TREE_MODEL(view->store)); g_object_unref(view->store); gtk_widget_set_name(view->rows, "automation-calendar-rotations");
+    gtk_tree_selection_set_mode(gtk_tree_view_get_selection(GTK_TREE_VIEW(view->rows)), GTK_SELECTION_MULTIPLE);
+    const gchar *columns[] = { "Playlist", "Sıklık", "Seçim", "Parçalar", "Reklam", "Sweeper" };
+    for (guint i = 0; i < G_N_ELEMENTS(columns); ++i) {
+        GtkCellRenderer *renderer = gtk_cell_renderer_text_new(); g_object_set(renderer, "ellipsize", PANGO_ELLIPSIZE_END, NULL);
+        GtkTreeViewColumn *column = gtk_tree_view_column_new_with_attributes(columns[i], renderer, "text", (gint)i + 1, NULL);
+        gtk_tree_view_column_set_resizable(column, TRUE); gtk_tree_view_column_set_min_width(column, i ? 70 : 140); gtk_tree_view_append_column(GTK_TREE_VIEW(view->rows), column);
+    }
+    gtk_tree_view_set_reorderable(GTK_TREE_VIEW(view->rows), TRUE); g_signal_connect(view->store, "rows-reordered", G_CALLBACK(rows_reordered), view);
+    GtkWidget *row_scroll = gtk_scrolled_window_new(NULL, NULL); gtk_widget_set_vexpand(row_scroll, TRUE); gtk_container_add(GTK_CONTAINER(row_scroll), view->rows);
+    gtk_box_pack_start(GTK_BOX(view->editor), row_scroll, TRUE, TRUE, 0);
+    GtkWidget *actions = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 3, NULL);
+    const gchar *action_labels[] = { "↑", "↓", "Sil", "Eventleri kopyala", "Eventleri yapıştır" };
+    const gchar *action_names[] = { "automation-calendar-row-up", "automation-calendar-row-down", "automation-calendar-row-remove", "automation-calendar-row-copy", "automation-calendar-row-paste" };
+    const gint action_ids[] = { -1, 1, 0, 3, 4 };
+    for (guint i = 0; i < G_N_ELEMENTS(action_ids); ++i) {
+        GtkWidget *button = button_new(action_labels[i], action_names[i], G_CALLBACK(row_action), view); g_object_set_data(G_OBJECT(button), "action", GINT_TO_POINTER(action_ids[i]));
+        gtk_box_pack_start(GTK_BOX(actions), button, FALSE, FALSE, 0);
+    }
+    gtk_box_pack_start(GTK_BOX(view->editor), actions, FALSE, FALSE, 0);
+    GtkWidget *transport = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 4, NULL);
+    view->preview_button = button_new("Önizle", "automation-calendar-preview", G_CALLBACK(preview_selected), view);
+    view->append_button = button_new("Yayın sırasına ekle", "automation-calendar-append", G_CALLBACK(preview_append), view);
+    view->schedule_button = button_new("Zamanla", "automation-calendar-schedule", G_CALLBACK(preview_schedule), view);
+    gtk_widget_set_sensitive(view->append_button, FALSE); gtk_widget_set_sensitive(view->schedule_button, FALSE);
+    gtk_box_pack_start(GTK_BOX(transport), view->preview_button, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(transport), view->append_button, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(transport), view->schedule_button, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(view->editor), transport, FALSE, FALSE, 0);
+    GtkWidget *bottom = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 4, NULL);
+    view->define = button_new("Rotasyon tanımla", "automation-calendar-define-rotation", G_CALLBACK(rotation_dialog), view);
+    gtk_box_pack_end(GTK_BOX(bottom), view->define, FALSE, FALSE, 0); gtk_box_pack_end(GTK_BOX(view->editor), bottom, FALSE, FALSE, 0);
+    gtk_paned_pack2(GTK_PANED(paned), view->editor, TRUE, FALSE); gtk_paned_set_position(GTK_PANED(paned), 900); gtk_box_pack_start(GTK_BOX(page), paned, TRUE, TRUE, 0);
+    view->status = radios_ui_label("", "task-feedback"); gtk_widget_set_name(view->status, "automation-calendar-status"); gtk_box_pack_start(GTK_BOX(page), view->status, FALSE, FALSE, 0);
+    GDateTime *today = g_date_time_new_now_utc(); set_week(view, today); g_date_time_unref(today);
+    if (ctx->data) { view->document = radios_data_document_new(ctx, page, "automation_calendar", "main", applied, view); radios_data_register_refresh(ctx, page, load_playlists); }
+    return page;
+}

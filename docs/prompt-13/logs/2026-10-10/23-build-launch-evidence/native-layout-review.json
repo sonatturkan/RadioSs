@@ -1,0 +1,29 @@
+{
+  "agent": "/root/build_launch_coordination",
+  "verified_utc": "2026-10-10T23:36:30.879812+00:00",
+  "native_receipt": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt13-layout-20261010/acceptance/native-inline-20261010T233423Z/native-acceptance.json",
+  "native_receipt_sha256": "a15d560aec41470ae8326bbafb6ec3024f960d1ba4e254cc5b536fa2ec169ba8",
+  "actual_native_start": "2026-10-10T23:34:23.012456+00:00",
+  "actual_native_end": "2026-10-10T23:34:26.626582+00:00",
+  "exit_code": 0,
+  "actual_cases": 3,
+  "skip": 0,
+  "tracked_inputs_equal": 21,
+  "owned_fixture_cleanup_complete": true,
+  "tap_verified_independently": true,
+  "real_settings_image": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt13-layout-20261010/acceptance/native-inline-20261010T233423Z/calendar-inline-real-settings.png",
+  "real_settings_image_sha256": "fb0621005d2ac2de57a64708104c8646fe110be65ce7cec54ae0959d41127f18",
+  "coordinator_viewed_actual_image": true,
+  "layout_acceptance": "seven date headers left; actual Gelişmiş DJ rules inline right; mapped compact program/rotation editor left lower; bottom Takvimi kaydet; no old modal/settings button",
+  "visual_limit": "Current images show 09–17 hours, event blocks at18+outsideviewport. Coloredblockvisual historical evidence separate; current event pointer/copy/persist tests pass",
+  "qa_visibility_fixed": true,
+  "qa_stylesheet_build_loaded": true,
+  "qa_offline_retry_action_source_and_visible": true,
+  "offline_network_disconnect_tested": false,
+  "default_source_inclusion_verified": true,
+  "intended_default_automation_gui_verified": false,
+  "shared_AGENT_writes": "STOP per explicit user instruction",
+  "pending": [
+    "Verified existing default RadioS automation profile and screenshot; no duplicate/defaultwriter takeover"
+  ]
+}

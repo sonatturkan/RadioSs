@@ -1,0 +1,112 @@
+{
+  "agent": "prompt7/root",
+  "started_utc": "2026-10-09T02:41:04.149629+00:00",
+  "status": "finished",
+  "scope": "Only three old stereo-bound source-routing loops on the otherwise identical captured playout translation unit. Corrected schema and the exact after-test object; real PCM/private fixtures. No shared-source rollback.",
+  "corrected_after_report": "docs/prompt-7/test-evidence/player-mapping-corrected-after.json",
+  "inverse_projection_report": "docs/prompt-7/test-evidence/player-mapping-isolated-before.json",
+  "same_corrected_test_object_sha256": "2532d08c4662f9eadb7de1e7f10061749ffadad4c51192df00c6012cd2c80a21",
+  "before_ui_archive_sha256": "8c2c9e95a5124d609bec6ba44f1a08309a2ff510d0320110077e46fc444febbb",
+  "after_ui_archive_sha256": "409568439c648287c88599bb2acdbecb5577f01b2faef10c1aff1972c6ef23dd",
+  "cases": [
+    {
+      "name": "/player-mapping/private-last-strip-PCM-pause-resume-stop",
+      "command": [
+        "python3",
+        "-B",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/source/tests/run_audio_ui.py",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/test_player_mapping_ui",
+        "-p",
+        "/player-mapping/private-last-strip-PCM-pause-resume-stop"
+      ],
+      "started_utc": "2026-10-09T02:41:04.319388+00:00",
+      "stdout_log": "build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/private-last-strip-PCM-pause-resume-stop.log",
+      "status": "finished",
+      "exit_code": 250,
+      "ended_utc": "2026-10-09T02:41:07.104848+00:00",
+      "expected_failure": true,
+      "expected_failure_signature": "Seçili oynatıcı boş ve MAIN"
+    },
+    {
+      "name": "/player-mapping/general-last-strip-PCM",
+      "command": [
+        "python3",
+        "-B",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/source/tests/run_audio_ui.py",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/test_player_mapping_ui",
+        "-p",
+        "/player-mapping/general-last-strip-PCM"
+      ],
+      "started_utc": "2026-10-09T02:41:07.105263+00:00",
+      "stdout_log": "build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/general-last-strip-PCM.log",
+      "status": "finished",
+      "exit_code": 250,
+      "ended_utc": "2026-10-09T02:41:09.715123+00:00",
+      "expected_failure": true,
+      "expected_failure_signature": "Sıra için boş ve MAIN"
+    },
+    {
+      "name": "/player-mapping/handover-manual-last-strip-preserved",
+      "command": [
+        "python3",
+        "-B",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/source/tests/run_audio_ui.py",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/test_player_mapping_ui",
+        "-p",
+        "/player-mapping/handover-manual-last-strip-preserved"
+      ],
+      "started_utc": "2026-10-09T02:41:09.715629+00:00",
+      "stdout_log": "build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/handover-manual-last-strip-preserved.log",
+      "status": "finished",
+      "exit_code": 250,
+      "ended_utc": "2026-10-09T02:41:12.728207+00:00",
+      "expected_failure": true,
+      "expected_failure_signature": "should be FALSE"
+    }
+  ],
+  "link": {
+    "command": [
+      "/usr/bin/cc",
+      "-g",
+      "-pthread",
+      "-Wl,--dependency-file=/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/link.d",
+      "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/test_player_mapping_ui.c.o",
+      "-o",
+      "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before-corrected/test_player_mapping_ui",
+      "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-before/libradios_ui-before.a",
+      "libradios_playout.a",
+      "libradios_audio.a",
+      "libradios_core.a",
+      "/usr/lib/x86_64-linux-gnu/libjson-glib-1.0.so",
+      "/usr/lib/x86_64-linux-gnu/libcurl.so",
+      "/usr/lib/x86_64-linux-gnu/libavformat.so",
+      "/usr/lib/x86_64-linux-gnu/libavcodec.so",
+      "/usr/lib/x86_64-linux-gnu/libavutil.so",
+      "/usr/lib/x86_64-linux-gnu/libswresample.so",
+      "/usr/lib/x86_64-linux-gnu/libpulse.so",
+      "/usr/lib/x86_64-linux-gnu/libavfilter.so",
+      "/usr/lib/x86_64-linux-gnu/libgtk-3.so",
+      "/usr/lib/x86_64-linux-gnu/libgdk-3.so",
+      "/usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so",
+      "/usr/lib/x86_64-linux-gnu/libcairo-gobject.so",
+      "/usr/lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so",
+      "/usr/lib/x86_64-linux-gnu/libatk-1.0.so",
+      "/usr/lib/x86_64-linux-gnu/libpango-1.0.so",
+      "/usr/lib/x86_64-linux-gnu/libcairo.so",
+      "/usr/lib/x86_64-linux-gnu/libharfbuzz.so",
+      "/usr/lib/x86_64-linux-gnu/libgio-2.0.so",
+      "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so",
+      "/usr/lib/x86_64-linux-gnu/libglib-2.0.so",
+      "/usr/lib/x86_64-linux-gnu/libfontconfig.so",
+      "-lm"
+    ],
+    "started_utc": "2026-10-09T02:41:04.155147+00:00",
+    "exit_code": 0,
+    "ended_utc": "2026-10-09T02:41:04.317582+00:00"
+  },
+  "binary_sha256": "09ce92ad7cca935e1f320039df84c4019f52f215d1d37095831f04030527f8c2",
+  "confirmed_expected_regressions": 3,
+  "ended_utc": "2026-10-09T02:41:12.728618+00:00",
+  "after_archive_unchanged": true,
+  "test_object_unchanged": true
+}

@@ -1,0 +1,11 @@
+{
+  "agent": "/root",
+  "utc": "2026-10-10T23:31:15.147756+00:00",
+  "reason": "Preserve offline retry through compact bottom calendar save action; no wide top toolbar",
+  "files": {
+    "src/ui/automation_calendar.c": {
+      "before": "9dfb5d9af35a07ecc0c69274a7f3474308d3d14bae3b69d3b4b194b1456bac4b",
+      "after": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017"
+    }
+  }
+}

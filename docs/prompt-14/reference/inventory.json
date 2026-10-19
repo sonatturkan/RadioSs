@@ -1,0 +1,131 @@
+{
+  "pdf_pages": 1,
+  "sources": [
+    "prompt/14/14.pdf",
+    "prompt/14/figures/sema_1.png"
+  ],
+  "artifacts": [
+    {
+      "path": "prompt/14/14.pdf",
+      "bytes": 94780,
+      "sha256": "cf1781e03a7e4e55027ac31c5115a9e9300766383909ce8228216698906270e9"
+    },
+    {
+      "path": "prompt/14/figures/sema_1.png",
+      "bytes": 61356,
+      "sha256": "823122cf9b39c8d398e51db00a1c7a18f4bc2209bb8bfc28fc5299e97fb820f9",
+      "pixels": [
+        808,
+        631
+      ]
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/14-page-1-image-1.png",
+      "bytes": 61356,
+      "sha256": "823122cf9b39c8d398e51db00a1c7a18f4bc2209bb8bfc28fc5299e97fb820f9",
+      "pixels": [
+        808,
+        631
+      ]
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/14-page-1.png",
+      "bytes": 181998,
+      "sha256": "0a926399b203ed52211ada48ab0c1f5a187e67056e5574cc7d76852552842fc4",
+      "pixels": [
+        1191,
+        1684
+      ]
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/login/capture-apple_music.png",
+      "bytes": 13889,
+      "sha256": "0ed83d60010579ba65236245230719785c410440366df725b9117c84c96975f8",
+      "pixels": [
+        672,
+        329
+      ],
+      "purpose": "GTK/Adwaita structural capture; application CSS not loaded",
+      "visual_review_utc": "2026-10-09 02:08:38 UTC",
+      "visual_review_result": "PASS: selected provider tab and only Giriş yap content; independent repeated review after final current-source 12-test native run",
+      "previous_visual_reviews": [
+        {
+          "review_utc": "2026-10-09 01:59:03 UTC",
+          "sha256": "3cd68a323b4a41b75b10f4b7a1b6001e53300d6c012b39c85f2800527e2e0a66",
+          "result": "PASS: selected provider tab and only Giriş yap content"
+        },
+        {
+          "review_utc": "2026-10-09 02:06:30 UTC",
+          "sha256": "0ed83d60010579ba65236245230719785c410440366df725b9117c84c96975f8",
+          "result": "PASS: selected provider tab and only Giriş yap content; repeated review after final 7-test native run"
+        }
+      ],
+      "runtime_evidence": "RadioS/docs/prompt-14/final-current-native-result.json and final-current-native.xml"
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/login/capture-spotify.png",
+      "bytes": 13792,
+      "sha256": "e95a04a3ea814a813f1dd62711369f2bbf74238a789c399b509ae8b39f054d24",
+      "pixels": [
+        672,
+        329
+      ],
+      "purpose": "GTK/Adwaita structural capture; application CSS not loaded",
+      "visual_review_utc": "2026-10-09 02:08:38 UTC",
+      "visual_review_result": "PASS: selected provider tab and only Giriş yap content; independent repeated review after final current-source 12-test native run",
+      "previous_visual_reviews": [
+        {
+          "review_utc": "2026-10-09 01:59:03 UTC",
+          "sha256": "3e507cc4e2bea270381c57456432593d5fb41fca207088bc8bb7bf4c19db6d50",
+          "result": "PASS: selected provider tab and only Giriş yap content"
+        },
+        {
+          "review_utc": "2026-10-09 02:06:30 UTC",
+          "sha256": "e95a04a3ea814a813f1dd62711369f2bbf74238a789c399b509ae8b39f054d24",
+          "result": "PASS: selected provider tab and only Giriş yap content; repeated review after final 7-test native run"
+        }
+      ],
+      "runtime_evidence": "RadioS/docs/prompt-14/final-current-native-result.json and final-current-native.xml"
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/login/capture-youtube.png",
+      "bytes": 12954,
+      "sha256": "867ab251e4e69b91b28752bc990e017ccbd48cf9974100b6280ffb96ee39b913",
+      "pixels": [
+        672,
+        329
+      ],
+      "purpose": "GTK/Adwaita structural capture; application CSS not loaded",
+      "visual_review_utc": "2026-10-09 02:08:38 UTC",
+      "visual_review_result": "PASS: selected provider tab and only Giriş yap content; independent repeated review after final current-source 12-test native run",
+      "previous_visual_reviews": [
+        {
+          "review_utc": "2026-10-09 01:59:03 UTC",
+          "sha256": "891c415e5c1fa22b09b0cd4ece2b051ad55df037011dac25a05a6f4f0f05d6df",
+          "result": "PASS: selected provider tab and only Giriş yap content"
+        },
+        {
+          "review_utc": "2026-10-09 02:06:30 UTC",
+          "sha256": "867ab251e4e69b91b28752bc990e017ccbd48cf9974100b6280ffb96ee39b913",
+          "result": "PASS: selected provider tab and only Giriş yap content; repeated review after final 7-test native run"
+        }
+      ],
+      "runtime_evidence": "RadioS/docs/prompt-14/final-current-native-result.json and final-current-native.xml"
+    },
+    {
+      "path": "RadioS/docs/prompt-14/reference/workspace-retention.json",
+      "bytes": 689,
+      "sha256": "e3f0df8bad23b7b0aae4769344d770dd5ffc05e23f7f0db13baedca6ca0d9ead",
+      "purpose": "Independent original full-workspace prefix byte retention evidence"
+    }
+  ],
+  "final_acceptance": {
+    "reviewer": "/root/pdf14",
+    "review_utc": "2026-10-09 02:08:38 UTC",
+    "source_build": "RadioS/docs/prompt-14/final-current-build-result.json",
+    "native_tests": "RadioS/docs/prompt-14/final-current-native.xml",
+    "result": "PASS: strict current-source radios build and native-online7 + native-youtube5; three captures independent visual review",
+    "limitations": "Captures use GTK/Adwaita without application CSS; external browser/provider authentication mocked",
+    "validation_summary": "RadioS/docs/prompt-14/validation.json"
+  }
+}

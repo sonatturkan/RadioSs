@@ -1,0 +1,15 @@
+SAYFA 1
+Sayfaya ayrıca, programın üzerine bırakıldığında direkt “Playliste ekle” kısmı gelsin, tamam mı?
+ Şema 1.
+Playlist sayfası, Şema 1’deki gibi bu tasarımda olsun. Burada üzerine tıkladığımda şarkıyı analiz
+etmeye başlasın ve Şema 2’deki sayfa çıksın.
+
+
+SAYFA 2
+Şema 2.
+Tamam mı? En altında.
+Onun dışında, o fotoğraftaki playlist kısmını değiştir. Şema 3’teki ilgili yere mevcut playlist
+seçme, altında da o seçilen playlistteki şarkılar gelsin.
+ Şema 3.
+Ayrıca burada Apple Music, YouTube Music ve normal tüm sağlayıcılar artı local, bunları tek
+playlist içinde yapabileyim. Anladın mı? Karışık olsun.

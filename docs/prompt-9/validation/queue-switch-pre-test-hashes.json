@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-09T02:07:47.867408+00:00",
+  "phase": "queue switch corrected current integrated build",
+  "sources": {
+    "src/ui/broadcast.c": "e4490db3ba05f1da2b0319d94316e38efe0b0db018cdaa37149def1d90621a41",
+    "src/ui/broadcast_online.c": "7163f7f77444a372b420b70de2873c511f798c355baf45e715a702f39c1e9026",
+    "tests/test_broadcast_catalogue_ui.c": "1afa18f9446b40585288d034d0d0f381a788da6dc278094bc99c1431865f0574",
+    "tests/run_broadcast_catalogue_ui.py": "4908ec497018e5bb5fe7f902e2f81a3e9b9d6e1e2d1a010a8a6389920c14fbc6",
+    "tests/test_broadcast_online_ui.c": "7d676bd86b22564579f78495aa448889397d425904d116c55d7d68fdc6ded0b1",
+    "CMakeLists.txt": "321522e13cb76ae087c5a6795e5e48ca22529a66002c3f5cafa871a757030362",
+    "src/core/automation_calendar_plan.c": "abbddc2a3afe8dc0f8ed04ba42b3b4b4a15bee2ae49220966bd86f350c18b389",
+    "src/audio/pulse_backend.c": "7e1cd2d42fe8d2b87738da48442a992849f2d18516bf766b37d31d4e44bd3999"
+  }
+}

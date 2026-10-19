@@ -1,0 +1,50 @@
+{
+  "started_utc": "2026-10-10T23:32:20.038399+00:00",
+  "owner": "/root/theme_visual_qa_12",
+  "private_project": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/theme-window-private-20261010/RadioS Theme QA XTest",
+  "default_binary_written": false,
+  "existing_application_controlled": false,
+  "production_source_written": false,
+  "capture_method": "own private-project unique-title/new-XID external GDK framebuffer",
+  "passed": false,
+  "canonical_lock": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock",
+  "watched_before": {
+    "build/prompt12/release/radios": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+    "build/radios": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+    "src/ui/playlist.c": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+    "assets/themes/radios.css": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+    "design/reference/tasarrım/playlist-workspace.css": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+    "config/radios.example.ini": "b9b5e1ff62c1290cb46566acc0e34d1d83bd3831f79580aebbfbc433a8e72ad8"
+  },
+  "private_credentials_present_before": false,
+  "private_assets_sha256": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+  "baseline_window_count": 39,
+  "command": [
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/release/radios",
+    "--project-root",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/theme-window-private-20261010/RadioS Theme QA XTest",
+    "--profile",
+    "playlist"
+  ],
+  "candidate_pid": 18859,
+  "candidate_sha256": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+  "candidate_xid": "0x1c00007",
+  "xid_new_since_baseline": true,
+  "xid_unique_private_title_verified": true,
+  "window_pid_property": null,
+  "error": "AssertionError: pointer not over owned candidate; no click",
+  "owned_child_cleaned": true,
+  "termination_sent_only_owned_pid": 18859,
+  "watched_after": {
+    "build/prompt12/release/radios": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+    "build/radios": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+    "src/ui/playlist.c": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+    "assets/themes/radios.css": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+    "design/reference/tasarrım/playlist-workspace.css": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+    "config/radios.example.ini": "b9b5e1ff62c1290cb46566acc0e34d1d83bd3831f79580aebbfbc433a8e72ad8"
+  },
+  "source_drift": [],
+  "completed_utc": "2026-10-10T23:33:04.471100+00:00"
+}

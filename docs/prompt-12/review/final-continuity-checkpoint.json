@@ -1,0 +1,435 @@
+{
+  "checkpoint_started_utc": "2026-10-09T03:02:23.830985+00:00",
+  "checkpoint_completed_utc": "2026-10-09T03:02:23.847960+00:00",
+  "responsible_agent": "/root/coordination_resume_12",
+  "scope": "Only RadioS; prompt/12/12.pdf and all three figures. Coordination records also use the authorized shared prompt/agent/AGENT.md.",
+  "overall_requirement_status": "INCOMPLETE",
+  "requested_concurrent_agents": 14,
+  "actual_concurrency_capacity": 4,
+  "team": [
+    "/root",
+    "/root/coordination_resume_12",
+    "/root/provider_analysis_resume_12",
+    "/root/source_review_resume_12"
+  ],
+  "source_inputs": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/12/12.pdf",
+      "bytes": 3345934,
+      "sha256": "7821ae7d1c985acd1e06b98837eac8b51b5c359424c2a3d4f8a0fe15e664ba36"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/12/figures/sema_1.png",
+      "bytes": 4578467,
+      "sha256": "3f41352ef9ba0d48d46494e7019e6fc8d0b4261c9d2634e1bedbd20a78992730"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/12/figures/sema_2.png",
+      "bytes": 46454,
+      "sha256": "fdfd0891ec58f39f823b91c0ccfa4f3bd58e9a237704704bca864f2971d94a96"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/12/figures/sema_3.png",
+      "bytes": 22429,
+      "sha256": "c5519c74d9d44226d90d14a5366a415b283191865e59040434435d330022b33d"
+    }
+  ],
+  "main_source_snapshot": [
+    {
+      "path": "src/ui/playlist.c",
+      "sha256": "2d1e38223e40e4d96c4570410c8bddc5e750d68e23a486fac12816cf9c06af0a",
+      "bytes": 181107,
+      "previous_recorded_owner": "/root",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "src/ui/media.c",
+      "sha256": "2c9f810e39bff907857f61550fd9618737817ef8a5548c71233db097510d7a06",
+      "bytes": 62302,
+      "previous_recorded_owner": "Scope11/root (prompt12 drop implementation serially devolved)",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "NONE; serially devolved to Scope11; current external Scope11 ownership must be checked in shared AGENT.md"
+    },
+    {
+      "path": "include/radios/media_ui.h",
+      "sha256": "aebd4a945c56f3e53e408f75c26de3c26982bb4d3b2ef29cc2641e4930b6855b",
+      "bytes": 1949,
+      "previous_recorded_owner": "Scope11/root",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "NONE; serially devolved to Scope11; current external Scope11 ownership must be checked in shared AGENT.md"
+    },
+    {
+      "path": "database/SDBASE/src/sdbase/desktop_playlist.py",
+      "sha256": "137f43b1a7bd0f5d3c8e4ac62381dcab83fe2539b70a6c9dbebdf8f4ea218477",
+      "bytes": 22816,
+      "previous_recorded_owner": "/root/provider_analysis_resume_12 restricted source/analysis hunks",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/test_data_playlists.py",
+      "sha256": "f8fa31905255256531322383c69d6ca3e90bc4cbd5000b61ab1318a1135845f2",
+      "bytes": 36029,
+      "previous_recorded_owner": "/root/provider_analysis_resume_12",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tools/radios_playlist_analysis.py",
+      "sha256": "5c2fc16f9df3ce64346db8e7f5b2cb2f2324ea561260a683bd0a4ed8718e1368",
+      "bytes": 7032,
+      "previous_recorded_owner": "/root/source_review_resume_12",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/test_prompt12_playlist_analysis.py",
+      "sha256": "c1aa34930227d53abbd3d043bf2ea7bd4dabc923cd44b4ca753a0a0b1ad00f84",
+      "bytes": 15213,
+      "previous_recorded_owner": "/root/source_review_resume_12",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/setup_prompt12_youtube_analysis.py",
+      "sha256": "f229a0178770810e823d56d373b4b528333e2edc9473fbb8f5cd8237671e054f",
+      "bytes": 4854,
+      "previous_recorded_owner": "/root/source_review_resume_12 test-only fixture",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/test_prompt12_playlist_ui.c",
+      "sha256": "38b0533ee7d1e644f8f04011668f0cf75ed36015580adec30788ae73c87196cd",
+      "bytes": 46621,
+      "previous_recorded_owner": "/root/provider_analysis_resume_12",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/test_prompt12_drop_ui.c",
+      "sha256": "eb9e5e81681859ee90673ee6fb595021a9388eb83897e66300c90f90799e0559",
+      "bytes": 16370,
+      "previous_recorded_owner": "requirements_12 original (no resumed source changes)",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "cmake/Pdf12Playlist.cmake",
+      "sha256": "323e6a67d9ce825b2dd07e32a05b4b909c5ed13838dccb54d7bb469b8f8db7ce",
+      "bytes": 1276,
+      "previous_recorded_owner": "/root",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+      "bytes": 27295,
+      "previous_recorded_owner": "multiple serial scopes; prompt12 owns one include only",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    },
+    {
+      "path": "tests/test_data_ui.c",
+      "sha256": "50d17d96a0dbb2683b7f7e19e9602dd80ca0d0a32e42adf373491bbee542ebae",
+      "previous_recorded_owner": "/root/provider_analysis_resume_12, root-authorized one-line automation fixture only",
+      "matches_installed_source_snapshot": true,
+      "prompt12_write_claim": "RELEASED own prompt12 hunk only; does not release external scope ownership"
+    }
+  ],
+  "current_source_verification": {
+    "canonical_lock": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock",
+    "count": 385,
+    "matches_install_snapshot": true,
+    "drift": [],
+    "unstable_stats": [],
+    "release_to_install_delta": [
+      "tests/test_data_ui.c"
+    ],
+    "delta_reason": "Only authorized one-line automation-view fixture change after Release; all production inputs identical."
+  },
+  "reports": [
+    {
+      "path": "docs/prompt-12/requirements.md",
+      "sha256": "2ffb4832dcaa6505a2634505ab2f21d357039ce2a962438f787ee4852eafa73f"
+    },
+    {
+      "path": "docs/prompt-12/audit.md",
+      "sha256": "9e0bea3fa9d39be95e38310fd48f7362e0b1127497df21429eaf5965b4a93961"
+    },
+    {
+      "path": "docs/prompt-12/final-source-review.md",
+      "sha256": "c85b1edbab470acdae44e3e74b8e9ce48c2298930f59c30e17466677f9bbdf70"
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": "docs/prompt-12/review/final-frozen-validation.json",
+      "bytes": 83735,
+      "sha256": "1905ece977dd312a2dd7b40ad317b90f6c24904a08a43118dea0ed7241b9c3a7"
+    },
+    {
+      "path": "docs/prompt-12/review/final-focused-frozen.log",
+      "bytes": 9923,
+      "sha256": "cd2d6e4ba2fe4b393bed0b008409aee635a4035f472597bf13c535398183d32f"
+    },
+    {
+      "path": "docs/prompt-12/review/final-focused-frozen.xml",
+      "bytes": 5916,
+      "sha256": "f2ba5329943087d37fa277071250bba3e38f89a56fd9b82921688160dd84ec50"
+    },
+    {
+      "path": "docs/prompt-12/review/final-column-validation.json",
+      "bytes": 83771,
+      "sha256": "b014f7a0a60bb94b9e7113a44d42cae0e98a247cc923e0f2244436aebf923d3b"
+    },
+    {
+      "path": "docs/prompt-12/review/final-column-playlist.log",
+      "bytes": 2653,
+      "sha256": "03f2b1c1f1ca5f564c09e4fd923c877c54624ce7f600ff58a78151120f8d6531"
+    },
+    {
+      "path": "docs/prompt-12/review/final-column-playlist.xml",
+      "bytes": 1485,
+      "sha256": "b76150b38ab6b74a1895f14c3c07e60aa2ae17bf88aea3b66091f678b2089d63"
+    },
+    {
+      "path": "docs/prompt-12/review/provider-analysis-backend-final.log",
+      "bytes": 3397,
+      "sha256": "73c11df3a49a3e0c856e26b181e23a3cf182819c5135dffa221db0b8974a1418"
+    },
+    {
+      "path": "docs/prompt-12/review/playlist-analysis-helper-20261009T023159Z.log",
+      "bytes": 2160,
+      "sha256": "c6c1c66dfee79823e14349c59d8bf8a6e7b6b831642299533eabb0dbed1d264c"
+    },
+    {
+      "path": "docs/prompt-12/review/playlist-analysis-helper-20261009T023159Z.json",
+      "bytes": 1244,
+      "sha256": "7a5f4bdd206e660211422434decc95f9dbd060760651853a25a1c993cfc31a7a"
+    },
+    {
+      "path": "docs/prompt-12/review/release-final-validation.json",
+      "bytes": 83305,
+      "sha256": "d24da870bfd4b842bb68547810807b0263dd848041232fec4b6e316b60bb71c2"
+    },
+    {
+      "path": "docs/prompt-12/review/release-build-final.log",
+      "bytes": 5767,
+      "sha256": "3faf39c5c0e46b9fa13a4d4ad22594f60c5bdeffdc2a3d71aaf91273b6029a77"
+    },
+    {
+      "path": "docs/prompt-12/review/release-playlist-final.log",
+      "bytes": 2508,
+      "sha256": "e73cb5ad61a96a48687c9e4e0c981af7c3d47f7cbdd44859f65d0f86a63cb3a2"
+    },
+    {
+      "path": "docs/prompt-12/review/release-playlist-final.xml",
+      "bytes": 1484,
+      "sha256": "7f21491f04650560214f6ecddf4a6de8215381e5e83c8cb0bec2fe0aefb46e0c"
+    },
+    {
+      "path": "docs/prompt-12/review/native-data-final-validation.json",
+      "bytes": 83121,
+      "sha256": "4fe323fc513995b060b4bdef993ed872ee85d2f3b1516ca8985cfe9f778cee47"
+    },
+    {
+      "path": "docs/prompt-12/review/data-build-final.log",
+      "bytes": 156,
+      "sha256": "329c131996925e305d327e49be75f6b724ac2c98653d696ab934c03f843edde5"
+    },
+    {
+      "path": "docs/prompt-12/review/data-tests-final.log",
+      "bytes": 6766,
+      "sha256": "c7403663912d201e3765baeacec87c327f89e8e4cdc8d9d52f4d5eb4a1893c2b"
+    },
+    {
+      "path": "docs/prompt-12/review/native-data-final.xml",
+      "bytes": 1459,
+      "sha256": "fc997223a93acae6f89b3fc4c6ced9e2f030a49624a0ff30d7d92a55e7bcbd36"
+    },
+    {
+      "path": "docs/prompt-12/review/default-install-receipt.json",
+      "bytes": 83713,
+      "sha256": "10abc23851b7271d50ed991005be61a189635718194193dc6cb65905bce07e9d"
+    },
+    {
+      "path": "docs/prompt-12/review/installed-dynamic-dependencies.log",
+      "bytes": 3137,
+      "sha256": "c6e83fc968e23f65b5f3f76e543b355b8156e9b2f085f8102351b6465833f907"
+    },
+    {
+      "path": "docs/prompt-12/review/installed-dynamic-dependencies.json",
+      "bytes": 1418,
+      "sha256": "478530c9737de1c4b4f7f7211839567155ed96c1703ab6fd75a1f63d42be0036"
+    },
+    {
+      "path": "docs/prompt-12/review/screenshots/playlist-with-markers.png",
+      "bytes": 131609,
+      "sha256": "9320b8031c45b31c4b464dfb2ab8ed453f9db8d30f140ac79b5d4d1d4de64f86"
+    },
+    {
+      "path": "docs/prompt-12/review/source-review-release-install-20261009T025812Z.json",
+      "bytes": 3841,
+      "sha256": "94e668f84ed770e49ea3bea8a9f3c31dcb42e6bf23daad87a41631ad37acd80d"
+    },
+    {
+      "path": "docs/prompt-12/review/official-apple-capture-feasibility.md",
+      "bytes": 9714,
+      "sha256": "eab7f1c184f74a8a54fe86b66fdfbc87bbd6f1ce1899e7c13ca44c0ae9b2f041"
+    }
+  ],
+  "xml_provenance": {
+    "meaning": "XML tests count CTest wrapper targets. Actual native cases are counted from real stdout TAP, never inferred as seven XML tests.",
+    "wrappers": {
+      "final-focused-frozen.xml": {
+        "tag": "testsuite",
+        "tests": 5,
+        "failures": 0,
+        "skipped": 0
+      },
+      "final-column-playlist.xml": {
+        "tag": "testsuite",
+        "tests": 1,
+        "failures": 0,
+        "skipped": 0
+      },
+      "release-playlist-final.xml": {
+        "tag": "testsuite",
+        "tests": 1,
+        "failures": 0,
+        "skipped": 0
+      },
+      "native-data-final.xml": {
+        "tag": "testsuite",
+        "tests": 1,
+        "failures": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "actual_acceptance": [
+    {
+      "name": "playlist backend",
+      "actual_cases_passed": 19,
+      "seconds": 19.941,
+      "evidence": "provider-analysis-backend-final.log",
+      "method": "unittest real private database"
+    },
+    {
+      "name": "YouTube helper",
+      "actual_cases_passed": 11,
+      "evidence": "playlist-analysis-helper-20261009T023159Z.log + later final-focused-frozen.log",
+      "method": "Initial log exact completed-tool transcript, not a new run; later focused CTest actual helper run also passed. Private synthetic auth + actual encoded audio; not live provider."
+    },
+    {
+      "name": "focused frozen targets",
+      "actual_cases_passed": 39,
+      "ctest_wrappers_passed": 5,
+      "composition": {
+        "playlist": 7,
+        "playlist_drop": 3,
+        "helper": 11,
+        "controls": 10,
+        "media_drop": 8
+      },
+      "source_count": 384,
+      "evidence": "final-frozen-validation.json",
+      "scope_note": "Older dated frozen snapshot; not a rerun of all 39 on subsequent 385 sources."
+    },
+    {
+      "name": "final column native playlist",
+      "actual_cases_passed": 7,
+      "ctest_wrappers_passed": 1,
+      "seconds": 13.7449,
+      "source_count": 385,
+      "evidence": "final-column-validation.json"
+    },
+    {
+      "name": "strict Release native playlist",
+      "actual_cases_passed": 7,
+      "ctest_wrappers_passed": 1,
+      "seconds": 12.742,
+      "source_count": 385,
+      "evidence": "release-final-validation.json"
+    },
+    {
+      "name": "full native data",
+      "actual_cases_passed": 7,
+      "ctest_wrappers_passed": 1,
+      "seconds": 22.389,
+      "source_count": 385,
+      "evidence": "native-data-final-validation.json",
+      "fixture_sha256": "50d17d96a0dbb2683b7f7e19e9602dd80ca0d0a32e42adf373491bbee542ebae"
+    }
+  ],
+  "default_install": {
+    "installed": true,
+    "destination": "build/radios",
+    "sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "mode": "0755",
+    "receipt": "docs/prompt-12/review/default-install-receipt.json",
+    "completed_utc": "2026-10-09T02:52:11.505831+00:00",
+    "backup": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/backups/default-binary-20261009T025211Z/radios",
+    "backup_sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "candidate_sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "write_claim": "RELEASED",
+    "dynamic_inspection": "readelf -d exit0, expected GTK/FFmpeg/Pulse NEEDED declarations, no RPATH/RUNPATH; not an actual production launch or loader-resolution test."
+  },
+  "usage_conditions": [
+    {
+      "id": "QA03",
+      "meaning": "Another track click is blocked while dirty marker panel is open. Save, or discard with footer Vazgeç / Kapat, then select the next track. This is a implemented preservation guard, not a pending capture feature."
+    }
+  ],
+  "pending_requirements": [
+    {
+      "id": "QA04-catalogue-only-analysis",
+      "status": "OPEN",
+      "scope": "Apple Music and Spotify catalogue-only entry independent automatic complete audio acquisition",
+      "existing_implemented_path": "User selects a genuine verified library asset as analysis_media; provider playback identity is preserved. YouTube authorized full encoded cache export is implemented and tested.",
+      "selection_state": "Optional source-method question has no answer yet; elapsed time is not approval or a source selection.",
+      "capture_feasibility": "Existing official_player is MAIN playback, global Spotify MPRIS, END_MARGIN0.25; Apple reuses existing music.apple.com target and Browser.close closes whole private browser. These APIs are not ready independent full capture.",
+      "references": [
+        "docs/prompt-12/audit.md",
+        "docs/prompt-12/review/official-apple-capture-feasibility.md",
+        "docs/prompt-12/requirements.md"
+      ]
+    }
+  ],
+  "validation_limits": [
+    "No live provider/account acceptance. Actual waveform/DB/cache/native tests use private genuine audio and controlled authorization fixtures.",
+    "No whole-repository all-green claim.",
+    "No whole-viewport pixel identity claim; inspected required Schema1/2/3 components and final narrow TITLE/right blank/icon layout."
+  ],
+  "next_steps": [
+    "Read STATUS.md, latest UTC hourly log, this manifest and current shared AGENT.md before any new operation. Recheck current source/default ownership and hashes.",
+    "Keep installed verified-file analysis path. To close QA04, choose/implement an actually available authorized complete audio source; current MAIN/global provider session API is not independent capture. Do not substitute synthetic waveform or call a feasibility report implemented.",
+    "If implementing capture, establish a new explicit narrow source ownership claim, canonical source-edit.lock then realpath.lock, fresh preimage/minimal patches. Require isolated per-job/session capture, complete start-to-real-end audio, cancellation/generation fencing and genuine private integration tests.",
+    "After any production change, run appropriate current-source strict build/tests and document actual evidence. New default binary owner must claim, hold canonical default-binary.lock, backup/atomic install and hash receipt."
+  ],
+  "released_claims": {
+    "production_sources": "All prompt12 implementation WRITE claims finished/released; preserve other scope hunks and establish fresh narrow claims before future edits.",
+    "tests": "Prompt12 own tests and root-authorized one-line generic native-data fixture claim released.",
+    "default_binary": "Root default physical WRITE claim released after actual atomic install.",
+    "documentation": "Final reports delivered; coordinator records remain the continuity reference. Future coordinator must read latest records before writing.",
+    "external_scopes": "Prompt12 does not release external Scope11/P10/P7/P5/PROMPT1 claims or whole-file ownership; consult current shared AGENT records."
+  },
+  "canonical_protocol": {
+    "source_lock": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock",
+    "binary_lock": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/default-binary.lock",
+    "source_write_order": "Canonical source LOCK_EX -> actual realpath+.lock LOCK_EX -> current preimage/hash -> minimal patch",
+    "default_install_order": "Canonical source lock -> canonical default-binary.lock -> build/radios.lock -> fresh evidence/backup/atomic install/hash receipt",
+    "shared_agent_append": "Use .AGENT.md.lock then AGENT.md.lock then AGENT.md fd flock; append only; never edit other scope history."
+  },
+  "history_reference": "docs/prompt-12/records/2026-10-09/02.md: Interrupted final logs, wrong archived drop-test proof, two genuine HTTP422 fixes, earlier global source mutex omission/P2 drift, native-data wrong-owner fixture, read-only path/glob errors and final successful retests are preserved.",
+  "continuity_files": [
+    "docs/prompt-12/STATUS.md",
+    "docs/prompt-12/records/2026-10-09/02.md",
+    "docs/prompt-12/records/2026-10-09/03.md",
+    "../prompt/agent/AGENT.md"
+  ],
+  "manifest_self_hash_note": "Self/STATUS/live log hashes intentionally excluded to avoid self-reference cycles."
+}

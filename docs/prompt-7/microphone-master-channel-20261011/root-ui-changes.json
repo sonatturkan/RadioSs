@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-11T12:18:38.945931+00:00",
+  "agent": "/root",
+  "files": {
+    "src/ui/dj.c": {
+      "before": "4f2fb6f7336733109f35e12d97c8a10318eede8853aa91c591d98f2b2625db32",
+      "after": "756ae6f46437e44e7b3e6f4fa909403a8a97236ff4e4c7beaa08f5d2d6f1fd12"
+    },
+    "src/ui/audio_ui.c": {
+      "before": "5f5e732c5b3cbfb05cd517e135ec0bf4f685bbbf8fcbeb52f692ca1f270d213b",
+      "after": "15884c8e2cb30d43e52e4d33190cea1a24365fbe172dc7823867349c2ad96fe3"
+    }
+  },
+  "changes": "Master checkbox default true, visible channel selector, remembered target, exclusive routing config, persisted optional fields with strict legacy parsing."
+}

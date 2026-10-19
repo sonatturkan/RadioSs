@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="28"
+	timestamp="2026-10-09T02:23:26"
+	>
+	<testcase name="native_broadcast_online" classname="native_broadcast_online" time="19.1038" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S688e4784ed21892daadd153dfe07fd91
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: setenv()/putenv() are not thread-safe and should not be used after threads are created
+1..11
+# Start of broadcast-online tests
+ok 1 /broadcast-online/youtube-source-lists-plays-account-saved-search
+# slow test /broadcast-online/youtube-source-lists-plays-account-saved-search executed in 2.92 secs
+ok 2 /broadcast-online/viewer-cannot-play
+ok 3 /broadcast-online/youtube-items-become-flow-events
+# slow test /broadcast-online/youtube-items-become-flow-events executed in 2.08 secs
+ok 4 /broadcast-online/flow-plays-youtube-events
+# slow test /broadcast-online/flow-plays-youtube-events executed in 5.83 secs
+ok 5 /broadcast-online/card-loads-and-plays-provider-list
+# slow test /broadcast-online/card-loads-and-plays-provider-list executed i...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_broadcast_catalogue" classname="native_broadcast_catalogue" time="28.1843" status="run">
+		<properties/>
+		<system-out>Native catalogue independent fixture: /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+TAP version 14
+# random seed: R02S38357c444b910185b26cfd5efb15ba55
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# Start of native-broadcast-catalogue tests
+ok 1 /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+# slow test /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded executed in 1.30 secs
+# End of native-broadcast-catalogue tests
+1..1
+Native catalogue independent fixture: /native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close
+TAP version 14
+# random seed: R02S725a24e0e7103de1ab35c34f13f28ff0
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

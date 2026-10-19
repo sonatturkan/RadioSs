@@ -1,0 +1,97 @@
+{
+  "checkpoint_utc": "2026-10-09 02:58:12 UTC",
+  "owner": "/root/source_review_resume_12",
+  "scope": "Independent read-only completed release, authorized native_data fixture delta and default atomic installation review; source/binary/service unchanged by reviewer.",
+  "release_started_utc": "2026-10-09T02:48:40.405226+00:00",
+  "release_completed_utc": "2026-10-09T02:49:05.662919+00:00",
+  "release_source_count": 385,
+  "release_drift": [],
+  "release_actual_playlist_cases": 7,
+  "release_case_skips": 0,
+  "release_flags": [
+    {
+      "object": "CMakeFiles/radios_ui.dir/src/ui/playlist.c.o",
+      "flags": "-O3 -DNDEBUG -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror"
+    },
+    {
+      "object": "CMakeFiles/test_prompt12_playlist_ui.dir/tests/test_prompt12_playlist_ui.c.o",
+      "flags": "-O3 -DNDEBUG -std=c11 -pthread -Wall -Wextra -Wpedantic -Werror"
+    }
+  ],
+  "release_binary_sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+  "native_data_started_utc": "2026-10-09T02:51:16.756027+00:00",
+  "native_data_completed_utc": "2026-10-09T02:51:39.607452+00:00",
+  "native_data_actual_cases": 7,
+  "native_data_case_skips": 0,
+  "native_data_passed": true,
+  "native_data_source_drift": [],
+  "native_data_source_equals_install": true,
+  "install_started_utc": "2026-10-09T02:52:11.486174+00:00",
+  "install_completed_utc": "2026-10-09T02:52:11.505831+00:00",
+  "install_source_count": 385,
+  "install_source_before_equals_after": true,
+  "current_source_differences": [],
+  "release_vs_install_delta": [
+    {
+      "path": "tests/test_data_ui.c",
+      "release_sha256": "b82fda3041bf60a93720647e145d136511c705222dc2e81f44874278d551ab0b",
+      "install_sha256": "50d17d96a0dbb2683b7f7e19e9602dd80ca0d0a32e42adf373491bbee542ebae"
+    }
+  ],
+  "only_test_data_fixture_delta": true,
+  "production_inputs_equal_release": true,
+  "old_backup_sha_matches": true,
+  "candidate_installed_sha_match": true,
+  "installed_binary_sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+  "installed_mode": "0o755",
+  "receipt_release_sha_matches": true,
+  "source_png_sha256": "9320b8031c45b31c4b464dfb2ab8ed453f9db8d30f140ac79b5d4d1d4de64f86",
+  "open_requirement": "Apple/Spotify unbound catalogue-only automatic independent complete audio analysis not implemented; verified library analysis route implemented.",
+  "evidence": [
+    {
+      "path": "release-final-validation.json",
+      "bytes": 83305,
+      "sha256": "d24da870bfd4b842bb68547810807b0263dd848041232fec4b6e316b60bb71c2"
+    },
+    {
+      "path": "release-build-final.log",
+      "bytes": 5767,
+      "sha256": "3faf39c5c0e46b9fa13a4d4ad22594f60c5bdeffdc2a3d71aaf91273b6029a77"
+    },
+    {
+      "path": "release-playlist-final.log",
+      "bytes": 2508,
+      "sha256": "e73cb5ad61a96a48687c9e4e0c981af7c3d47f7cbdd44859f65d0f86a63cb3a2"
+    },
+    {
+      "path": "release-playlist-final.xml",
+      "bytes": 1484,
+      "sha256": "7f21491f04650560214f6ecddf4a6de8215381e5e83c8cb0bec2fe0aefb46e0c"
+    },
+    {
+      "path": "native-data-final-validation.json",
+      "bytes": 83121,
+      "sha256": "4fe323fc513995b060b4bdef993ed872ee85d2f3b1516ca8985cfe9f778cee47"
+    },
+    {
+      "path": "data-build-final.log",
+      "bytes": 156,
+      "sha256": "329c131996925e305d327e49be75f6b724ac2c98653d696ab934c03f843edde5"
+    },
+    {
+      "path": "data-tests-final.log",
+      "bytes": 6766,
+      "sha256": "c7403663912d201e3765baeacec87c327f89e8e4cdc8d9d52f4d5eb4a1893c2b"
+    },
+    {
+      "path": "native-data-final.xml",
+      "bytes": 1459,
+      "sha256": "fc997223a93acae6f89b3fc4c6ced9e2f030a49624a0ff30d7d92a55e7bcbd36"
+    },
+    {
+      "path": "default-install-receipt.json",
+      "bytes": 83713,
+      "sha256": "10abc23851b7271d50ed991005be61a189635718194193dc6cb65905bce07e9d"
+    }
+  ]
+}

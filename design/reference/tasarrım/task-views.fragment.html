@@ -1,0 +1,194 @@
+<nav class="task-profile-nav" id="task-profile-nav" aria-label="Çalışma profili">
+  <div class="task-profile-tabs" role="tablist" aria-label="Görev görünümleri">
+    <button type="button" id="profile-broadcast-tab" role="tab" aria-selected="true" aria-controls="live-task-view" data-task-profile="broadcast">Yayın</button>
+    <button type="button" id="profile-playlist-tab" role="tab" aria-selected="false" aria-controls="playlist-task-view" tabindex="-1" data-task-profile="playlist">Playlist</button>
+    <button type="button" id="profile-automation-tab" role="tab" aria-selected="false" aria-controls="automation-task-view" tabindex="-1" data-task-profile="automation">Otomasyon</button>
+    <button type="button" id="profile-advert-tab" role="tab" aria-selected="false" aria-controls="advert-task-view" tabindex="-1" data-task-profile="advert">Reklam</button>
+    <button type="button" id="profile-technical-tab" role="tab" aria-selected="false" aria-controls="technical-task-view" tabindex="-1" data-task-profile="technical">Teknik yönetim</button>
+  </div>
+  <span class="task-profile-context">Çalışma profili <span aria-hidden="true">·</span> Yayın modu ayrı</span>
+</nav>
+<section class="task-view" id="advert-task-view" role="tabpanel" aria-labelledby="profile-advert-tab" hidden>
+  <header class="task-view-heading"><div><p class="task-eyebrow">REKLAM</p><h2>Reklam ve bildirimler</h2><p>Kampanyalar, spot sürümleri ve yayın hazırlığını tek ekrandan takip et.</p></div><span class="task-draft-badge">Yerel GUI taslağı</span></header>
+<section class="advert-workspace" data-advert-workspace>
+  <section class="advert-card advert-notifications" data-advert-notifications aria-labelledby="advert-notifications-title">
+    <header class="advert-toolbar"><div><h3 id="advert-notifications-title">Bildirimler</h3><p>İlgili kampanyayı ve gereken düzenlemeyi birlikte gör.</p></div><div class="advert-actions"><output data-advert-unread-count>— okunmamış</output><button type="button" data-advert-notification-filter="all" aria-pressed="true">Tümü</button><button type="button" data-advert-notification-filter="unread" aria-pressed="false">Okunmamış</button></div></header>
+    <div data-advert-notification-list></div>
+  </section>
+
+  <div class="advert-grid">
+    <section class="advert-card" aria-labelledby="advert-campaigns-title">
+      <header class="advert-toolbar"><div><h3 id="advert-campaigns-title">Kampanyalar</h3><p>Örnek kampanyalar yerel taslaktır.</p></div><button type="button" data-advert-new aria-haspopup="dialog" aria-controls="advert-campaign-dialog">+ Kampanya</button></header>
+      <label class="advert-search-label" for="advert-campaign-search">Kampanya ara</label><input id="advert-campaign-search" data-advert-search type="search" placeholder="Kampanya, reklamveren veya spot" autocomplete="off">
+      <div class="advert-table-scroll"><table class="advert-table"><thead><tr><th scope="col">Kampanya / spot</th><th scope="col">Geçerlilik</th><th scope="col">Plan</th><th scope="col">Taslak onayı</th></tr></thead><tbody data-advert-campaign-list></tbody></table></div>
+    </section>
+
+    <section class="advert-card advert-details" data-advert-details aria-labelledby="advert-details-title">
+      <header class="advert-toolbar"><div><h3 id="advert-details-title" data-advert-detail-name>Kampanya seçilmedi</h3><p class="advert-meta" data-advert-detail-spot>—</p></div><span class="advert-badge" data-advert-detail-approval>Yerel taslak</span></header>
+      <div class="advert-actions" data-advert-detail-actions><button type="button" data-advert-action="edit" aria-haspopup="dialog" aria-controls="advert-campaign-dialog" disabled>Düzenle</button><button type="button" data-advert-action="approve" disabled>Yerel taslağı onayla</button><button type="button" data-advert-action="remove" disabled>Sil</button><button type="button" data-advert-action="download" disabled>Planı indir</button></div>
+      <dl class="advert-facts">
+        <div><dt>Reklamveren / sorumlu</dt><dd data-advert-fact="people">—</dd></div><div><dt>Sözleşme / sipariş</dt><dd data-advert-fact="contract">—</dd></div><div><dt>Geçerlilik</dt><dd data-advert-fact="dates">—</dd></div><div><dt>Hedef istasyon / çıkış</dt><dd data-advert-fact="target">Atanmadı</dd></div><div><dt>Planlanan yayın</dt><dd data-advert-fact="plan">—</dd></div><div><dt>İlk kuşak planı</dt><dd data-advert-fact="slot">Belirlenmedi</dd></div><div><dt>Ana / yedek dosya</dt><dd>Veri bekleniyor</dd></div><div><dt>Aktif listeye uygulanma</dt><dd>Veri bekleniyor</dd></div>
+      </dl>
+      <details class="advert-advanced-details"><summary>Sözleşme ve kuşak ayrıntıları</summary><dl class="advert-facts"><div><dt>Sözleşme bedeli</dt><dd data-advert-fact="price">Belirtilmedi</dd></div><div><dt>İletişim / satış notu</dt><dd data-advert-fact="contact">Belirtilmedi</dd></div><div><dt>Kuşak kapasitesi</dt><dd data-advert-fact="capacity">Belirlenmedi</dd></div><div><dt>Intro / outro / sabit anons</dt><dd data-advert-fact="overhead">—</dd></div><div><dt>Rekabet grubu / sıra</dt><dd data-advert-fact="competition">Belirtilmedi</dd></div><div><dt>Boş kuşak / dağıtım eksikliği</dt><dd data-advert-fact="distribution">—</dd></div></dl></details>
+      <details class="advert-version-history"><summary>Sürüm geçmişi</summary><div data-advert-version-history></div></details>
+      <section class="advert-reconciliation" aria-labelledby="advert-reconciliation-title">
+        <header class="advert-toolbar"><h4 id="advert-reconciliation-title">Gerçekleşme ve mutabakat</h4><span class="advert-badge">Kayıt bekleniyor</span></header>
+        <dl class="advert-inline-summary"><div><dt>Planlanan</dt><dd data-advert-planned-count>—</dd></div><div><dt>Tamamlanan</dt><dd>Veri bekleniyor</dd></div><div><dt>Kesilen</dt><dd>Veri bekleniyor</dd></div><div><dt>Atlanan</dt><dd>Veri bekleniyor</dd></div><div><dt>Başarısız</dt><dd>Veri bekleniyor</dd></div><div><dt>Belirsiz</dt><dd>Veri bekleniyor</dd></div></dl>
+        <div class="advert-table-scroll"><table class="advert-table"><thead><tr><th scope="col">Saat</th><th scope="col">Sürüm</th><th scope="col">Çıkış</th><th scope="col">Sonuç / neden</th></tr></thead><tbody><tr><td colspan="4" class="advert-empty">Doğrulanmış yayın kaydı bekleniyor.</td></tr></tbody></table></div>
+        <div class="advert-actions"><button type="button" disabled title="Doğrulanmış yayın kayıtları bekleniyor">Gerçekleşme kanıtını indir</button></div>
+      </section>
+    </section>
+  </div>
+  <p class="advert-status" data-advert-status role="status">Kampanya seçerek planını ve bildirimlerini düzenle.</p>
+
+  <dialog class="advert-dialog" id="advert-campaign-dialog" aria-labelledby="advert-campaign-dialog-title">
+    <form class="advert-form" data-advert-form>
+      <header class="advert-dialog-heading"><h2 id="advert-campaign-dialog-title">Kampanya ekle</h2><button type="button" data-advert-close aria-label="Kampanya düzenleyicisini kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="advert-fields">
+        <div><label for="advert-campaign-name">Kampanya adı</label><input id="advert-campaign-name" name="name" maxlength="120" required></div>
+        <div><label for="advert-campaign-client">Reklamveren</label><input id="advert-campaign-client" name="client" maxlength="120" placeholder="Belirtilmedi"></div>
+        <div><label for="advert-campaign-owner">Sorumlu kişi</label><input id="advert-campaign-owner" name="owner" maxlength="120" placeholder="Atanmadı"></div>
+        <div><label for="advert-campaign-reference">Sözleşme / sipariş referansı</label><input id="advert-campaign-reference" name="reference" maxlength="120" placeholder="Belirtilmedi"></div>
+        <div><label for="advert-campaign-start">Başlangıç tarihi</label><input id="advert-campaign-start" name="start" type="date" required></div>
+        <div><label for="advert-campaign-end">Bitiş tarihi</label><input id="advert-campaign-end" name="end" type="date" required></div>
+        <div><label for="advert-campaign-target">Hedef istasyon / çıkış</label><input id="advert-campaign-target" name="target" maxlength="120" placeholder="Atanmadı"></div>
+        <div><label for="advert-campaign-spot">Spot / ses adı</label><input id="advert-campaign-spot" name="spot" maxlength="120" required></div>
+        <div><label for="advert-campaign-version">Spot sürümü</label><input id="advert-campaign-version" name="version" maxlength="40" value="v1" required></div>
+        <div><label for="advert-campaign-duration">Spot süresi · saniye</label><input id="advert-campaign-duration" name="duration" type="number" min="1" max="3600" step="1" value="30" required></div>
+        <div><label for="advert-campaign-count">Planlanan yayın adedi</label><input id="advert-campaign-count" name="count" type="number" min="0" max="100000" step="1" value="0" required></div>
+      </div>
+      <details class="advert-advanced-form"><summary>Satış ve kuşak ayrıntıları</summary>
+        <div class="advert-fields">
+          <div><label for="advert-campaign-price">Sözleşme bedeli · isteğe bağlı</label><input id="advert-campaign-price" name="price" type="number" min="0" max="1000000000" step="0.01" placeholder="Belirtilmedi"></div>
+          <div><label for="advert-campaign-currency">Para birimi</label><select id="advert-campaign-currency" name="currency"><option value="TRY">TRY</option><option value="EUR">EUR</option><option value="USD">USD</option></select></div>
+          <div><label for="advert-campaign-contact">İletişim / satış notu</label><textarea id="advert-campaign-contact" name="contact" maxlength="1000" rows="3" placeholder="İletişim ve satış notu"></textarea></div>
+          <div><label for="advert-campaign-slot">İlk reklam kuşağı · isteğe bağlı</label><input id="advert-campaign-slot" name="slot" type="time" step="60"></div>
+          <div><label for="advert-campaign-capacity">Kuşak kapasitesi · saniye</label><input id="advert-campaign-capacity" name="capacity" type="number" min="0" max="86400" step="1" value="0"><small class="advert-meta">0: belirlenmedi</small></div>
+          <div><label for="advert-campaign-intro">Intro · saniye</label><input id="advert-campaign-intro" name="intro" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-outro">Outro · saniye</label><input id="advert-campaign-outro" name="outro" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-announcement">Sabit anons · saniye</label><input id="advert-campaign-announcement" name="announcement" type="number" min="0" max="3600" step="1" value="0"></div>
+          <div><label for="advert-campaign-competition">Rekabet grubu</label><input id="advert-campaign-competition" name="competitorGroup" maxlength="100" placeholder="Belirtilmedi"></div>
+          <div><label for="advert-campaign-position">Kuşaktaki sıra</label><select id="advert-campaign-position" name="position"><option value="any">Herhangi</option><option value="first">İlk</option><option value="last">Son</option></select></div>
+          <div><label for="advert-campaign-fallback">Dağıtım eksik olduğunda</label><select id="advert-campaign-fallback" name="fallback"><option value="skip">Eksik spotu atla</option><option value="approvedAlternative">Onaylı alternatifi kullan</option><option value="operator">Operatör kararı bekle</option></select></div>
+        </div>
+        <div class="advert-checks"><label><input type="checkbox" name="skipEmptyJingle" checked> Boş kuşakta reklam jingle'ını atla</label></div>
+        <p class="advert-inline-summary" data-advert-capacity-preview>Bir spotun kuşak süresi hesaplanıyor.</p>
+      </details>
+      <p class="advert-status" data-advert-form-status role="status">Spot ve geçerlilik değişiklikleri yeniden yerel onay ister.</p>
+      <div class="advert-dialog-actions"><button type="button" data-advert-close>Vazgeç</button><button type="submit">Kampanyayı kaydet</button></div>
+    </form>
+  </dialog>
+</section>
+</section>
+<section class="task-view" id="technical-task-view" role="tabpanel" aria-labelledby="profile-technical-tab" hidden>
+  <header class="task-view-heading"><div><p class="task-eyebrow">TEKNİK YÖNETİM</p><h2>Sunucular, yayın kişileri ve web erişimi</h2><p>Sunucu düzeni, kişi atamaları, erişim yetkileri ve çalışma tercihleri.</p></div><span class="task-draft-badge">Yerel GUI taslağı</span></header>
+<div class="technical-management" id="technical-management" data-technical-management>
+  <dl class="technical-summary">
+    <div><dt>Sunucular</dt><dd data-tech-summary="servers">0</dd></div>
+    <div><dt>Yayın kişisi atamaları</dt><dd data-tech-summary="people">0</dd></div>
+    <div><dt>Gerçek bağlantı</dt><dd>Veri bekleniyor</dd></div>
+    <div><dt>Son doğrulanmış güncelleme</dt><dd>Veri bekleniyor</dd></div>
+  </dl>
+  <nav class="technical-tabs" data-tech-tabs role="tablist" aria-label="Teknik yönetim bölümleri">
+    <button type="button" role="tab" id="technical-servers-tab" data-tech-pane="servers" aria-selected="true" aria-controls="technical-servers-pane">Sunucular</button>
+    <button type="button" role="tab" id="technical-people-tab" data-tech-pane="people" aria-selected="false" aria-controls="technical-people-pane" tabindex="-1">Yayın kişileri</button>
+    <button type="button" role="tab" id="technical-web-tab" data-tech-pane="web" aria-selected="false" aria-controls="technical-web-pane" tabindex="-1">Web erişimi</button>
+    <button type="button" role="tab" id="technical-devices-tab" data-tech-pane="devices" aria-selected="false" aria-controls="technical-devices-pane" tabindex="-1">Aygıtlar ve görünüm</button>
+  </nav>
+
+  <section class="technical-pane" id="technical-servers-pane" role="tabpanel" aria-labelledby="technical-servers-tab" tabindex="0">
+    <section class="technical-card" aria-labelledby="technical-servers-title">
+      <header class="technical-toolbar"><div><h3 id="technical-servers-title">Sunucu bilgisayarlar</h3><p>Ana, yedek ve yönetim sunucularını istasyon hedefleriyle eşleştir.</p></div><button type="button" data-tech-server-new aria-haspopup="dialog" aria-controls="technical-server-dialog">+ Sunucu ekle</button></header>
+      <div class="technical-list" data-tech-server-list></div>
+      <dl class="technical-facts"><div><dt>Sunucu durumu</dt><dd>Veri bekleniyor</dd></div><div><dt>Veritabanı eşitlemesi</dt><dd>Veri bekleniyor</dd></div><div><dt>Gerçek çevrimdışı kapsam</dt><dd>Veri bekleniyor</dd></div></dl>
+      <div class="technical-actions"><button type="button" disabled title="Sunucu bağlantısı doğrulanmadı">Bağlantıları test et</button></div>
+    </section>
+  </section>
+
+  <section class="technical-pane" id="technical-people-pane" role="tabpanel" aria-labelledby="technical-people-tab" tabindex="0" hidden>
+    <section class="technical-card" aria-labelledby="technical-people-title">
+      <header class="technical-toolbar"><div><h3 id="technical-people-title">Yayın kişileri ve yetkileri</h3><p>Kişiyi istasyona, programa veya oynatıcıya ata; kapsamını ve vardiyasını belirle.</p></div><button type="button" data-tech-person-new aria-haspopup="dialog" aria-controls="technical-person-dialog">+ Kişi ata</button></header>
+      <div class="technical-list" data-tech-person-list></div>
+      <p class="technical-meta">Yönetici ve kullanıcı paneli erişimi, seçilen rol ve yetki kapsamına göre tanımlanır.</p>
+    </section>
+  </section>
+
+  <section class="technical-pane" id="technical-web-pane" role="tabpanel" aria-labelledby="technical-web-tab" tabindex="0" hidden>
+    <div class="technical-grid technical-web-grid">
+      <section class="technical-card" aria-labelledby="technical-web-title">
+        <header class="technical-toolbar"><div><h3 id="technical-web-title">Web üzerinden erişim</h3><p>Yönetim paneli, dinleyici akışı ve istasyon sitesi için ayrı adresler.</p></div></header>
+        <form class="technical-form" data-tech-web-form>
+          <div class="technical-fields">
+            <div><label for="technical-management-url">Yönetim paneli adresi</label><input id="technical-management-url" name="managementUrl" type="url" placeholder="https://panel.istasyon.com" maxlength="500" required autocomplete="off"></div>
+            <div><label for="technical-listener-url">Dinleyici akışı adresi · isteğe bağlı</label><input id="technical-listener-url" name="listenerUrl" type="url" placeholder="https://yayin.istasyon.com/live" maxlength="500" autocomplete="off"></div>
+            <div><label for="technical-site-url">İstasyon sitesi · isteğe bağlı</label><input id="technical-site-url" name="siteUrl" type="url" placeholder="https://istasyon.com" maxlength="500" autocomplete="off"></div>
+            <div><label for="technical-site-api-path">Site bağlantı yolu</label><input id="technical-site-api-path" name="apiPath" type="text" maxlength="200" value="/api/radios" placeholder="/api/radios" autocomplete="off"></div>
+            <div><label for="technical-web-auth">Kimlik doğrulama</label><select id="technical-web-auth" name="auth"><option value="password">Parola</option><option value="mfa">Parola + ikinci doğrulama</option><option value="identity">Kurum kimliği</option></select></div>
+            <div><label for="technical-web-session">Oturum süresi · dakika</label><input id="technical-web-session" name="sessionMinutes" type="number" min="1" max="1440" step="1" value="30" required></div>
+            <div><label for="technical-web-permission">Varsayılan erişim</label><select id="technical-web-permission" name="permission"><option value="monitor">Yalnız izleme</option><option value="control">Yayın kontrolü</option><option value="limited">Seçili kapsam ve yetkiler</option></select></div>
+          </div>
+          <fieldset class="technical-checks"><legend>İstasyon sitesi bağlantıları</legend><label><input type="checkbox" name="siteSearch"> Parça / albüm araması</label><label><input type="checkbox" name="siteRequests"> İstek / iletişim formu</label><label><input type="checkbox" name="siteAdverts"> Şifreli reklam teslimi</label></fieldset>
+          <div class="technical-actions"><button type="submit">Web erişimini kaydet</button></div>
+        </form>
+      </section>
+      <section class="technical-card technical-preview" aria-labelledby="technical-web-preview-title">
+        <header class="technical-toolbar"><h3 id="technical-web-preview-title">Erişim özeti</h3><span class="technical-badge">Doğrulama bekleniyor</span></header>
+        <dl class="technical-facts"><div><dt>Yönetim paneli</dt><dd data-tech-web-preview="management">Tanımlanmadı</dd></div><div><dt>Dinleyici akışı</dt><dd data-tech-web-preview="listener">Tanımlanmadı</dd></div><div><dt>Site bağlantısı</dt><dd data-tech-web-preview="endpoint">Tanımlanmadı</dd></div><div><dt>Kimlik / oturum</dt><dd data-tech-web-preview="identity">—</dd></div><div><dt>Varsayılan yetki</dt><dd data-tech-web-preview="permission">Yalnız izleme</dd></div><div><dt>Site işlevleri</dt><dd data-tech-web-preview="features">Seçilmedi</dd></div><div><dt>Son doğrulanmış veri</dt><dd>Veri bekleniyor</dd></div></dl>
+        <div class="technical-actions"><a data-tech-web-open target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Web panelini aç ↗</a><button type="button" disabled title="Gerçek sunucu bağlantısı bekleniyor">Erişimi test et</button></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="technical-pane" id="technical-devices-pane" role="tabpanel" aria-labelledby="technical-devices-tab" tabindex="0" hidden>
+      <form data-technical-form class="task-technical-grid task-form">
+    <section class="task-card"><div class="task-card-heading"><h3>Ses çıkışları</h3><span class="task-small-badge">Aygıt bilgisi yok</span></div><label for="task-main-output">Yayın çıkışı</label><select id="task-main-output" name="mainOutput"><option value="">Atanmadı</option><option value="draft-a">Çıkış A · Taslak</option><option value="draft-b">Çıkış B · Taslak</option></select><label for="task-cue-output">CUE / Kulaklık çıkışı</label><select id="task-cue-output" name="cueOutput"><option value="">Atanmadı</option><option value="draft-cue">Kulaklık · Taslak</option></select><label for="task-return-output">Uzak konuk geri dönüşü</label><select id="task-return-output" name="returnOutput"><option value="">Atanmadı</option><option value="draft-return">Geri dönüş · Taslak</option></select><p class="task-help">Yayın, kulaklık ve konuğun geri dönüşü ayrı ses yollarıdır.</p><button type="button" disabled title="Ses motoru ve aygıt listesi bağlı değil">Çıkışları test et</button></section>
+    <section class="task-card"><div class="task-card-heading"><h3>MIDI ve erişim</h3><span class="task-small-badge">Yerel tercih</span></div><label for="task-midi-profile">Denetleyici eşlemesi</label><select id="task-midi-profile" name="midi"><option value="none">Denetleyici bağlı değil</option><option value="keyboard">Klavye eşlemesi taslağı</option></select><label for="task-role">Çalışma yetkisi taslağı</label><select id="task-role" name="role"><option value="operator">Yayın operatörü</option><option value="planner">Program planlayıcısı</option><option value="administrator">Teknik yönetici</option></select><p class="task-help">Buradaki rol seçimi sunucu yetkisi vermez; gerçek erişim doğrulaması bağlanmalıdır.</p><button type="button" disabled title="MIDI aygıtı bağlı değil">Denetleyiciyi doğrula</button></section>
+    <section class="task-card"><div class="task-card-heading"><h3>Ağ ve API</h3><span class="task-small-badge">Bağlantı yok</span></div><label for="task-api-endpoint">Servis adresi taslağı</label><input id="task-api-endpoint" name="endpoint" type="url" placeholder="https://..." autocomplete="off"><label for="task-api-secret">API anahtarı</label><input id="task-api-secret" name="secret" type="password" autocomplete="off" placeholder="Bu GUI anahtarı saklamaz"><label class="task-check"><input type="checkbox" name="requestBackup">Yedek bağlantı kontrolü iste</label><div class="task-actions"><button type="button" disabled title="Gerçek bağlantı sağlayıcısı bağlı değil">Bağlantıyı test et</button><button type="button" disabled title="Yedek motor bağlı değil">Geri dönüş testi</button></div><p class="task-help">Test sonucu ve çevrimdışı yayın kapsamı teknik kaynaktan bekleniyor.</p></section>
+    <section class="task-card"><div class="task-card-heading"><h3>Görünüm tercihleri</h3><span class="task-small-badge">Bu tarayıcı</span></div><label for="task-text-size">Çalışma alanı yazı boyutu</label><select id="task-text-size" name="textSize"><option value="compact">Kompakt</option><option value="normal" selected>Standart</option><option value="large">Büyük</option></select><label for="task-default-profile">Başlangıç çalışma profili</label><select id="task-default-profile" name="defaultProfile"><option value="last" selected>Son kullanılan profil</option><option value="broadcast">Yayın</option><option value="playlist">Playlist</option><option value="automation">Otomasyon</option><option value="advert">Reklam</option><option value="technical">Teknik yönetim</option></select><p class="task-help">Görünüm tercihleri bu tarayıcıda saklanır. İçerik taslakları oturum boyunca kalır.</p><div class="task-actions"><button type="submit" class="task-primary">Tercihleri kaydet</button><button type="button" data-task-reset>Güvenli başlangıca dön</button></div><p class="task-feedback" role="status" data-technical-status>Gerçek ses ve ağ yapılandırması değiştirilmez.</p></section>
+  </form>
+  </section>
+
+  <p class="technical-status" data-tech-status role="status">Sunucu ekle, yayın kişisi ata veya web erişimini düzenle.</p>
+  <section class="technical-card technical-audit" aria-labelledby="technical-audit-title"><header class="technical-toolbar"><div><h3 id="technical-audit-title">Yerel işlem kaydı</h3><p>Bu tarayıcıdaki son 20 yönetim değişikliği.</p></div></header><ol data-tech-audit-list></ol></section>
+
+  <dialog class="technical-dialog" id="technical-server-dialog" aria-labelledby="technical-server-dialog-title">
+    <form class="technical-form" data-tech-server-form>
+      <header class="technical-dialog-heading"><h2 id="technical-server-dialog-title">Sunucu ekle</h2><button type="button" data-tech-dialog-close aria-label="Sunucu düzenleyicisini kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="technical-fields">
+        <div><label for="technical-server-name">Sunucu adı</label><input id="technical-server-name" name="name" maxlength="100" required></div>
+        <div><label for="technical-server-architecture">Çalışma düzeni</label><select id="technical-server-architecture" name="architecture"><option value="local">Yerel</option><option value="cloud">Bulut</option><option value="hybrid">Hibrit</option></select></div>
+        <div><label for="technical-server-role">Sunucunun görevi</label><select id="technical-server-role" name="role"><option value="primary">Ana yayın</option><option value="backup">Yedek yayın</option><option value="management">Yönetim</option></select></div>
+        <div><label for="technical-server-station">İstasyon / hedef adı</label><input id="technical-server-station" name="station" maxlength="100" required></div>
+        <div><label for="technical-server-address">Sunucu adresi</label><input id="technical-server-address" name="address" type="url" placeholder="https://sunucu.istasyon.com" maxlength="500" required autocomplete="off"></div>
+        <div><label for="technical-server-database">Veritabanı profil adı · isteğe bağlı</label><input id="technical-server-database" name="database" maxlength="100" placeholder="Ana arşiv"></div>
+        <div><label for="technical-server-offline">Planlanan çevrimdışı kapsam · dakika</label><input id="technical-server-offline" name="offlineMinutes" type="number" min="0" max="100800" step="1" value="0" required></div>
+      </div>
+      <div class="technical-dialog-actions"><button type="button" data-tech-dialog-close>Vazgeç</button><button type="submit">Sunucuyu kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="technical-dialog" id="technical-person-dialog" aria-labelledby="technical-person-dialog-title">
+    <form class="technical-form" data-tech-person-form>
+      <header class="technical-dialog-heading"><h2 id="technical-person-dialog-title">Yayın kişisi ata</h2><button type="button" data-tech-dialog-close aria-label="Kişi atamasını kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="technical-fields">
+        <div><label for="technical-person-name">Kişinin adı</label><input id="technical-person-name" name="name" maxlength="100" required></div>
+        <div><label for="technical-person-login">Kullanıcı adı / kimliği</label><input id="technical-person-login" name="login" maxlength="120" required autocomplete="off"></div>
+        <div><label for="technical-person-role">Rol</label><select id="technical-person-role" name="role"><option value="operator">Yayın operatörü</option><option value="presenter">Sunucu / DJ</option><option value="technical">Teknik yönetici</option><option value="advert">Reklam sorumlusu</option><option value="custom">Özel rol</option></select></div>
+        <div data-tech-custom-role-field hidden><label for="technical-person-custom-role">Özel rol adı</label><input id="technical-person-custom-role" name="customRole" maxlength="100"></div>
+        <div><label for="technical-person-scope">Atama kapsamı</label><select id="technical-person-scope" name="scope"><option value="station">İstasyon</option><option value="programme">Program</option><option value="player">Oynatıcı</option></select></div>
+        <div data-tech-station-target-field><label for="technical-person-station">Hedef istasyon adı</label><input id="technical-person-station" name="station" maxlength="100" required list="technical-station-suggestions"><datalist id="technical-station-suggestions"></datalist></div>
+        <div data-tech-dynamic-target-field hidden><label for="technical-person-target">Hedef program / oynatıcı</label><select id="technical-person-target" name="target"></select></div>
+        <div><label for="technical-person-server">Atanacağı sunucu · isteğe bağlı</label><select id="technical-person-server" name="server"><option value="">Atanmadı</option></select></div>
+        <div><label for="technical-person-start">Vardiya başlangıcı · isteğe bağlı</label><input id="technical-person-start" name="start" type="datetime-local"></div>
+        <div><label for="technical-person-end">Vardiya bitişi</label><input id="technical-person-end" name="end" type="datetime-local"></div>
+        <div><label for="technical-person-period">Atama süresi</label><select id="technical-person-period" name="period"><option value="permanent">Kalıcı</option><option value="temporary">Geçici</option></select></div>
+      </div>
+      <fieldset class="technical-checks"><legend>Seçilen kapsamda izinler</legend><label><input type="checkbox" name="monitor" checked> İzleme</label><label><input type="checkbox" name="control"> Yayın kontrolü</label><label><input type="checkbox" name="cue"> CUE / ön dinleme</label><label><input type="checkbox" name="programmeEdit"> Program düzenleme</label><label><input type="checkbox" name="errorFix"> Hata düzeltme</label><label><input type="checkbox" name="serviceManagement"> Servis yönetimi</label><label><input type="checkbox" name="bulkTemporary"> Geçici toplu düzenleme</label><label><input type="checkbox" name="bulkPermanent"> Kalıcı toplu düzenleme</label></fieldset>
+      <div class="technical-dialog-actions"><button type="button" data-tech-dialog-close>Vazgeç</button><button type="submit">Atamayı kaydet</button></div>
+    </form>
+  </dialog>
+</div>
+</section>

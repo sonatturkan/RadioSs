@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-10T23:29:24.219089+00:00",
+  "agent": "player-graphic/root",
+  "source": "src/ui/broadcast.c",
+  "before_sha256": "4473ab78097b3bd7fcd971d4b300d19a42b684cd40402af5b177e11f22d67a6c",
+  "after_sha256": "0cc3dcd23e45aca31a741d013fbf45b84b91772426612957ea6ae31d6bdb63f7",
+  "changes": [
+    "Reserve the blank metadata row",
+    "Single-line title/metadata/next",
+    "Bound preferred label width to 32 characters; full tooltips retained"
+  ],
+  "backup": "docs/player-graphic/backups/20261010T232924Z",
+  "validation": "passed",
+  "validated_utc": "2026-10-10T23:32:15.052650+00:00",
+  "evidence": [
+    "build/player-graphic/corrected-result.json",
+    "build/player-graphic/corrected-tests.xml",
+    "build/player-graphic/corrected-tests.log",
+    "build/player-graphic/corrected-shots/player-layout-multiline.png"
+  ],
+  "ctest_groups": 3,
+  "native_cases": 3,
+  "failed": 0,
+  "skipped": 0,
+  "before_reproduction": {
+    "card_width": 554,
+    "card_height": 554,
+    "evidence": "build/player-graphic/baseline-runtime.log"
+  },
+  "after_geometry": {
+    "card_width": 420,
+    "card_height": 420
+  },
+  "default_binary_delivery": "P2 current owner; inclusion requested via shared AGENT; not installed by player-graphic"
+}

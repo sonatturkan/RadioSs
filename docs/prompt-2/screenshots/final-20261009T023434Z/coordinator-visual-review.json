@@ -1,0 +1,92 @@
+{
+  "reviewer": "PROMPT-2/coordinator",
+  "reviewed_utc": "2026-10-09T02:36:46.908056+00:00",
+  "manifest_sha256": "f9f43693872e985cd76f0abadbf8a2e6aecd0aa8841eafccfb9cba9f9f3a83ee",
+  "source_files_tracked": 7,
+  "visual_source_drift": [],
+  "captures": [
+    {
+      "name": "header-1000-normal",
+      "png_actual_dimensions": [
+        1000,
+        680
+      ],
+      "image_sha256": "eef94d14ce4b7c596b72d330b386a359f58e26857abef1f8c9d6cc61d000d50e",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "header-1000-large",
+      "png_actual_dimensions": [
+        1000,
+        680
+      ],
+      "image_sha256": "d54d722285a14ea5b57429d0250402d06e563ef78ddf21b1e5cec9efadb760b3",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "header-1400-normal",
+      "png_actual_dimensions": [
+        1400,
+        900
+      ],
+      "image_sha256": "be89440d56d17678cd1549868663832ba94c55d2f9307e1cafea16b82dbc74b9",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "header-1400-large",
+      "png_actual_dimensions": [
+        1400,
+        900
+      ],
+      "image_sha256": "bef61826735a1c34cede8fb08a4f2d7ee3f21177e0cc04cee8ddb024b6146535",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "header-1800-normal",
+      "png_actual_dimensions": [
+        1800,
+        1000
+      ],
+      "image_sha256": "34ed1c95cdb99d64eb5cd6ed50d7e9b7c0adb880f381f9513a3dd7b145522f29",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "header-1800-large",
+      "png_actual_dimensions": [
+        1800,
+        1000
+      ],
+      "image_sha256": "b10577fb9a920f91138c3d36c0f80ae7abaea314e6112538b823d67085f9d9e2",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "main-normal",
+      "png_actual_dimensions": [
+        1800,
+        1000
+      ],
+      "image_sha256": "e47b08ab85e9d596f015fb11cfa679e907ebdaf67d2cc51c24a28c2ae11d42f8",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    },
+    {
+      "name": "preferences-view",
+      "png_actual_dimensions": [
+        1030,
+        1020
+      ],
+      "image_sha256": "d06b84a062b66ff09a336f4439021b2d5c518fd4df1339d4fcf9cfcd18cd4670",
+      "exit": 0,
+      "independent_visual_review": "PASS: all P2 captions/values legible; Unicode ellipsis, cyan remaining, source figure style; no clipping. View three checked live controls."
+    }
+  ],
+  "scope": "Real production GTK/theme/font/grid and Preferences View; playback observations explicitly synthetic, genuine PCM behavior tested separately. Header-only 1000/1400 evidence does not prove full main window fit at those widths.",
+  "main_baseline": "Normal visible/hidden1568/1568; large1574/1574; feature width regression0 both fonts",
+  "status": "Final8image independentPASS; isolatedRelease compile/smoke and report pending"
+}

@@ -1,0 +1,305 @@
+{
+  "recorded_at_utc": "2026-10-09 02:01:58 UTC",
+  "agent": "/root/pdf_audit",
+  "original_test_completed_at_utc": "2026-10-09 01:55:07 UTC",
+  "source_inventory": {
+    "source_before": {
+      "path": "docs/prompt-7/backups/player_loader.c.42ea0d74991cb345.before",
+      "sha256": "42ea0d74991cb345631d2643d5ae95481d226efa5eab425a7381bb12c041f296",
+      "bytes": 25745
+    },
+    "source_after": {
+      "path": "docs/prompt-7/backups/player_loader.c.e097e570e408784e.after",
+      "sha256": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+      "bytes": 27322
+    },
+    "test_source": {
+      "path": "docs/prompt-7/backups/test_player_loader_ui.c.b3802bd464384091.proof",
+      "sha256": "b3802bd4643840911e4007e2c35750fda6153ef6b834130aa4f079050b1a1145",
+      "bytes": 11199
+    }
+  },
+  "environment": {
+    "G_DEBUG": "fatal-warnings",
+    "GDK_BACKEND": "x11",
+    "DISPLAY": ":0"
+  },
+  "source_isolation": "Only player_loader.c translation unit differed between before and after; same new test source and current build-agent-audit dependency archives were linked for both.",
+  "command_provenance": "Compile/link argv reconstructed from the exact Python subprocess recipe used in the 01:55 verification; pkg-config flags/link tail are preserved here. Test argv and outcomes come from that execution.",
+  "limitations": [
+    "Original dependency archive hashes were not captured at test time; these results prove loader dialog/selection behavior and are not full-tree, backend, PCM, or hardware validation.",
+    "The source-after and test source snapshots were copied into persistent evidence at recorded_at_utc; no loader source/test edits occurred after the final 01:55 compile."
+  ],
+  "strict_compile_link": "passed after correcting initial pedantic macro and misleading-indentation errors",
+  "compile_link_commands": [
+    {
+      "kind": "compile",
+      "argv": [
+        "cc",
+        "-g",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+        "-I/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/include",
+        "-I/usr/include/gtk-3.0",
+        "-I/usr/include/pango-1.0",
+        "-I/usr/include/cairo",
+        "-I/usr/include/gdk-pixbuf-2.0",
+        "-I/usr/include/webp",
+        "-I/usr/include/at-spi2-atk/2.0",
+        "-I/usr/include/at-spi-2.0",
+        "-I/usr/include/atk-1.0",
+        "-I/usr/include/dbus-1.0",
+        "-I/usr/lib/x86_64-linux-gnu/dbus-1.0/include",
+        "-I/usr/include/fribidi",
+        "-I/usr/include/pixman-1",
+        "-I/usr/include/harfbuzz",
+        "-I/usr/include/freetype2",
+        "-I/usr/include/libpng16",
+        "-I/usr/include/gio-unix-2.0",
+        "-I/usr/include/json-glib-1.0",
+        "-pthread",
+        "-I/usr/include/glib-2.0",
+        "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+        "-I/usr/include/libmount",
+        "-I/usr/include/blkid",
+        "-c",
+        "/tmp/radios-prompt7-audit/player_loader.before.c",
+        "-o",
+        "/tmp/radios-prompt7-audit/loader-before.o"
+      ]
+    },
+    {
+      "kind": "compile",
+      "argv": [
+        "cc",
+        "-g",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+        "-I/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/include",
+        "-I/usr/include/gtk-3.0",
+        "-I/usr/include/pango-1.0",
+        "-I/usr/include/cairo",
+        "-I/usr/include/gdk-pixbuf-2.0",
+        "-I/usr/include/webp",
+        "-I/usr/include/at-spi2-atk/2.0",
+        "-I/usr/include/at-spi-2.0",
+        "-I/usr/include/atk-1.0",
+        "-I/usr/include/dbus-1.0",
+        "-I/usr/lib/x86_64-linux-gnu/dbus-1.0/include",
+        "-I/usr/include/fribidi",
+        "-I/usr/include/pixman-1",
+        "-I/usr/include/harfbuzz",
+        "-I/usr/include/freetype2",
+        "-I/usr/include/libpng16",
+        "-I/usr/include/gio-unix-2.0",
+        "-I/usr/include/json-glib-1.0",
+        "-pthread",
+        "-I/usr/include/glib-2.0",
+        "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+        "-I/usr/include/libmount",
+        "-I/usr/include/blkid",
+        "-c",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/src/ui/player_loader.c",
+        "-o",
+        "/tmp/radios-prompt7-audit/loader-after.o"
+      ]
+    },
+    {
+      "kind": "compile",
+      "argv": [
+        "cc",
+        "-g",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+        "-I/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/include",
+        "-I/usr/include/gtk-3.0",
+        "-I/usr/include/pango-1.0",
+        "-I/usr/include/cairo",
+        "-I/usr/include/gdk-pixbuf-2.0",
+        "-I/usr/include/webp",
+        "-I/usr/include/at-spi2-atk/2.0",
+        "-I/usr/include/at-spi-2.0",
+        "-I/usr/include/atk-1.0",
+        "-I/usr/include/dbus-1.0",
+        "-I/usr/lib/x86_64-linux-gnu/dbus-1.0/include",
+        "-I/usr/include/fribidi",
+        "-I/usr/include/pixman-1",
+        "-I/usr/include/harfbuzz",
+        "-I/usr/include/freetype2",
+        "-I/usr/include/libpng16",
+        "-I/usr/include/gio-unix-2.0",
+        "-I/usr/include/json-glib-1.0",
+        "-pthread",
+        "-I/usr/include/glib-2.0",
+        "-I/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+        "-I/usr/include/libmount",
+        "-I/usr/include/blkid",
+        "-c",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c",
+        "-o",
+        "/tmp/radios-prompt7-audit/loader-test.o"
+      ]
+    },
+    {
+      "kind": "link",
+      "cwd": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build-agent-audit",
+      "argv": [
+        "cc",
+        "/tmp/radios-prompt7-audit/loader-test.o",
+        "/tmp/radios-prompt7-audit/loader-before.o",
+        "-Wl,--wrap=radios_data_connected",
+        "-Wl,--wrap=radios_data_request",
+        "-Wl,--wrap=radios_broadcast_online_provider_lists",
+        "-Wl,--wrap=radios_broadcast_online_provider_tracks",
+        "libradios_ui.a",
+        "libradios_playout.a",
+        "libradios_audio.a",
+        "libradios_core.a",
+        "/usr/lib/x86_64-linux-gnu/libjson-glib-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcurl.so",
+        "/usr/lib/x86_64-linux-gnu/libavformat.so",
+        "/usr/lib/x86_64-linux-gnu/libavcodec.so",
+        "/usr/lib/x86_64-linux-gnu/libavutil.so",
+        "/usr/lib/x86_64-linux-gnu/libswresample.so",
+        "/usr/lib/x86_64-linux-gnu/libpulse.so",
+        "/usr/lib/x86_64-linux-gnu/libavfilter.so",
+        "/usr/lib/x86_64-linux-gnu/libgtk-3.so",
+        "/usr/lib/x86_64-linux-gnu/libgdk-3.so",
+        "/usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcairo-gobject.so",
+        "/usr/lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libatk-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libpango-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcairo.so",
+        "/usr/lib/x86_64-linux-gnu/libharfbuzz.so",
+        "/usr/lib/x86_64-linux-gnu/libgio-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libglib-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libfontconfig.so",
+        "-lm",
+        "-o",
+        "/tmp/radios-prompt7-audit/test-loader-before"
+      ]
+    },
+    {
+      "kind": "link",
+      "cwd": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build-agent-audit",
+      "argv": [
+        "cc",
+        "/tmp/radios-prompt7-audit/loader-test.o",
+        "/tmp/radios-prompt7-audit/loader-after.o",
+        "-Wl,--wrap=radios_data_connected",
+        "-Wl,--wrap=radios_data_request",
+        "-Wl,--wrap=radios_broadcast_online_provider_lists",
+        "-Wl,--wrap=radios_broadcast_online_provider_tracks",
+        "libradios_ui.a",
+        "libradios_playout.a",
+        "libradios_audio.a",
+        "libradios_core.a",
+        "/usr/lib/x86_64-linux-gnu/libjson-glib-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcurl.so",
+        "/usr/lib/x86_64-linux-gnu/libavformat.so",
+        "/usr/lib/x86_64-linux-gnu/libavcodec.so",
+        "/usr/lib/x86_64-linux-gnu/libavutil.so",
+        "/usr/lib/x86_64-linux-gnu/libswresample.so",
+        "/usr/lib/x86_64-linux-gnu/libpulse.so",
+        "/usr/lib/x86_64-linux-gnu/libavfilter.so",
+        "/usr/lib/x86_64-linux-gnu/libgtk-3.so",
+        "/usr/lib/x86_64-linux-gnu/libgdk-3.so",
+        "/usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcairo-gobject.so",
+        "/usr/lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libatk-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libpango-1.0.so",
+        "/usr/lib/x86_64-linux-gnu/libcairo.so",
+        "/usr/lib/x86_64-linux-gnu/libharfbuzz.so",
+        "/usr/lib/x86_64-linux-gnu/libgio-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libglib-2.0.so",
+        "/usr/lib/x86_64-linux-gnu/libfontconfig.so",
+        "-lm",
+        "-o",
+        "/tmp/radios-prompt7-audit/test-loader-after"
+      ]
+    }
+  ],
+  "test_results": [
+    {
+      "version": "before",
+      "case": "/player-loader/tab-restore",
+      "command": [
+        "/tmp/radios-prompt7-audit/test-loader-before",
+        "-p",
+        "/player-loader/tab-restore"
+      ],
+      "exit_code": -6,
+      "expected_result": "regression assertion failure",
+      "transcript": {
+        "path": "docs/prompt-7/test-evidence/loader-before-after.before-tab-restore.txt",
+        "sha256": "ba3192ac3ddc4f123bb64207dd17c55cb6e90a181ecb35ee0ebfa3f45d862af6",
+        "bytes": 441
+      }
+    },
+    {
+      "version": "before",
+      "case": "/player-loader/provider-refresh-keeps-selection",
+      "command": [
+        "/tmp/radios-prompt7-audit/test-loader-before",
+        "-p",
+        "/player-loader/provider-refresh-keeps-selection"
+      ],
+      "exit_code": -6,
+      "expected_result": "regression assertion failure",
+      "transcript": {
+        "path": "docs/prompt-7/test-evidence/loader-before-after.before-provider-refresh-keeps-selection.txt",
+        "sha256": "6a3fe6431186c6b242bddfd983cf14bcedd9e456b0fdbe3a5c1180b65d00f991",
+        "bytes": 650
+      }
+    },
+    {
+      "version": "before",
+      "case": "/player-loader/hidden-selection-isolation",
+      "command": [
+        "/tmp/radios-prompt7-audit/test-loader-before",
+        "-p",
+        "/player-loader/hidden-selection-isolation"
+      ],
+      "exit_code": -6,
+      "expected_result": "regression assertion failure",
+      "transcript": {
+        "path": "docs/prompt-7/test-evidence/loader-before-after.before-hidden-selection-isolation.txt",
+        "sha256": "aa5f338cc9028dfc6813265eec5f5dfc506659b2e25f171bbb8a4eff2db17fae",
+        "bytes": 556
+      }
+    },
+    {
+      "version": "after",
+      "command": [
+        "/tmp/radios-prompt7-audit/test-loader-after"
+      ],
+      "exit_code": 0,
+      "passed": 5,
+      "transcript": {
+        "path": "docs/prompt-7/test-evidence/loader-before-after.after.txt",
+        "sha256": "1a128152d58db9cf61574693da1854435a7ce0b58d7338ef7e7015500b9d5b58",
+        "bytes": 344
+      }
+    }
+  ],
+  "original_test_artifact_hashes": {
+    "loader-before.o": "6d5ae0b091125822187be165d1b8db673e76c2042834d3a60df2457001459cac",
+    "loader-after.o": "79e719843010f11cc488d5ed60c852607d462a338c7421d7860e633ff367f458",
+    "loader-test.o": "078852125c804406600960e3355c2223f300242a9de30636ce2a5d3929f2685d",
+    "test-loader-before": "f20837ea8d90e5279c940d0b44db6d2e157495db64ace2f3dd1f031bc9d0d457",
+    "test-loader-after": "ca294f0538a8bc42d2b99253a89c5c8588b42ef73889f88b1dac04c71299dcbd"
+  }
+}

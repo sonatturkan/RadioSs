@@ -1,0 +1,49 @@
+#queue-waveform-dialog { box-sizing:border-box;width:min(1040px,calc(100vw - 28px));max-height:calc(100dvh - 28px);margin:auto;padding:22px;border:1px solid #494949;border-radius:7px;background:#101010;color:#d2d2d2;font:inherit;overflow:auto;box-shadow:0 18px 70px #000b;overflow-wrap:anywhere; }
+#queue-waveform-dialog::backdrop { background:#000c; }
+#queue-waveform-dialog :is(h2,h3,p,dl,dd) { margin:0; }
+#queue-waveform-dialog :is(button,input) { font:inherit; }
+#queue-waveform-dialog button { min-width:0;min-height:30px;padding:6px 10px;border:1px solid #414141;border-radius:4px;background:#1b1b1b;color:#ccc;font-size:11px;cursor:pointer; }
+#queue-waveform-dialog button:hover:not(:disabled) { border-color:#888;background:#292929;color:#eee; }
+#queue-waveform-dialog button:disabled { opacity:.45;cursor:default; }
+#queue-waveform-dialog :focus-visible { outline:2px solid #ccc;outline-offset:3px; }
+#queue-waveform-dialog .qwf-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px; }
+#queue-waveform-dialog .qwf-heading > div { min-width:0; }
+#queue-waveform-dialog .qwf-eyebrow { color:#999;font-size:10px;letter-spacing:.6px; }
+#queue-waveform-dialog h2 { margin-top:5px;color:#e4e4e4;font-size:21px;font-weight:400; }
+#queue-waveform-dialog .qwf-meta { margin-top:6px;color:#919191;font-size:11px;line-height:1.5; }
+#queue-waveform-dialog .qwf-close { flex:0 0 32px;width:32px;padding:0;font-size:21px; }
+#queue-waveform-dialog .qwf-overview { display:grid;grid-template-columns:minmax(120px,.3fr) minmax(0,1fr);gap:12px;padding:12px 0;border-top:1px solid #303030;border-bottom:1px solid #303030; }
+#queue-waveform-dialog .qwf-overview dt { color:#838383;font-size:10px; }
+#queue-waveform-dialog .qwf-overview dd { margin-top:5px;color:#c5c5c5;font-size:12px;line-height:1.5; }
+#queue-waveform-dialog .qwf-toolbar { display:flex;flex-wrap:wrap;align-items:center;gap:6px; }
+#queue-waveform-dialog .qwf-form > .qwf-toolbar { margin:16px 0; }
+#queue-waveform-dialog .qwf-timeline-heading { display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px; }
+#queue-waveform-dialog h3 { color:#aaa;font-size:11px;font-weight:400; }
+#queue-waveform-dialog [data-qwf-position] { color:#d8d8d8;font-size:12px;font-variant-numeric:tabular-nums; }
+#queue-waveform-dialog .qwf-timeline { position:relative;min-width:0;height:190px;border:1px solid #373737;border-radius:4px;background-color:#090909;background-image:linear-gradient(90deg,#202020 1px,transparent 1px),linear-gradient(#181818 1px,transparent 1px);background-size:10% 100%,100% 25%;overflow:hidden;touch-action:none;user-select:none;cursor:crosshair; }
+#queue-waveform-dialog .qwf-timeline[aria-disabled="true"] { cursor:default; }
+#queue-waveform-dialog .qwf-media-waiting { position:absolute;top:50%;left:0;right:0;padding:0 16px;color:#777;font-size:11px;text-align:center;pointer-events:none; }
+#queue-waveform-dialog .qwf-cursor { position:absolute;top:0;bottom:0;width:1px;background:#e6e6e6;pointer-events:none; }
+#queue-waveform-dialog .qwf-marker-layer { position:absolute;inset:0;pointer-events:none; }
+#queue-waveform-dialog button.qwf-marker { position:absolute;left:clamp(17px,var(--qwf-position),calc(100% - 17px));top:var(--qwf-lane);width:30px;min-height:20px;height:20px;transform:translateX(-50%);padding:0;border-color:#626262;background:#2a2a2a;color:#ddd;font-size:9px;pointer-events:auto;cursor:ew-resize; }
+#queue-waveform-dialog button.qwf-marker::after { content:"";position:absolute;top:21px;left:50%;height:190px;width:1px;background:#62626280;pointer-events:none; }
+#queue-waveform-dialog button.qwf-marker[data-qwf-marker="autoNext"] { border-color:#97763b;background:#41321a;color:#e4c27e; }
+#queue-waveform-dialog .qwf-time-axis { display:flex;justify-content:space-between;gap:5px;margin-top:6px;color:#777;font-size:9px;font-variant-numeric:tabular-nums; }
+#queue-waveform-dialog .qwf-help { margin-top:9px;color:#828282;font-size:10px;line-height:1.6; }
+#queue-waveform-dialog .qwf-tools { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:15px 0 19px; }
+#queue-waveform-dialog .qwf-preview-toggle[aria-pressed="true"] { border-color:#a48c5b;background:#3a301b;color:#e6cd99; }
+#queue-waveform-dialog .qwf-marker-fields { min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px 16px;margin:0;padding:15px;border:1px solid #333;border-radius:4px; }
+#queue-waveform-dialog .qwf-marker-fields legend { padding:0 6px;color:#bfbfbf;font-size:11px; }
+#queue-waveform-dialog .qwf-marker-fields > div { min-width:0; }
+#queue-waveform-dialog label { display:block;margin-bottom:6px;color:#a9a9a9;font-size:10px;line-height:1.5; }
+#queue-waveform-dialog input[type="number"] { box-sizing:border-box;min-width:0;width:100%;padding:8px;border:1px solid #414141;border-radius:4px;background:#090909;color:#d5d5d5;font-size:12px;color-scheme:dark; }
+#queue-waveform-dialog input:disabled { opacity:.5; }
+#queue-waveform-dialog .qwf-check { display:flex;align-items:center;gap:7px;margin:20px 0 0; }
+#queue-waveform-dialog .qwf-check input { width:14px;height:14px;flex:0 0 auto;accent-color:#bb9a58; }
+#queue-waveform-dialog .qwf-status { margin-top:14px;color:#a2a2a2;font-size:11px;line-height:1.6; }
+#queue-waveform-dialog .qwf-status.has-warning { color:#d0b77e; }
+#queue-waveform-dialog .qwf-dialog-actions { display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:18px; }
+#queue-waveform-dialog button.qwf-save { border-color:#9a7c40;background:#403219;color:#edcf94; }
+#queue-waveform-dialog [hidden] { display:none; }
+@media(max-width:760px) { #queue-waveform-dialog .qwf-marker-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:420px) { #queue-waveform-dialog { padding:16px; } #queue-waveform-dialog .qwf-overview { grid-template-columns:minmax(0,1fr); } #queue-waveform-dialog h2 { font-size:18px; } #queue-waveform-dialog .qwf-marker-fields { padding:12px;gap:12px; } #queue-waveform-dialog .qwf-check { margin-top:14px; } #queue-waveform-dialog .qwf-time-axis { font-size:8px; } }

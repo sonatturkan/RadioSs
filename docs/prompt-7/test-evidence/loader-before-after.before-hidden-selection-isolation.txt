@@ -1,0 +1,7 @@
+TAP version 14
+# random seed: R02S453e5bb5c5384eb376fe894ea3510d75
+# Start of player-loader tests
+not ok /player-loader/hidden-selection-isolation - ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:188:test_hidden_selection_does_not_restart_request: assertion failed (track_requests == 1): (2 == 1)
+Bail out!
+**
+ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:188:test_hidden_selection_does_not_restart_request: assertion failed (track_requests == 1): (2 == 1)

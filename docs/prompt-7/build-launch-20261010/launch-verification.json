@@ -1,0 +1,11 @@
+{
+  "host_pid": 61295,
+  "exe": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt7-open-20261010-2332/radios",
+  "exe_sha256": "e6933fda2af359273419b6f1ccbe2f2b4026d556b5b4d6a3070432fa0c104ceb",
+  "window_id": "0x1600004",
+  "is_viewable": true,
+  "window_info": "\nxwininfo: Window id: 0x1600004 \"RadioS\"\n\n  Absolute upper-left X:  0\n  Absolute upper-left Y:  70\n  Relative upper-left X:  0\n  Relative upper-left Y:  38\n  Width: 1920\n  Height: 1042\n  Depth: 24\n  Visual: 0x361\n  Visual Class: TrueColor\n  Border width: 0\n  Class: InputOutput\n  Colormap: 0x1600003 (not installed)\n  Bit Gravity State: NorthWestGravity\n  Window Gravity State: NorthWestGravity\n  Backing Store State: NotUseful\n  Save Under State: no\n  Map State: IsViewable\n  Override Redirect State: no\n  Corners:  +0+70  -0+70  -0-88  +0-88\n  -geometry 1920x1042+0+32\n\n",
+  "active_window": "_NET_ACTIVE_WINDOW(WINDOW): window id # 0x1800007",
+  "utc": "2026-10-10T23:35:52.078863+00:00",
+  "binary_matches_build": true
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="1"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="22"
+	timestamp="2026-10-09T02:51:17"
+	>
+	<testcase name="native_data" classname="native_data" time="22.3633" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sdc199f75ad93bdff05cb83f469acd399
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+# /native-data/playlist-persistence
+# /native-data/conflict-input-retention
+# /native-data/transport-input-retention
+# /native-data/shutdown-during-connect
+# /native-data/all-profiles-persistence
+# /native-data/refresh-edit-revision-race
+# /native-data/document-read-order
+# End of native-data tests
+1..7
+Native data independent fixture: /native-data/playlist-persistence
+TAP version 14
+# random seed: R02Sdef9f15194ac228e7b31bfb25ab69ad6
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

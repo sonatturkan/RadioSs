@@ -1,0 +1,124 @@
+<section class="task-view automation-workspace" id="automation-task-view" role="tabpanel" aria-labelledby="profile-automation-tab" data-automation-workspace hidden>
+  <header class="task-view-heading automation-heading">
+    <div><p class="task-eyebrow">OTOMASYON</p><h2>Rotasyon ve otomatik akış</h2><p>Playlistleri birleştir, tekrarları sınırla ve deck dağılımıyla yayın sırasını hazırla.</p></div>
+    <span class="task-draft-badge" data-automation-save-badge>Yerel kural taslağı</span>
+  </header>
+  <div class="automation-state-strip">
+    <span class="automation-state-dot" aria-hidden="true"></span><strong data-automation-state>Planlayıcı beklemede</strong>
+    <span>Önizleme ve program taslağına aktarım hazır. Canlı yayın motoru bağlı değil.</span>
+  </div>
+  <form data-automation-form class="automation-form">
+    <div class="automation-rule-bar">
+      <div><label for="automation-rule-name">Rotasyon adı</label><input id="automation-rule-name" name="name" maxlength="80" value="Genel rotasyon" required></div>
+      <div class="automation-actions"><button type="submit" class="task-primary">Kuralları kaydet</button><button type="button" data-automation-export>Kuralları indir</button></div>
+    </div>
+    <nav class="automation-tabs" role="tablist" aria-label="Otomasyon ayarları">
+      <button type="button" role="tab" id="automation-rotation-tab" aria-controls="automation-rotation-pane" aria-selected="true" data-automation-pane="rotation">Rotasyon</button>
+      <button type="button" role="tab" id="automation-timing-tab" aria-controls="automation-timing-pane" aria-selected="false" tabindex="-1" data-automation-pane="timing">Saat ve geçiş</button>
+      <button type="button" role="tab" id="automation-decks-tab" aria-controls="automation-decks-pane" aria-selected="false" tabindex="-1" data-automation-pane="decks">Deck ve güvenlik</button>
+    </nav>
+    <div class="automation-layout">
+      <div class="automation-pane-stack">
+        <section id="automation-rotation-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-rotation-tab">
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Kaynak playlistler</h3><p>Sıra ve ağırlıklar, playlistler arasındaki geçişi belirler.</p></div><button type="button" data-automation-source-add>+ Playlist ekle</button></header>
+            <div class="automation-table-scroll"><table class="automation-source-table"><thead><tr><th scope="col">Playlist</th><th scope="col">Ağırlık</th><th scope="col">Turda parça</th><th scope="col"><span class="task-visually-hidden">Kaynağı taşı veya kaldır</span></th></tr></thead><tbody data-automation-sources></tbody></table></div>
+            <p class="automation-empty" data-automation-source-empty>Önce Playlist sekmesinde bir liste oluştur veya rekordbox'tan içe aktar. Ardından rotasyona kaynak ekle.</p>
+            <div class="automation-fields">
+              <div><label for="automation-source-mode">Playlistler arası seçim</label><select id="automation-source-mode" name="sourceMode"><option value="cycle">Sırayla tur · her listeden belirlenen adet</option><option value="weighted">Ağırlıklı rastgele · oranlara göre</option><option value="complete">Liste bitince diğerine geç</option></select></div>
+              <div><label for="automation-track-mode">Playlist içinden parça seçimi</label><select id="automation-track-mode" name="trackMode"><option value="random">Rastgele · tekrar kurallarıyla</option><option value="ordered">Playlist sırasını koru</option><option value="least-used">En az planlanan / en uzun süredir seçilmeyen</option></select></div>
+            </div>
+            <p class="automation-help" data-automation-selection-help>Her turda kaynak sırası ve parça adetleri uygulanır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Tekrar koruması</h3><p>Uygun parça bulunamazsa güvenlik politikası devreye girer.</p></div></header>
+            <div class="automation-fields automation-fields-three">
+              <div><label for="automation-track-gap">Aynı parça · dakika</label><input id="automation-track-gap" name="trackGap" type="number" min="0" max="10080" value="60" step="1" required></div>
+              <div><label for="automation-artist-gap">Aynı sanatçı · dakika</label><input id="automation-artist-gap" name="artistGap" type="number" min="0" max="10080" value="30" step="1" required></div>
+              <div><label for="automation-album-gap">Aynı albüm · dakika</label><input id="automation-album-gap" name="albumGap" type="number" min="0" max="10080" value="0" step="1" required></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="includeProgramme" checked> Mevcut program sırasını tekrar hesabına kat</label>
+            <p class="automation-help">0 değeri ilgili korumayı kapatır. Kontrol, bu önizleme ve mevcut program taslağını kullanır; gerçek yayın geçmişi henüz bağlı değildir. Sanatçı / albüm bilgisi eksik parçalar raporlanır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Jingle / istasyon kimliği</h3><p>Müzik aralarına ayrı playlistten kısa içerik ekle.</p></div></header>
+            <label class="automation-check"><input type="checkbox" name="jingleEnabled"> Düzenli jingle ekle</label>
+            <div class="automation-fields">
+              <div><label for="automation-jingle-playlist">Jingle playlisti</label><select id="automation-jingle-playlist" name="jinglePlaylist" data-automation-playlist-select><option value="">Playlist seç</option></select></div>
+              <div><label for="automation-jingle-every">Kaç müzik parçasında bir?</label><input id="automation-jingle-every" name="jingleEvery" type="number" min="1" max="100" value="3" step="1" required></div>
+            </div>
+            <p class="automation-help">Jingle ayrı bir sıra öğesi olur; müziğin intro bölümüne bindirme ve ducking, yayın motoru bağlantısı gerektirir.</p>
+          </section>
+        </section>
+        <section id="automation-timing-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-timing-tab" hidden>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Yayın saati ve gün bölümü</h3><p>Önizlemenin başlangıcını ve bu kuralın kullanılacağı günleri belirle.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-plan-date">Plan tarihi · UTC</label><input id="automation-plan-date" name="planDate" type="date" required></div>
+              <div><label for="automation-start-time">Plan başlangıcı · UTC</label><input id="automation-start-time" name="startTime" type="time" value="08:00" required></div>
+              <div><label for="automation-preview-count">Planlanacak müzik parçası</label><input id="automation-preview-count" name="previewCount" type="number" min="1" max="200" value="20" step="1" required></div>
+              <div><label for="automation-window-start">Gün bölümü başlangıcı · UTC</label><input id="automation-window-start" name="windowStart" type="time" value="00:00" required></div>
+              <div><label for="automation-window-end">Gün bölümü bitişi · UTC</label><input id="automation-window-end" name="windowEnd" type="time" value="00:00" required></div>
+            </div>
+            <fieldset class="automation-weekdays"><legend>Kullanılacak günler</legend><label><input name="weekday" type="checkbox" value="1" checked> Pzt</label><label><input name="weekday" type="checkbox" value="2" checked> Sal</label><label><input name="weekday" type="checkbox" value="3" checked> Çar</label><label><input name="weekday" type="checkbox" value="4" checked> Per</label><label><input name="weekday" type="checkbox" value="5" checked> Cum</label><label><input name="weekday" type="checkbox" value="6" checked> Cmt</label><label><input name="weekday" type="checkbox" value="7" checked> Paz</label></fieldset>
+            <p class="automation-help">Başlangıç ve bitiş aynıysa tüm gün açıktır. Gece yarısını aşan aralıklar desteklenir. Gün / saat kuralları önizlemede denetlenir; kendiliğinden yayını başlatan zamanlayıcı bağlı değildir.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Parça geçişleri</h3><p>Bindirme, program taslağındaki ardışık parçaların geçişine yazılır.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-transition">Otomatik parça geçişi</label><select id="automation-transition" name="transition"><option value="end">Açık · parça biter bitmez</option><option value="crossfade">Açık · sabit bindirme / crossfade</option><option value="markers">Açık · cue / auto-next işaretleri</option><option value="manual">Kapalı · manuel geçiş</option></select></div>
+              <div><label for="automation-overlap">Bindirme · saniye</label><input id="automation-overlap" name="overlap" type="number" min="0" max="30" step="0.1" value="3" required></div>
+              <div><label for="automation-boundary-transition">Playlist değişirken</label><select id="automation-boundary-transition" name="boundaryTransition"><option value="same">Parça geçiş kuralını kullan</option><option value="end">Mevcut parçayı bitir, sonra geç</option><option value="crossfade">Playlistler arasında bindirme</option><option value="markers">Cue / auto-next işaretinde geç</option><option value="manual">Operatör geçişini bekle</option></select></div>
+              <div><label for="automation-boundary-overlap">Playlist geçiş bindirmesi · saniye</label><input id="automation-boundary-overlap" name="boundaryOverlap" type="number" min="0" max="30" step="0.1" value="3" required></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="jingleDry" checked> Jingle öncesi ve sonrası bindirmeyi kapat</label>
+            <p class="automation-help">Cue işareti olmayan parçada bindirme değeri kullanılır. Manuel geçişte saatler tahminidir; otomatik ilerleme kapalı olarak plana yazılır. Bindirme her iki parçanın süresine sınırlandırılır.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Tekrarlanabilir rastgelelik</h3><p>Aynı kaynaklar, kurallar ve anahtar aynı önizlemeyi üretir.</p></div><button type="button" data-automation-new-seed>Yeni anahtar</button></header>
+            <label for="automation-seed">Rastgelelik anahtarı</label><input id="automation-seed" name="seed" maxlength="64" value="radio-s-1" required autocomplete="off">
+          </section>
+        </section>
+        <section id="automation-decks-pane" class="automation-pane" role="tabpanel" aria-labelledby="automation-decks-tab" hidden>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Deck / oynatıcı dağılımı</h3><p>Yayın ekranında gerçekten bulunan oynatıcılar listelenir.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-deck-mode">Atama yöntemi</label><select id="automation-deck-mode" name="deckMode"><option value="alternate">Seçili deckleri sırayla kullan</option><option value="fixed">Tek deck kullan</option></select></div>
+              <div><label for="automation-jingle-deck">Jingle decki · isteğe bağlı</label><select id="automation-jingle-deck" name="jingleDeck" data-automation-deck-select><option value="">Müzik deck sırasını kullan</option></select></div>
+            </div>
+            <fieldset class="automation-deck-list"><legend>Otomasyona ayrılacak deckler</legend><div data-automation-decks></div></fieldset>
+            <p class="automation-help">Deck seçimi önizlemede gösterilir ve aktarılan öğenin notuna yazılır. Oynatıcıların ses çıkışını veya transport kontrolünü değiştirmez.</p>
+          </section>
+          <section class="automation-card">
+            <header class="automation-card-heading"><div><h3>Boş kaynak ve kurala takılan parçalar</h3><p>Tekrar koruması sessizce gevşetilmez.</p></div></header>
+            <div class="automation-fields">
+              <div><label for="automation-fallback-mode">Uygun parça bulunamazsa</label><select id="automation-fallback-mode" name="fallbackMode"><option value="stop">Planı durdur ve sebebini göster</option><option value="next">Sonraki uygun playlisti dene</option><option value="playlist">Yedek playlisti dene</option></select></div>
+              <div><label for="automation-fallback-playlist">Yedek playlist</label><select id="automation-fallback-playlist" name="fallbackPlaylist" data-automation-playlist-select><option value="">Playlist seç</option></select></div>
+            </div>
+            <label class="automation-check"><input type="checkbox" name="requireMetadata"> Sanatçı bilgisi olmayan müzikleri seçme</label>
+            <p class="automation-help">Süresi eksik / sıfır olan, geçersiz veya dosyası açıkça eksik işaretlenmiş öğeler seçilmez. Dosya adresi ve erişilebilirliği doğrulanmamış içerikler, program taslağında kontrol bekler.</p>
+          </section>
+          <section class="automation-card automation-capability-card">
+            <header class="automation-card-heading"><div><h3>Canlı otomasyon</h3><p>Canlı başlat / durdur kontrolü, yayın motoru bağlandığında kullanılabilir.</p></div></header>
+            <div class="automation-actions"><button type="button" disabled title="Canlı yayın motoru bağlantısı gerekli">Canlı otomasyonu başlat</button><button type="button" disabled title="Canlı yayın motoru bağlantısı gerekli">Canlı otomasyonu durdur</button></div>
+          </section>
+        </section>
+      </div>
+      <aside class="automation-sidebar">
+        <section class="automation-card automation-summary-card">
+          <header class="automation-card-heading"><div><h3>Akış özeti</h3><p data-automation-summary-name>Genel rotasyon</p></div><span class="automation-badge">PLAN</span></header>
+          <dl class="automation-facts"><div><dt>Kaynak playlist</dt><dd data-automation-summary="sources">0</dd></div><div><dt>Aday parça</dt><dd data-automation-summary="tracks">0</dd></div><div><dt>Parça seçimi</dt><dd data-automation-summary="mode">Rastgele</dd></div><div><dt>Hedef deck</dt><dd data-automation-summary="decks">Atanmadı</dd></div><div><dt>Tekrar · parça / sanatçı</dt><dd data-automation-summary="gaps">60 / 30 dk</dd></div><div><dt>Son kayıt</dt><dd data-automation-summary="saved">Kaydedilmedi</dd></div></dl>
+          <div class="automation-plan-actions"><button type="button" class="task-primary" data-automation-preview>Önizleme oluştur</button><button type="button" data-automation-cancel disabled>Önizlemeyi temizle</button></div>
+          <p class="automation-help">Önizleme ses çalmaz ve program sırasını değiştirmez. Aktarılan plan yeni bir program bloğu olarak eklenir.</p>
+        </section>
+      </aside>
+    </div>
+  </form>
+  <section class="automation-card automation-preview-card" aria-labelledby="automation-preview-title">
+    <header class="automation-card-heading"><div><h3 id="automation-preview-title">Üretilen yayın sırası</h3><p data-automation-preview-summary>Kuralları belirle ve önizleme oluştur.</p></div><div class="automation-actions"><button type="button" data-automation-download-plan disabled>Planı indir</button><button type="button" class="task-primary" data-automation-apply disabled>Program sırasına ekle</button></div></header>
+    <div class="automation-empty" data-automation-preview-empty><span aria-hidden="true">↻</span><strong>Henüz sıra üretilmedi</strong><p>Seçilen playlistlerden hangi parça, hangi saatte ve hangi deckte planlanacak burada görünür.</p></div>
+    <div class="automation-table-scroll" data-automation-preview-table hidden><table class="automation-preview-table"><thead><tr><th scope="col">Sıra / saat</th><th scope="col">Parça</th><th scope="col">Kaynak</th><th scope="col">Deck</th><th scope="col">Süre / bindirme</th><th scope="col">Seçim nedeni</th></tr></thead><tbody data-automation-preview-rows></tbody></table></div>
+    <div class="automation-diagnostics" data-automation-diagnostics hidden><h4>Plan kontrolü</h4><ul data-automation-diagnostic-list></ul></div>
+  </section>
+  <p class="task-feedback automation-status" role="status" aria-live="polite" data-automation-status>Kurallar bu tarayıcıda saklanır.</p>
+</section>

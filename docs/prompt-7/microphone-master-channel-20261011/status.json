@@ -1,0 +1,113 @@
+{
+  "utc": "2026-10-11T12:30:20.789436+00:00",
+  "task": "Bas konuş mikrofonunda Master’a gönder ve tek hedef kanal seçimi",
+  "state": "COMPLETE_DELIVERED",
+  "project": "RadioS",
+  "record_owner": "/root/bass_continuity",
+  "root_completion": "FINALDELIVERY_READY confirmed by /root",
+  "AGENT_md_written": false,
+  "continuity_source_test_binary_process_mutations": false,
+  "maximum_team_concurrency": 4,
+  "owners": {
+    "/root": "DJ UI, JSON persistence, guarded build/install/backend refresh/normal launch",
+    "/root/bass_fx_inspect": "Paired model/DSP and PCM tests",
+    "/root/bass_ui_inspect": "Backend schema, HTTP/native tests, private GTK geometry",
+    "/root/bass_continuity": "Read-only reviews and this small status"
+  },
+  "contract": {
+    "defaults": "speech.to_master TRUE; speech.channel -1; strict bool and strict integer -1..31; optional legacy fields",
+    "widgets": [
+      "dj-speech-to-master: Master’a gönder",
+      "dj-speech-channel: Kanal seç and existing visible channels"
+    ],
+    "master_checked": "Previous dry microphone behavior preserved; channel selector disabled; selected channel remembered",
+    "master_unchecked": "Selected channel receives microphone once before EQ/fader; old raw microphone-strip paths suppressed; source assignments unchanged",
+    "unselected_or_removed_target": "-1 has no dry microphone output; target removal never auto-selects MASTER",
+    "independent_fx": "Existing Efektöre gönder preference/SEND/RETURN preserved; mic gate and music-tail rules retained",
+    "persistence": "Current autosave persists destination and FX preferences; live microphone gate/held-PTT state is not saved"
+  },
+  "acceptance": {
+    "passed": true,
+    "distinct_cases": 88,
+    "counts": {
+      "effect_return": 19,
+      "dsp": 20,
+      "desktop_api": 28,
+      "desktop_routing": 13,
+      "native_dj": 6,
+      "native_effect_return": 2
+    },
+    "repeats_counted_again": false,
+    "receipt": "acceptance.json",
+    "native_latest_receipt": "delivery-native-acceptance.json",
+    "private_visual_functional_cases_added": 0
+  },
+  "delivery": {
+    "passed": true,
+    "sha256_candidate_installed_running": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+    "build_receipt": "delivery-build.json",
+    "install_receipt": "install.json",
+    "cli_version_and_config": "PASS",
+    "source_guard_inputs": 319,
+    "source_guard_current_drift": [],
+    "service": {
+      "owned_refresh": true,
+      "pid": 94058,
+      "schema_sha256": "3bf9b06219bc51b8289027381b303f2b34da5a065738a9a353f8b0506124b6d1",
+      "receipt": "service.json"
+    },
+    "normal_GUI": {
+      "pid": 94078,
+      "launcher_pid": 94061,
+      "requested_profile": "dj",
+      "XID": "0x1600004",
+      "XRes_owner_pid": 94078,
+      "viewable": true,
+      "size": "1920×1042",
+      "receipt": "visible.json",
+      "active_page_claim": "Actual control layout proved in separate private GTK snapshots; requested profile is not a foreground-page assertion"
+    }
+  },
+  "native_GTK_review": {
+    "passed": true,
+    "reviewed_by": [
+      "/root",
+      "/root/bass_ui_inspect",
+      "/root/bass_continuity"
+    ],
+    "receipt": "dj-microphone-layout.json",
+    "images": [
+      "dj-microphone-master.png",
+      "dj-microphone-channel.png",
+      "dj-microphone-master-viewport.png",
+      "dj-microphone-channel-viewport.png"
+    ],
+    "findings": "Checked MASTER disables channel; unchecked selected Kanal 8 enables it. 144px target controls, 96px microphone column and 12px gap fit; no clipping/overlap; source/binary drift []"
+  },
+  "resolved_attempt_failures": [
+    {
+      "log": "desktop-routing-first-rate-limit.log",
+      "cause": "HTTP fixture exceeded existing request quota with redundant full replay/CAS on all channel values.",
+      "solution": "Kept all channel PUT/reopen assertions and checked replay/CAS on meaningful boundaries; unchanged production rate limits; 13 tests passed."
+    },
+    {
+      "log": "native-effect-return.log",
+      "cause": "Previously compiled test hardcoded Kanal 2 before concurrent channel-name support reported actual Player 2.",
+      "solution": "Preserved current upstream assertion comparing incoming name with actual channel name entry; fresh full RETURN test passed."
+    },
+    {
+      "log": "build/bas-konus-master-kanal-20261011-1219/visual/compile-link.log",
+      "cause": "New mixer_ready API in concurrently changed native test was absent from previous compiled library.",
+      "solution": "Rebuilt all current targets and linked unchanged functional-test copy against matching libraries; visual geometry check passed."
+    }
+  ],
+  "remaining_task_failures": [],
+  "pending_required": [],
+  "next_steps": [],
+  "context_preserved": {
+    "outside_changes": "Current autosave, custom DJ channel names and cold-load mixer_ready API were preserved and rebuilt; guarded receipts record snapshots",
+    "previous_completed_feature": "docs/prompt-7/bass-effector-20261011/status.json",
+    "previous_status_unchanged_sha256": "3108973ee603fe94880ff6119f41edd19e3eacb41a94cc0689529df39a54f755",
+    "historical_previous_optional_failure": "Previous bass-effector visual post-save failure remains separately recorded with undetermined historical cause; it is not a new task failure"
+  }
+}

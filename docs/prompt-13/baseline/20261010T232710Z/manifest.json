@@ -1,0 +1,19 @@
+{
+  "time_utc": "2026-10-10T23:27:10.251807+00:00",
+  "agent": "/root",
+  "reason": "Explicit user request: directly visible advanced DJ beside calendar, compact program below calendar, remove settings button/modal and wide top toolbar",
+  "files": {
+    "src/ui/automation_calendar.c": {
+      "before_sha256": "641b68c93e015fc347ef8248e1ccdfacb58ccd5a8ce6e64db5448ea83dd38a0e",
+      "after_sha256": "faefe608491f2b17dcf87de63e2f0fb90c118a91ec68cfbe1afe31685fbef27e"
+    },
+    "src/ui/automation.c": {
+      "before_sha256": "4524d7fbcd3ce84d1064dca329574fc72116ba28503aaaa49e0798fb7d7ee86b",
+      "after_sha256": "112bbe7077a27421999e80d8921b6cb4f7d7c21b776cce76ec3dc8a7964ebe34"
+    },
+    "design/reference/tasarrım/automation-calendar.css": {
+      "new": true,
+      "after_sha256": "7fca2c4286b8e0c1f23496203ba7081ec0212e6df0eca6ded62fa9d0cadc60b2"
+    }
+  }
+}

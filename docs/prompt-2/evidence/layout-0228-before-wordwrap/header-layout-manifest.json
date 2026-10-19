@@ -1,0 +1,117 @@
+{
+  "started_utc": "2026-10-09T02:28:52.052795+00:00",
+  "binary_sha256": "938b430f731e20cc91073b223a5103a82ca1bc4bcfd239837be955cfbaad96b1",
+  "scope": "Production GTK header and real theme/font/grid. Broadcast observations explicitly synthetic. Full application minimum is separate.",
+  "source_sha256": {
+    "tests/header_layout_driver.c": "326a42f6ee157b9961d6eedf53978481d53fec46e7c8879b1585cdc5e60af8cf",
+    "src/ui/header_status.c": "be4a1c71bbbf9e0c1883cafc38aa0309e86121e3576190adb6936d8fed429ad1",
+    "assets/themes/header-status.css": "7f2e0557d2c20e69008a60c9f92cafdac9d407aa617a612eeb781f6420ad51b3",
+    "src/ui/header.c": "651bba34774003f115eafcce4dde1faece201c029333e00ec410ba672603ed03",
+    "assets/themes/radios.css": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904"
+  },
+  "cases": [
+    {
+      "name": "header-1000-normal",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:28:52.055450+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1000",
+        "680",
+        "1",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1000-normal.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1000-normal.log",
+      "image": "docs/prompt-2/screenshots/header-1000-normal.png",
+      "image_sha256": "0b05569b44c9849ee726832bdd99f967962a8cf0b6cb612c75c1674ef70943dc"
+    },
+    {
+      "name": "header-1000-large",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:28:56.418618+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1000",
+        "680",
+        "2",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1000-large.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1000-large.log",
+      "image": "docs/prompt-2/screenshots/header-1000-large.png",
+      "image_sha256": "064f589712ccb6df79a316b0c7bbefeee9613079a5092abb5fdd293c37198b26"
+    },
+    {
+      "name": "header-1400-normal",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:29:00.822922+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1400",
+        "900",
+        "1",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1400-normal.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1400-normal.log",
+      "image": "docs/prompt-2/screenshots/header-1400-normal.png",
+      "image_sha256": "df011a26445934c9a8f364656ba67d0d4eb2acf602471e2210e11f69e956ad83"
+    },
+    {
+      "name": "header-1400-large",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:29:05.335374+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1400",
+        "900",
+        "2",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1400-large.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1400-large.log",
+      "image": "docs/prompt-2/screenshots/header-1400-large.png",
+      "image_sha256": "379ebd50e9050c49e187321476757b1814dc78796eb9513ba3228b260a79b31b"
+    },
+    {
+      "name": "header-1800-normal",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:29:10.253000+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1800",
+        "1000",
+        "1",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1800-normal.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1800-normal.log",
+      "image": "docs/prompt-2/screenshots/header-1800-normal.png",
+      "image_sha256": "2718e8b5cf783210ec53e4ad34f72a9a3aa51a42e0f9687595440d96de73fe37"
+    },
+    {
+      "name": "header-1800-large",
+      "exit": 0,
+      "started_utc": "2026-10-09T02:29:14.789681+00:00",
+      "command": [
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-2-tests/header_layout_driver",
+        "1800",
+        "1000",
+        "2",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-2/screenshots/header-1800-large.png",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS",
+        "header"
+      ],
+      "log": "docs/prompt-2/screenshots/header-1800-large.log",
+      "image": "docs/prompt-2/screenshots/header-1800-large.png",
+      "image_sha256": "2b1d37d0b9099772e36be2604bb9861ad69ac7d40499d75e10cf1adbaa25dcaa"
+    }
+  ],
+  "finished_utc": "2026-10-09T02:29:19.792336+00:00"
+}

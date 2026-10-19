@@ -1,0 +1,28 @@
+{
+  "owner": "root",
+  "started_utc": "2026-10-10T23:20:08.891519+00:00",
+  "locks": [
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/src/ui/playlist.c.lock",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/design/reference/tasarrım/playlist-workspace.css.lock"
+  ],
+  "scope": "Playlist program theme only; no playlist/data/analysis/transport logic changes",
+  "files": [
+    {
+      "path": "src/ui/playlist.c",
+      "preimage_sha256": "2d1e38223e40e4d96c4570410c8bddc5e750d68e23a486fac12816cf9c06af0a",
+      "postimage_sha256": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+      "backup": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/backups/program-theme-20261010T232008Z/playlist.c.before",
+      "diff": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/backups/program-theme-20261010T232008Z/playlist.c.diff"
+    },
+    {
+      "path": "design/reference/tasarrım/playlist-workspace.css",
+      "preimage_sha256": "14ac7736bc98d6846f6b00d861211bfd68eacb6dc5b45eb7c0e53ca85ea62671",
+      "postimage_sha256": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+      "backup": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/backups/program-theme-20261010T232008Z/playlist-workspace.css.before",
+      "diff": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/backups/program-theme-20261010T232008Z/playlist-workspace.css.diff"
+    }
+  ],
+  "completed_utc": "2026-10-10T23:20:08.897576+00:00",
+  "source_ready": true
+}

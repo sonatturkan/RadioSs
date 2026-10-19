@@ -1,0 +1,8 @@
+{
+  "agent": "prompt7/root",
+  "utc": "2026-10-09T02:28:23.244908+00:00",
+  "file": "cmake/Prompt7Tests.cmake",
+  "before_sha256": "37c55e4258b827697de67793838b2604057b724b16445dcd356654351b705ae8",
+  "after_sha256": "05683b26e5a04feeb3a20437695dc5c15d5d5d8ce7ef411ff983b342b515432f",
+  "change": "Added unique NOwrap genuine PCM 3-case test_player_mapping_ui target/native_player_mapping CTest; existing targets and main CMake unchanged."
+}

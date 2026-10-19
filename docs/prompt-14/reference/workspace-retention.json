@@ -1,0 +1,11 @@
+{
+  "review_utc": "2026-10-09 02:03:37 UTC",
+  "reviewer": "/root/pdf14",
+  "baseline": "build-prompt-14/baseline/online_services.c",
+  "current": "src/ui/online_services.c",
+  "comparison_scope": "Full byte prefix before static void close_settings(; includes complete original full workspace construction and provider controller/bridge source",
+  "full_workspace_source_before_popup_unchanged": true,
+  "baseline_prefix_sha256": "06ecf220aaa56c321e5caa95f3d7b91d4e1a6ea93cc6ecbc304346aa2fd64175",
+  "current_prefix_sha256": "06ecf220aaa56c321e5caa95f3d7b91d4e1a6ea93cc6ecbc304346aa2fd64175",
+  "limitations": "Source prefix comparison; not a complete application build or runtime test"
+}

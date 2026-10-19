@@ -1,0 +1,133 @@
+{
+  "agent": "prompt7/root",
+  "recorded_utc": "2026-10-09T02:43:30.392567+00:00",
+  "accepted": true,
+  "passed_scenarios": 34,
+  "skipped_scenarios": 0,
+  "verification_phases": 2,
+  "scope": "Captured 2026-10-09 02:33:03 UTC public-source snapshot: strict full application build and 31 passing native cases; corrected schema fixture compiled strictly against the exact same four production archives, with three additional passing genuine PCM high-deck cases. Original combined four-target run failed in the malformed new fixture and remains preserved; this record does not reclassify it as a single four-target PASS. No physical hardware, production DB, live provider or later unrelated shared-tree acceptance claim.",
+  "phase_31": {
+    "report": "docs/prompt-7/test-evidence/snapshot-validation-20261009T023303147616Z.json",
+    "sha256": "2e6ddc601d69a6cc8e1bb31df49f3d780cbc86a138e12431b4a82dfd53c94f69",
+    "selected_passed_targets": [
+      "native_audio",
+      "native_live_players",
+      "native_player_loader"
+    ],
+    "passed_cases": [
+      "/native-audio/transport-real-PCM",
+      "/native-audio/preview-CUE-main-silence",
+      "/native-audio/inline-waveform-transport-owner",
+      "/native-audio/inline-markers-picker-latest",
+      "/native-audio/station-path-hash-rejection",
+      "/native-audio/preferences-CAS-reopen",
+      "/native-audio/generation-owner-close",
+      "/native-audio/card-CUE-loaded-owner",
+      "/live-players/replacement-late-reply",
+      "/live-players/stop-invalidates-lookup",
+      "/live-players/stopped-next-loads-current",
+      "/live-players/stopped-next-invalidates-old-lookup",
+      "/live-players/current-removal-loads-current",
+      "/live-players/pending-lookup-keeps-current-on-old-EOF",
+      "/live-players/failed-lookup-retries-current",
+      "/live-players/lookup-version-mismatch-rejected",
+      "/live-players/lookup-media-mismatch-rejected",
+      "/live-players/clear-after-stop-retires-lookup",
+      "/live-players/direct-library-retires-queue-lookup",
+      "/live-players/external-library-load-preserves-direct-selection",
+      "/live-players/external-library-load-retires-pending-lookup",
+      "/live-players/repeated-media-next-requires-fresh-lookup",
+      "/live-players/pending-online-match-ignores-old-failure",
+      "/live-players/pending-online-match-ignores-old-finish",
+      "/live-players/managed-takeover-retires-local-lookup",
+      "/live-players/managed-takeover-retires-provider-match",
+      "/player-loader/tab-restore",
+      "/player-loader/provider-refresh-keeps-selection",
+      "/player-loader/hidden-selection-isolation",
+      "/player-loader/late-tracks-current-tab",
+      "/player-loader/destroyed-owner"
+    ],
+    "original_combined_run_accepted": false,
+    "original_combined_ctest_exit": 8,
+    "snapshot_production_build_exit": 0,
+    "snapshot_source_drift": []
+  },
+  "phase_3": {
+    "report": "docs/prompt-7/test-evidence/player-mapping-corrected-after.json",
+    "sha256": "760c0898806e09ef2ca53e149f3aa593571091822006d4a0d93325e3928b679a",
+    "runtime": {
+      "command": [
+        "python3",
+        "-B",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/source/tests/run_player_mapping_ui.py",
+        "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/test_player_mapping_ui"
+      ],
+      "cwd": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/source",
+      "started_utc": "2026-10-09T02:40:08.754711+00:00",
+      "stdout_log": "build/prompt-7-snapshot-20261009T023303147616Z/mapping-corrected/after-runtime.log",
+      "status": "finished",
+      "exit_code": 0,
+      "ended_utc": "2026-10-09T02:40:25.289982+00:00"
+    },
+    "passed_cases": [
+      "/player-mapping/private-last-strip-PCM-pause-resume-stop",
+      "/player-mapping/general-last-strip-PCM",
+      "/player-mapping/handover-manual-last-strip-preserved"
+    ],
+    "accepted": true,
+    "production_archive_hashes": {
+      "build/prompt-7-snapshot-20261009T023303147616Z/build/libradios_ui.a": "409568439c648287c88599bb2acdbecb5577f01b2faef10c1aff1972c6ef23dd",
+      "build/prompt-7-snapshot-20261009T023303147616Z/build/libradios_playout.a": "7b18453a735d3b26dc6e0738f4c341670cb0f39fe0df344eb985a64e0e039c80",
+      "build/prompt-7-snapshot-20261009T023303147616Z/build/libradios_audio.a": "822b9bb2283802b594c58d5c16c325e9f67660e72fe6c1c00bc5e9971e5aedbb",
+      "build/prompt-7-snapshot-20261009T023303147616Z/build/libradios_core.a": "f3c888b28d541a527855c1abffcca8e4fcb801c3d7c527cffabb89ad7fcd1228"
+    },
+    "test_source_sha256": "dcf8641951446bf54a3b8291e75523247c7d581b7e9ffd33a625f05aeb6f0192",
+    "adapter_sha256": "6d326401e290e3361e04a79d84439c5ecc5ac851a6c5425a5fc4b201ed2aecf1",
+    "compiled_object_sha256": "2532d08c4662f9eadb7de1e7f10061749ffadad4c51192df00c6012cd2c80a21",
+    "binary_sha256": "5151c17be83ff877eba9e5f27c0e98879727c93b7ef857ef690b2d479dd8b876"
+  },
+  "mapping_causal_before_after": {
+    "before_report": "docs/prompt-7/test-evidence/player-mapping-isolated-before-corrected.json",
+    "sha256": "31f076d9375f8412997535a622c83acc39beafc21ab277e95b2c21d3bcfd18cf",
+    "before_expected_specific_failures": 3,
+    "after_passed": 3,
+    "same_test_object": true,
+    "projection": "Only three stereo-bound mapping loops reverted, preserving the existing correct AutoDJ mixer loop and every other captured production translation unit."
+  },
+  "current_cmake_adapter_check": {
+    "command": [
+      "cmake",
+      "-S",
+      ".",
+      "-B",
+      "build/prompt-7-cmake-check",
+      "-DCMAKE_BUILD_TYPE=Debug",
+      "-DBUILD_TESTING=ON",
+      "-DRADIOS_GUI_TESTS=ON",
+      "-DRADIOS_STRICT_WARNINGS=ON"
+    ],
+    "configure_exit_code": 0,
+    "timing_note": "Recorded from completed tool receipt; exact configure start was not independently recorded.",
+    "native_player_mapping_registration": "add_test(\"native_player_mapping\" \"/usr/bin/python3.13\" \"/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/run_player_mapping_ui.py\" \"/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-cmake-check/test_player_mapping_ui\")",
+    "generated_flags_sha256": "8578153967921765e9ebc291c4c891a1c8ef962f4d356266fa113b175454412f",
+    "c11_and_werror": true,
+    "module_sha256": "656f0df4b0e8d7ad1b7594f3b3aaa26c8737304fa3d597b240ca2a4ee7d56d5e"
+  },
+  "source_documents": {
+    "pdf": "../prompt/7/7.pdf",
+    "sha256": "1f248b7178a16590b16df4b8e6776f786c143f8b58fd26c49e38b67db734f8fa",
+    "pages": 1,
+    "text_lines": 2,
+    "images": 0,
+    "drawings": 0,
+    "figures_files": 0
+  },
+  "default_binary_owner": "PROMPT5/root; root7 did not replace build/radios",
+  "historical_failures_preserved": [
+    "final-fenced-validation-20261009T021531Z-build.log (interrupted, no test record)",
+    "final-fenced-validation-20261009T022007Z.json (31 PASS but execution helper drift)",
+    "final-fenced-validation-20261009T022247Z.json (31 PASS but engine/backend drift)",
+    "snapshot-validation-20261009T023303147616Z.json (31 PASS + new fixture setup failure)",
+    "player-mapping-isolated-before-setup-failure.json (incorrect generic classifier, superseded by corrected zero-causal-failure audit)"
+  ]
+}

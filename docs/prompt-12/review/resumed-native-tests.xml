@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="5"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="83"
+	timestamp="2026-10-09T02:20:12"
+	>
+	<testcase name="native_media_drop" classname="native_media_drop" time="7.83487" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sdf5617c41698025a6ef37c12bb144c9d
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..8
+# Start of media-drop tests
+ok 1 /media-drop/window-multi-copy-sha
+# slow test /media-drop/window-multi-copy-sha executed in 1.34 secs
+ok 2 /media-drop/inline-markers-persist
+# slow test /media-drop/inline-markers-persist executed in 1.05 secs
+ok 3 /media-drop/multiple-playlist-routing
+# slow test /media-drop/multiple-playlist-routing executed in 1.54 secs
+ok 4 /media-drop/library-mixed-invalid-source
+# slow test /media-drop/library-mixed-invalid-source executed in 0.50 secs
+ok 5 /media-drop/disconnected-preserves-source
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 6 /media-drop/busy-chooser-cancel
+# slow test /media-drop/busy-chooser-cancel execute...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_controls" classname="native_controls" time="4.85062" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sc2a51330a65cded7a6e9f714fbe564ba
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..10
+# Start of ui tests
+# Start of markers tests
+ok 1 /ui/markers/validation
+ok 2 /ui/markers/history
+ok 3 /ui/markers/cancel
+# End of markers tests
+# Start of transition tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 4 /ui/transition/validation
+# End of transition tests
+# Start of forms tests
+ok 5 /ui/forms/preserve-input
+# End of forms tests
+# Start of profiles tests
+ok 6 /ui/profiles/lifecycle
+# slow test /ui/profiles/lifecycle executed in 0.51 secs
+# End of profiles tests
+# Start of playlist tests
+ok 7 /ui/playlist/session
+# End of playlist tests
+# Start of dj tests
+ok 8 /ui/dj/session
+# End of dj tests
+# Start of emergency tests
+ok 9 /ui/emerg...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_data" classname="native_data" time="59.6191" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Se2f1379759f11176a7fde2cd5de2aaec
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+# /native-data/playlist-persistence
+# /native-data/conflict-input-retention
+# /native-data/transport-input-retention
+# /native-data/shutdown-during-connect
+# /native-data/all-profiles-persistence
+# /native-data/refresh-edit-revision-race
+# /native-data/document-read-order
+# End of native-data tests
+1..7
+Native data independent fixture: /native-data/playlist-persistence
+TAP version 14
+# random seed: R02S73f985c1fcd755aa11d0220e25f9b2f3
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/playlist-persistence
+# slow test /native-data/playlist-persistence executed in 8.24 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/conflict-input-retention
+TAP version 14
+# random seed: R02Sa97d88ac70ca2d2d6cd6982b5c96d865
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/conflict-input-retention
+# slow test /native-data/conflict-input-retention executed in 2.29 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/transport-input-retention
+TAP version 14
+# random seed: R02Sf2188dfb6cf630c7dabdbd26cfd87450
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/transport-input-retention
+# slow test /native-data/transport-input-retention executed in 2.82 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/shutdown-during-connect
+TAP version 14
+# random seed: R02Sc8023be9bdaae935e927f0f6a6f98562
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+ok 1 /native-data/shutdown-during-connect
+# slow test /native-data/shutdown-during-connect executed in 3.11 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/all-profiles-persistence
+TAP version 14
+# random seed: R02Sca7e74190f2eb367cc6bb7a9eaa271f6
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 1 /native-data/all-profiles-persistence
+# slow test /native-data/all-profiles-persistence executed in 11.47 secs
+# End of native-data tests
+1..1
+Native data independent fixture: /native-data/refresh-edit-revision-race
+TAP version 14
+# random seed: R02Sf432194d811fcda814785391dadf513a
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-data tests
+not ok /native-data/refresh-edit-revision-race - FATAL-ERROR: Native data acceptance timed out: clean native automation identity/revision ACK before remote CAS
+Bail out!
+Private fixture's last HTTP results:
+GET /health 200
+GET /health 200
+GET /v1/capabilities 200
+POST /v1/workflows/desktop/context 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop-media/list 200
+POST /v1/workflows/desktop-playlists/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop-playlists/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop-advert/overview 200
+POST /v1/workflows/desktop/campaign-list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/context 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop-playlists/create 200
+POST /v1/workflows/desktop-playlists/list 200
+POST /v1/workflows/desktop/list 200
+POST /v1/workflows/desktop/put 200
+POST /v1/workflows/desktop/list 200
+</system-out>
+	</testcase>
+	<testcase name="native_prompt12_playlist" classname="native_prompt12_playlist" time="7.19365" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sebd7f8f9b2dc9d51f3cea471890fbc97
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..3
+# Start of prompt12 tests
+ok 1 /prompt12/selectors-provider-copy
+# slow test /prompt12/selectors-provider-copy executed in 0.56 secs
+ok 2 /prompt12/provider-form-edit-roundtrip
+# slow test /prompt12/provider-form-edit-roundtrip executed in 0.70 secs
+ok 3 /prompt12/inline-analysis-marker-stale-selection
+# slow test /prompt12/inline-analysis-marker-stale-selection executed in 4.67 secs
+# End of prompt12 tests
+</system-out>
+	</testcase>
+	<testcase name="native_prompt12_drop" classname="native_prompt12_drop" time="3.84396" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S2e43e8a60d0e5dda66b462c882f1f9ad
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..3
+# Start of prompt12-drop tests
+ok 1 /prompt12-drop/target-multi-binding-confirmed
+# slow test /prompt12-drop/target-multi-binding-confirmed executed in 2.22 secs
+ok 2 /prompt12-drop/cancel-repeated-drop-preserves
+ok 3 /prompt12-drop/owner-close-pending-import
+# End of prompt12-drop tests
+</system-out>
+	</testcase>
+</testsuite>

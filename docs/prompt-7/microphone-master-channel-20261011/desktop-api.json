@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-11T12:22:19.290650+00:00",
+  "agent": "/root",
+  "exit_code": 0,
+  "seconds": 2.596,
+  "test_source_sha256": "0b2080aeacdf5e0f7f31c5da39f6756036ffc2c7860f7e9b8aab3fd54844251f",
+  "log": "docs/prompt-7/microphone-master-channel-20261011/desktop-api.log"
+}

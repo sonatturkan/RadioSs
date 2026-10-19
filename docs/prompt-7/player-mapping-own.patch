@@ -1,0 +1,29 @@
+--- a/src/ui/playout_ui.c
++++ b/src/ui/playout_ui.c
+@@ -275,7 +275,7 @@
+     if (p->player_deck >= 0) {
+         RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine,&audio); guint deck = (guint)p->player_deck;
+         gboolean mapped = FALSE;
+-        for (guint channel = 0; channel < RADIOS_AUDIO_CHANNELS; ++channel) mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
++        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
+         if (!mapped || !audio.decks[deck].main_routed || audio.decks[deck].state != RADIOS_AUDIO_EMPTY)
+             return invalid(error,"Seçili oynatıcı boş ve MAIN'e atanmış olmalı; başka oynatıcıya geçilmedi.");
+         for (guint index = 0; index < plan->entries->len; ++index) {
+@@ -291,7 +291,7 @@
+     plan->options.pool_count = 0;
+     for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS && plan->options.pool_count < 2; ++deck) {
+         gboolean mapped = FALSE;
+-        for (guint channel = 0; channel < RADIOS_AUDIO_CHANNELS; ++channel)
++        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
+             if (audio.mixer.channels[channel].source_deck == (gint)deck) mapped = TRUE;
+         if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_EMPTY)
+             plan->options.deck_pool[plan->options.pool_count++] = deck;
+@@ -333,7 +333,7 @@
+     guint available = 0;
+     for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS; ++deck) {
+         gboolean mapped = FALSE;
+-        for (guint channel = 0; channel < RADIOS_AUDIO_CHANNELS; ++channel)
++        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
+             mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
+         if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_PLAYING && !actual.owned[deck])
+             return invalid(error, "MAIN'de elle çalınan kaynak var; önce operatör bu kaynağı durdurmalı.");

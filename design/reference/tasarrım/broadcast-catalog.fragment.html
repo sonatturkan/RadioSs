@@ -1,0 +1,37 @@
+<section class="ld-panel broadcast-track-library" id="track-library-workspace" data-workspace-panel="catalog" data-track-library-gui aria-labelledby="track-library-title">
+  <header class="ld-head"><h2 id="track-library-title"><button class="workspace-tab ld-tab" type="button" aria-pressed="false" aria-controls="track-library-workspace">Parça · Albüm · İçerik</button></h2><span class="ld-badge" data-catalog-source-badge>Yerel GUI</span></header>
+  <div class="ld-body broadcast-library-body">
+    <div class="broadcast-catalog-kinds" role="group" aria-label="Katalog içerik türü">
+      <button type="button" data-broadcast-catalog-kind="music" aria-pressed="true">Parçalar</button>
+      <button type="button" data-broadcast-catalog-kind="jingle" aria-pressed="false">Jingle</button>
+      <button type="button" data-broadcast-catalog-kind="announcement" aria-pressed="false">Anons</button>
+      <button type="button" data-broadcast-catalog-kind="advert" aria-pressed="false">Reklam</button>
+      <button type="button" data-broadcast-catalog-kind="programme" aria-pressed="false">Programlar</button>
+    </div>
+    <form class="broadcast-library-search" data-track-library-search role="search">
+      <div class="broadcast-catalog-source-row"><label for="broadcast-catalog-source">Kaynak</label><select id="broadcast-catalog-source" data-broadcast-catalog-source><option value="local">Yerel GUI kayıtları</option><option value="database">Veritabanı</option></select><label for="broadcast-library-field">Arama alanı</label><select id="broadcast-library-field" name="field"><option value="all">Tüm alanlar</option><option value="title">Başlık</option><option value="artist">Sanatçı</option><option value="album">Albüm</option></select></div>
+      <div class="ld-search-row"><label class="workbench-visually-hidden" for="broadcast-library-query">Parça, albüm veya içerik ara</label><input id="broadcast-library-query" name="query" type="search" placeholder="Parça, albüm, jingle, anons, reklam veya program…" autocomplete="off"><button class="ld-btn" type="submit">Ara</button></div>
+    </form>
+    <div class="broadcast-library-toolbar"><output data-track-library-count>— kayıt</output><button type="button" class="ld-btn" data-catalog-save-programme>Mevcut programı sakla</button></div>
+    <div class="broadcast-library-table-scroll" tabindex="0" role="region" aria-label="Katalog sonuçları"><table class="broadcast-library-table"><caption class="workbench-visually-hidden">Seçili tür ve kaynağa ait içerikler</caption><thead><tr><th scope="col">Sanatçı</th><th scope="col">Başlık</th><th scope="col">Albüm</th><th scope="col">Tür</th><th scope="col">Süre</th><th scope="col">Kaynak</th></tr></thead><tbody data-track-library-rows><tr><td colspan="6" class="broadcast-library-empty">Katalog kayıtları hazırlanıyor.</td></tr></tbody></table></div>
+    <section class="broadcast-catalog-inspector" aria-labelledby="broadcast-catalog-selection-title">
+      <div class="broadcast-catalog-heading"><div><h3 id="broadcast-catalog-selection-title" data-catalog-detail-title>İçerik seçilmedi</h3><p class="catalog-action-mode" data-catalog-action-mode>Seçili bloğa ekle</p></div><div class="broadcast-catalog-actions"><button type="button" class="ld-btn" data-edit-catalog-track disabled>Düzenle</button><button type="button" class="ld-btn ld-btn--primary" data-track-library-add data-catalog-insert disabled>Bloğa ekle</button><button type="button" class="ld-btn" data-catalog-replace disabled>Seçiliyle değiştir</button></div></div>
+      <dl class="broadcast-catalog-details"><div><dt>Sanatçı</dt><dd data-catalog-detail-artist>—</dd></div><div><dt>Albüm</dt><dd data-catalog-detail-album>—</dd></div><div><dt>Süre</dt><dd data-catalog-detail-duration>—</dd></div><div><dt>Kaynak</dt><dd data-catalog-detail-playlist>—</dd></div></dl>
+      <details class="broadcast-catalog-programme" data-catalog-programme-detail hidden><summary>Program içeriği <span data-catalog-programme-count></span></summary><ol data-catalog-programme-items></ol></details>
+      <p class="workbench-visually-hidden" data-track-library-selection aria-live="polite">İçerik seçilmedi.</p>
+    </section>
+    <p class="ld-status" data-track-library-status role="status" aria-live="polite">Yerel GUI örnekleri; veritabanı bağlantısı bekleniyor.</p>
+  </div>
+</section>
+<dialog class="ops-dialog broadcast-catalog-dialog" id="broadcast-catalog-editor" aria-labelledby="broadcast-catalog-editor-title">
+  <form data-broadcast-catalog-form>
+    <div class="ops-dialog-heading"><h2 id="broadcast-catalog-editor-title">İçerik taslağını düzenle</h2><button type="button" data-catalog-editor-close aria-label="İçerik düzenleyicisini kapat">×</button></div>
+    <p data-catalog-editor-note>Yerel katalog kopyası düzenlenir.</p>
+    <div class="broadcast-catalog-fields"><div><label for="broadcast-catalog-kind">Tür</label><select id="broadcast-catalog-kind" name="kind" disabled><option value="music">Parça</option><option value="jingle">Jingle</option><option value="announcement">Anons</option><option value="advert">Reklam</option><option value="programme">Program</option></select></div><div><label for="broadcast-catalog-version">Sürüm</label><input id="broadcast-catalog-version" name="version" maxlength="40" placeholder="v1"></div></div>
+    <label for="broadcast-catalog-title">Başlık</label><input id="broadcast-catalog-title" name="title" maxlength="160" required>
+    <div class="broadcast-catalog-fields"><div><label for="broadcast-catalog-artist">Sanatçı / yayıncı</label><input id="broadcast-catalog-artist" name="artist" maxlength="120"></div><div><label for="broadcast-catalog-album">Albüm / içerik grubu</label><input id="broadcast-catalog-album" name="album" maxlength="120"></div></div>
+    <label for="broadcast-catalog-duration">Süre · dk:ss</label><input id="broadcast-catalog-duration" name="duration" maxlength="6" pattern="[0-9]{1,3}:[0-5][0-9]" placeholder="Süre bilinmiyorsa boş bırak">
+    <div class="ops-dialog-actions"><button type="button" data-catalog-editor-close>Vazgeç</button><button type="submit" data-catalog-editor-submit>Yerel kopyayı kaydet</button></div>
+    <p class="ops-status" data-catalog-editor-status role="status"></p>
+  </form>
+</dialog>

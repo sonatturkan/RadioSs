@@ -1,0 +1,187 @@
+.programme-gui .programme-toolbar { flex-wrap: wrap; gap: 12px; padding-bottom: 14px; }
+.programme-toolbar > div:first-child { min-width: 0; }
+.programme-gui .programme-draft-name { margin-top: 5px; color: #c4d7e8; font-size: 13px; font-weight: 350; overflow-wrap: anywhere; }
+.programme-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin-top: 7px; color: #7f92a5; font-size: 9px; }
+.programme-draft-badge { display: inline-block; padding: 2px 6px; border: 1px solid #314653; border-radius: 3px; color: #8fb8ce; background: #09131a; font-size: 8px; font-weight: 400; letter-spacing: .3px; }
+.programme-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; }
+.programme-gui .programme-actions button { min-height: 32px; padding: 6px 9px; font-size: 10px; }
+.programme-gui button.programme-edit-button { background: #0d202a; }
+.programme-gui .programme-drop-hint { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 8px 10px; border: 1px dashed #304957; border-radius: 4px; color: #7da9bf; font-size: 10px; }
+.programme-drop-hint svg { flex: 0 0 15px; width: 15px; height: 15px; fill: none; stroke: #8bcde8; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.workbench-grid > .flow-panel.is-drop-target { box-shadow: inset 0 0 0 2px #8ce5ff, 0 0 20px #38d4ff50; }
+.flow-panel.is-drop-target .programme-drop-hint { color: #dcf5ff; border-color: #94e7ff; background: #153a4d; }
+.programme-table tr.is-drop-before { box-shadow: inset 0 2px #b0eeff; }
+.programme-table tr.is-drop-after { box-shadow: inset 0 -2px #b0eeff; }
+
+.programme-type-card--music { --item-color: #80d7fa; --item-border: #80d7fa40; --tab-rgb: 128, 215, 250; --tab-ink: #b7e9ff; --tab-color: #80d7fa; }
+.programme-type-card--announcement { --item-color: #b8a1f0; --item-border: #b8a1f040; --tab-rgb: 184, 161, 240; --tab-ink: #ddd0ff; --tab-color: #b8a1f0; }
+.programme-type-card--advert { --item-color: #dfb974; --item-border: #dfb97440; --tab-rgb: 223, 185, 116; --tab-ink: #f4dbad; --tab-color: #dfb974; }
+.programme-type-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.programme-gui button.programme-type-card,
+.programme-bank button.programme-bank-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    min-height: 58px;
+    padding: 10px;
+    border: 1px solid var(--item-border);
+    border-radius: 5px;
+    background: #071018;
+    color: #b5c6d6;
+    box-shadow: none;
+    text-align: left;
+    cursor: pointer;
+}
+.programme-type-card svg,
+.programme-bank-card svg { flex: 0 0 23px; width: 23px; height: 23px; fill: none; stroke: var(--item-color); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.programme-type-card > span:not(.programme-card-add),
+.programme-bank-card > span:not(.programme-card-add) { min-width: 0; }
+.programme-type-card strong,
+.programme-bank-card strong { display: block; color: #c6d7e7; font-size: 11px; font-weight: 450; overflow-wrap: anywhere; }
+.programme-type-card small,
+.programme-bank-card small { display: block; margin-top: 3px; color: #7d91a5; font-size: 9px; font-weight: 350; line-height: 1.4; }
+.programme-card-add { flex-shrink: 0; margin-left: auto; color: var(--item-color); font-size: 18px; font-weight: 250; }
+.programme-gui button.programme-type-card:hover,
+.programme-bank button.programme-bank-card:hover { border-color: var(--item-color); background: #101c27; box-shadow: 0 0 10px var(--item-border); }
+
+.workbench-grid .programme-gui .schedule-scroll { min-height: 185px; max-height: 360px; }
+.programme-table td { padding: 8px 7px; border-bottom: 1px solid #172732; color: #8eabc1; font-variant-numeric: tabular-nums; }
+.programme-table td:first-child { padding-left: 4px; }
+.programme-table td:last-child { text-align: right; padding-right: 0; }
+.programme-table tr.is-selected { background: #10314350; box-shadow: inset 2px 0 #72dcff; }
+.programme-type-badge { display: inline-block; padding: 3px 6px; border-radius: 3px; background: #0d2330; color: #88d1ed; font-size: 9px; }
+.programme-type-badge.announcement { color: #c7aff4; background: #241c34; }
+.programme-type-badge.advert { color: #e0be81; background: #2c2418; }
+.programme-gui button.programme-item-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #b8cbdc;
+    box-shadow: none;
+    font-size: 11px;
+    text-align: left;
+}
+.programme-gui button.programme-item-select:hover { border: 0; background: transparent; color: #d1e7f7; box-shadow: none; }
+.programme-item-select > span:last-child { overflow-wrap: anywhere; }
+.programme-item-details { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.programme-item-title { display: block; }
+.programme-item-metadata { display: block; color: #799caf; font-size: 9px; font-weight: 350; line-height: 1.4; }
+.programme-row-icon { display: inline-grid; place-items: center; flex: 0 0 25px; width: 25px; height: 25px; border: 1px solid #3b758540; border-radius: 4px; color: #9fdef3; background: #0d222c; font-size: 15px; }
+.programme-row-icon.announcement { color: #cbb6f4; background: #241d30; border-color: #8870bb40; font-size: 10px; }
+.programme-row-icon.advert { color: #e1c185; background: #292219; border-color: #ae8c4a40; font-size: 10px; }
+.programme-item-state { color: #718b9f; font-size: 9px; }
+.programme-table .programme-empty-cell { padding: 28px 12px; text-align: center; color: #7f97ad; }
+
+.programme-selection-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #253743; }
+.programme-selection-bar > div:first-child { min-width: 0; }
+.programme-gui .programme-selection-bar h3 { color: #9edbee; font-size: 10px; font-weight: 450; }
+.programme-selection-bar [data-programme-selection-name] { display: block; margin-top: 4px; color: #7f99ad; font-size: 10px; overflow-wrap: anywhere; }
+.programme-order-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.programme-gui .programme-order-actions button { min-height: 30px; padding: 5px 8px; font-size: 10px; }
+.programme-gui .programme-draft-status { margin-top: 8px; color: #7a94a9; font-size: 9px; overflow-wrap: anywhere; }
+.programme-gui .timed-event-summary { margin-top: 12px; padding-top: 12px; }
+
+.programme-bank .surface-heading { gap: 10px; }
+.programme-bank .surface-heading .programme-draft-badge { color: #8fb8ce; font-size: 8px; }
+.programme-bank-tabs { display: flex; gap: 6px; margin: 10px 0; }
+.programme-bank button[role="tab"] { min-width: 78px; min-height: 30px; color: #8fa6b9; background: #071018; border-color: #304452; box-shadow: none; }
+.programme-bank button[role="tab"][aria-selected="true"] { color: #b8eaff; background: #102634; border-color: #5eafc7; box-shadow: 0 0 8px #38d4ff20; }
+.programme-bank-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.programme-bank-panel[hidden] { display: none; }
+.programme-bank button.programme-bank-card { min-height: 66px; }
+.programme-bank-hint { margin: 9px 0 0; color: #7890a5; font-size: 9px; line-height: 1.5; }
+.programme-bank :focus-visible { outline: 2px solid #cdf0ff; outline-offset: 2px; }
+
+.programme-dialog {
+    width: min(480px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    padding: 20px;
+    overflow-y: auto;
+    border: 1px solid #436577;
+    border-radius: 9px;
+    background: #080e14;
+    color: #c1d3e3;
+    box-shadow: 0 0 32px #000a, 0 0 18px #38d4ff14;
+    font: inherit;
+}
+.programme-dialog::backdrop { background: #000b; }
+.programme-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.programme-dialog-heading h2 { margin: 0; color: #d4e9f8; font-size: 16px; font-weight: 400; }
+.programme-dialog-heading button { flex: 0 0 32px; height: 32px; padding: 0; font-size: 23px; }
+.programme-dialog-note { margin: 10px 0 18px; color: #7f97ac; font-size: 11px; line-height: 1.5; }
+.programme-dialog label { display: block; margin: 12px 0 5px; color: #9fb6cb; font-size: 11px; }
+.programme-dialog input,
+.programme-dialog select,
+.programme-dialog textarea { display: block; width: 100%; min-width: 0; padding: 9px; border: 1px solid #334755; border-radius: 5px; background: #050a0f; color: #cedfeb; font: inherit; font-size: 12px; color-scheme: dark; }
+.programme-dialog textarea { resize: vertical; }
+.programme-dialog-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.programme-dialog button { min-height: 32px; padding: 6px 10px; border: 1px solid #334755; border-radius: 5px; background: #111c25; color: #acc5d8; font: inherit; font-size: 11px; cursor: pointer; }
+.programme-dialog button:hover { border-color: #8cd7ef; }
+.programme-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.programme-dialog button.programme-dialog-save { border-color: #528ca4; color: #c7efff; background: #102b3a; }
+.programme-dialog :focus-visible { outline: 2px solid #7dd9f5; outline-offset: 2px; }
+
+@media (max-width: 520px) {
+    .programme-actions { width: 100%; justify-content: flex-start; margin-left: 0; }
+    .programme-actions .workbench-count { margin-right: auto; }
+    .programme-type-card .programme-card-add { display: none; }
+    .programme-gui button.programme-type-card { flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px; }
+    .programme-bank-panel { grid-template-columns: minmax(0, 1fr); }
+    .programme-dialog { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .programme-gui button,
+    .programme-bank button { transition: none; }
+}
+
+.programme-operations { margin-bottom: 14px; padding: 11px; border: 1px solid #253e4c; border-radius: 5px; background: #071119; }
+.programme-operation-states { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.programme-operation-states > span { padding: 4px 7px; border: 1px solid #304654; border-radius: 3px; color: #8fa9bc; font-size: 9px; }
+.programme-operation-states .programme-stage { color: #acdff3; background: #0c2430; }
+.programme-stage[data-stage="review"] { color: #e9c78d; background: #2a2216; }
+.programme-stage[data-stage="local-approved"] { color: #a8d7c1; background: #10271e; }
+.programme-operation-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.programme-gui .programme-operation-buttons button { min-height: 32px; padding: 6px 8px; font-size: 9px; }
+.programme-operations > p { margin: 8px 0 0; color: #748fa3; font-size: 9px; line-height: 1.5; }
+.programme-item-version { display: block; margin-top: 4px; color: #607d91; font-size: 8px; }
+.programme-readiness--ready { color: #90c8a7; }
+.programme-readiness--missing, .programme-readiness--invalid { color: #e18e84; }
+.programme-readiness--approval { color: #d9ba80; }
+.programme-readiness--locked { color: #b8a8d6; }
+.programme-timing { margin-top: 14px; padding-top: 14px; border-top: 1px solid #28424f; }
+.programme-timing-heading { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.programme-gui .programme-timing h3 { margin: 0; color: #a9deed; font-size: 11px; font-weight: 400; }
+.programme-timing-heading p { margin-top: 4px; color: #7798ac; font-size: 9px; overflow-wrap: anywhere; }
+.programme-gui .programme-timing-heading button { min-height: 30px; padding: 5px 9px; font-size: 10px; }
+.programme-timing-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; }
+.programme-timing-values > div { min-width: 0; padding: 8px; border-radius: 4px; background: #09141b; }
+.programme-timing-values dt { color: #708e9f; font-size: 8px; }
+.programme-timing-values dd { margin: 5px 0 0; color: #c2dfe9; font-size: 11px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.programme-timing-values dd[data-direction="late"] { color: #eca087; }
+.programme-timing-values dd[data-direction="early"] { color: #8ecbb5; }
+.programme-timing-policy { margin-top: 9px; color: #a0c0d2; font-size: 9px; }
+.programme-timing-note { margin-top: 5px; color: #698b9e; font-size: 9px; line-height: 1.5; }
+.programme-review-summary { margin: 10px 0; color: #a1c4d6; font-size: 11px; overflow-wrap: anywhere; }
+.programme-review-list { padding-left: 18px; color: #859eae; font-size: 11px; line-height: 1.7; }
+.programme-review-item { margin-top: 5px; color: #b1c4d2; overflow-wrap: anywhere; }
+.programme-preparation-fields { min-width: 0; margin: 16px 0 0; padding: 10px 12px 12px; border: 1px solid #2b4655; border-radius: 5px; }
+.programme-preparation-fields legend { padding: 0 5px; color: #98c5d8; font-size: 10px; }
+.programme-preparation-fields .programme-dialog-note { margin: 0 0 6px; font-size: 10px; }
+.programme-dialog button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 420px) {
+    .programme-operation-buttons > button { flex: 1 1 42%; }
+    .programme-dialog-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .programme-timing-values { gap: 5px; }
+    .programme-timing-values > div { padding: 7px 5px; }
+    .programme-timing-values dd { font-size: 10px; }
+}

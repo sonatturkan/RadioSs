@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-10T23:31:24.934647+00:00",
+  "binary": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/build/prompt7-open-20261010-2332/radios",
+  "binary_sha256": "c84427bd22ec0a2f171948536abf90550474c7d6fb6176d8badb4fb235315b53",
+  "checks": [
+    {
+      "check": "version",
+      "exit_code": 0,
+      "log": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/build-launch-20261010/version.log"
+    },
+    {
+      "check": "config",
+      "exit_code": 0,
+      "log": "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/build-launch-20261010/config.log"
+    }
+  ]
+}

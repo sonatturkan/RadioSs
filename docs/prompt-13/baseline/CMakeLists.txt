@@ -1,0 +1,351 @@
+cmake_minimum_required(VERSION 3.20)
+project(RadioS VERSION 0.18.0 LANGUAGES C)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLIB REQUIRED IMPORTED_TARGET glib-2.0>=2.66 gio-2.0>=2.66)
+pkg_check_modules(GTK3 REQUIRED IMPORTED_TARGET gtk+-3.0>=3.24)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+pkg_check_modules(JSONGLIB REQUIRED IMPORTED_TARGET json-glib-1.0>=1.10)
+pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl>=7.85)
+pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat>=59.27.100)
+pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec>=59.37.100)
+pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil>=57.28.100)
+pkg_check_modules(SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample>=4.7.100)
+pkg_check_modules(AVFILTER REQUIRED IMPORTED_TARGET libavfilter>=8.44.100)
+pkg_check_modules(PULSE REQUIRED IMPORTED_TARGET libpulse>=15.0)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+file(GLOB DESIGN_CSS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/design/reference/tasarrım/*.css")
+set(REFERENCE_CSS_C "${CMAKE_BINARY_DIR}/generated/reference-css.c")
+add_custom_command(OUTPUT "${REFERENCE_CSS_C}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/css_to_gtk.py"
+            --output-dir "${CMAKE_BINARY_DIR}/generated"
+    DEPENDS ${DESIGN_CSS} tools/css_to_gtk.py "design/reference/tasarrım/index.html"
+    BYPRODUCTS "${CMAKE_BINARY_DIR}/generated/reference.css"
+               "${CMAKE_BINARY_DIR}/generated/css-manifest.json"
+    VERBATIM)
+
+option(RADIOS_STRICT_WARNINGS "Treat compiler warnings as errors" ON)
+option(RADIOS_GUI_TESTS "Run native GUI acceptance tests (requires a display)" OFF)
+add_library(radios_warnings INTERFACE)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(radios_warnings INTERFACE -Wall -Wextra -Wpedantic)
+    if(RADIOS_STRICT_WARNINGS)
+        target_compile_options(radios_warnings INTERFACE -Werror)
+    endif()
+endif()
+
+add_library(radios_core STATIC src/core/config.c src/core/runtime.c src/core/diagnostics.c
+    src/core/ui_preferences.c src/core/data_client.c src/core/recovery.c src/core/online_services.c src/core/youtube_music.c src/core/external_access.c src/core/programme_model.c src/media/analyzer.c src/media/rhythm.c)
+target_include_directories(radios_core PUBLIC include)
+target_link_libraries(radios_core PUBLIC PkgConfig::GLIB PkgConfig::JSONGLIB PRIVATE PkgConfig::CURL
+    PkgConfig::AVFORMAT PkgConfig::AVCODEC PkgConfig::AVUTIL PkgConfig::SWRESAMPLE m radios_warnings)
+add_library(radios_audio STATIC src/audio/decoder.c src/audio/tempo.c src/audio/engine.c src/audio/pulse_backend.c src/audio/dsp.c src/audio/transition.c src/audio/output.c src/audio/routing.c src/audio/youtube_music.c src/audio/official_player.c)
+target_include_directories(radios_audio PUBLIC include)
+target_link_libraries(radios_audio PUBLIC radios_core PRIVATE PkgConfig::PULSE PkgConfig::CURL
+    PkgConfig::AVFORMAT PkgConfig::AVCODEC PkgConfig::AVUTIL PkgConfig::SWRESAMPLE PkgConfig::AVFILTER m radios_warnings)
+add_library(radios_playout STATIC src/playout/planner.c)
+target_include_directories(radios_playout PUBLIC include)
+target_link_libraries(radios_playout PUBLIC radios_audio radios_warnings)
+add_library(radios_ui STATIC src/ui/window.c src/ui/widgets.c src/ui/editors.c src/ui/data.c
+    src/ui/header.c src/ui/instruments.c src/ui/broadcast.c src/ui/broadcast_online.c src/ui/programme_queue.c src/ui/player_loader.c src/ui/programme_lifecycle.c src/ui/programme_prerequisites.c src/ui/playlist.c
+    src/ui/automation.c src/ui/dj.c src/ui/emergency.c src/ui/advert.c
+    src/ui/technical.c src/ui/online_services.c src/ui/youtube_music.c src/ui/external_access_ui.c src/ui/media.c src/ui/media_jobs.c src/ui/rhythm_jobs.c src/ui/audio_ui.c src/ui/playout_ui.c src/ui/routing.c
+    src/ui/advert_editors.c src/ui/advert_ui.c src/ui/broadcast_ui.c src/ui/broadcast_output_ui.c src/ui/admin_ui.c "${REFERENCE_CSS_C}")
+target_link_libraries(radios_ui PUBLIC radios_core radios_audio radios_playout PkgConfig::GTK3 PRIVATE
+    PkgConfig::FONTCONFIG m radios_warnings)
+add_executable(radios src/app/main.c)
+target_link_libraries(radios PRIVATE radios_ui radios_warnings)
+target_compile_definitions(radios PRIVATE RADIOS_VERSION="${PROJECT_VERSION}")
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(test_rhythm tests/test_rhythm.c)
+    target_link_libraries(test_rhythm PRIVATE radios_core radios_warnings m)
+    add_test(NAME rhythm COMMAND test_rhythm)
+    add_executable(test_youtube_music_client tests/test_youtube_music_client.c)
+    target_link_libraries(test_youtube_music_client PRIVATE radios_core radios_warnings)
+    add_test(NAME youtube_music_client COMMAND test_youtube_music_client)
+    set_tests_properties(youtube_music_client PROPERTIES TIMEOUT 30
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+    add_test(NAME youtube_music_bridge COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/test_youtube_music_bridge.py)
+    set_tests_properties(youtube_music_bridge PROPERTIES TIMEOUT 90
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_test(NAME youtube_music_prepare COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/test_youtube_music_prepare.py)
+    set_tests_properties(youtube_music_prepare PROPERTIES TIMEOUT 90
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_test(NAME music_match COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/test_music_match.py)
+    set_tests_properties(music_match PROPERTIES TIMEOUT 30
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_executable(test_youtube_music_audio tests/test_youtube_music_audio.c)
+    target_link_libraries(test_youtube_music_audio PRIVATE radios_audio radios_warnings m)
+    add_test(NAME youtube_music_audio COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/run_youtube_music_audio.py $<TARGET_FILE:test_youtube_music_audio>)
+    set_tests_properties(youtube_music_audio PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+    add_executable(test_external_access tests/test_external_access.c)
+    target_link_libraries(test_external_access PRIVATE radios_core radios_warnings)
+    add_test(NAME external_access COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/tests/run_external_access.py $<TARGET_FILE:test_external_access>)
+    set_tests_properties(external_access PROPERTIES TIMEOUT 45
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+    add_executable(test_online_services tests/test_online_services.c)
+    target_link_libraries(test_online_services PRIVATE radios_core radios_warnings)
+    add_test(NAME online_services COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/run_online_services.py $<TARGET_FILE:test_online_services>)
+    set_tests_properties(online_services PROPERTIES TIMEOUT 90
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+    foreach(component config runtime ui_preferences data_client recovery media programme_model)
+        add_executable(test_${component} tests/test_${component}.c)
+        target_link_libraries(test_${component} PRIVATE radios_core radios_warnings)
+        add_test(NAME ${component} COMMAND test_${component})
+        set_tests_properties(${component} PROPERTIES TIMEOUT 20)
+    endforeach()
+    target_compile_definitions(test_data_client PRIVATE RADIOS_TEST_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+    set_tests_properties(data_client PROPERTIES TIMEOUT 45)
+    target_compile_definitions(test_media PRIVATE RADIOS_TEST_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+    set_tests_properties(media PROPERTIES TIMEOUT 60)
+    foreach(component audio audio_decoder tempo dsp transition runner output)
+        add_executable(test_${component} tests/test_${component}.c)
+        target_link_libraries(test_${component} PRIVATE radios_audio radios_warnings)
+        target_compile_definitions(test_${component} PRIVATE RADIOS_TEST_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+        add_test(NAME ${component} COMMAND test_${component})
+        set_tests_properties(${component} PROPERTIES TIMEOUT 60)
+    endforeach()
+    add_executable(test_playout tests/test_playout.c)
+    target_link_libraries(test_playout PRIVATE radios_playout radios_warnings)
+    target_compile_definitions(test_playout PRIVATE RADIOS_TEST_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+    add_test(NAME playout COMMAND test_playout)
+    set_tests_properties(playout PROPERTIES TIMEOUT 30)
+    add_executable(test_audio_recovery tests/test_audio_recovery.c)
+    target_link_libraries(test_audio_recovery PRIVATE radios_audio radios_warnings m)
+    add_test(NAME audio_recovery COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/run_audio_recovery.py $<TARGET_FILE:test_audio_recovery>)
+    set_tests_properties(audio_recovery PROPERTIES TIMEOUT 100 SKIP_RETURN_CODE 77
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_executable(test_audio_soak tests/test_audio_soak.c)
+    target_link_libraries(test_audio_soak PRIVATE radios_audio radios_warnings m)
+    add_test(NAME audio_soak COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/run_audio_soak.py $<TARGET_FILE:test_audio_soak>)
+    set_tests_properties(audio_soak PROPERTIES TIMEOUT 70 SKIP_RETURN_CODE 77
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_executable(test_audio_routing tests/test_audio_routing.c)
+    target_link_libraries(test_audio_routing PRIVATE radios_audio radios_warnings m)
+    add_test(NAME audio_routing COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/run_audio_routing.py $<TARGET_FILE:test_audio_routing>)
+    set_tests_properties(audio_routing PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_test(NAME config_from_other_directory COMMAND radios --check-config
+             --project-root ${CMAKE_SOURCE_DIR})
+    set_tests_properties(config_from_other_directory PROPERTIES WORKING_DIRECTORY /tmp TIMEOUT 10)
+    add_test(NAME database_setup COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/test_database_setup.py)
+    set_tests_properties(database_setup PROPERTIES TIMEOUT 120
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    add_test(NAME database_recovery COMMAND ${Python3_EXECUTABLE}
+             ${CMAKE_SOURCE_DIR}/tests/test_database_recovery.py)
+    set_tests_properties(database_recovery PROPERTIES TIMEOUT 30
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    foreach(component desktop_api desktop_routing desktop_online_services desktop_programme desktop_rekordbox desktop_rekordbox_device data_playlists desktop_media desktop_playout desktop_advert desktop_broadcast desktop_admin reliability packaging release_install)
+        add_test(NAME ${component} COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/test_${component}.py)
+        set_tests_properties(${component} PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+    endforeach()
+    if(RADIOS_GUI_TESTS)
+        add_executable(test_programme_queue tests/test_programme_queue.c)
+        target_link_libraries(test_programme_queue PRIVATE radios_ui radios_warnings)
+        target_link_options(test_programme_queue PRIVATE -Wl,--wrap=gtk_drag_finish)
+        add_test(NAME native_programme_queue COMMAND test_programme_queue)
+        set_tests_properties(native_programme_queue PROPERTIES TIMEOUT 30 SKIP_RETURN_CODE 77
+            ENVIRONMENT "G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+        add_executable(test_youtube_music_ui tests/test_youtube_music_ui.c)
+        target_link_libraries(test_youtube_music_ui PRIVATE radios_ui radios_warnings)
+        target_link_options(test_youtube_music_ui PRIVATE
+            -Wl,--wrap=gtk_show_uri_on_window
+            -Wl,--wrap=radios_youtube_music_request_sync
+            -Wl,--wrap=radios_youtube_music_player_start
+            -Wl,--wrap=radios_youtube_music_player_pause
+            -Wl,--wrap=radios_youtube_music_player_stop
+            -Wl,--wrap=radios_youtube_music_player_snapshot
+            -Wl,--wrap=radios_youtube_music_player_preload
+            -Wl,--wrap=radios_youtube_music_player_prepare_list
+            -Wl,--wrap=radios_audio_ui_engine_acquire
+            -Wl,--wrap=radios_audio_ui_ready)
+        add_test(NAME native_youtube_music COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_online_services_ui.py $<TARGET_FILE:test_youtube_music_ui>)
+        set_tests_properties(native_youtube_music PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_broadcast_online_ui tests/test_broadcast_online_ui.c)
+        target_link_libraries(test_broadcast_online_ui PRIVATE radios_ui radios_warnings)
+        target_link_options(test_broadcast_online_ui PRIVATE
+            -Wl,--wrap=radios_youtube_music_request_sync
+            -Wl,--wrap=radios_youtube_music_player_start
+            -Wl,--wrap=radios_youtube_music_player_pause
+            -Wl,--wrap=radios_youtube_music_player_stop
+            -Wl,--wrap=radios_youtube_music_player_snapshot
+            -Wl,--wrap=radios_youtube_music_player_preload
+            -Wl,--wrap=radios_youtube_music_player_prepare_list
+            -Wl,--wrap=radios_audio_ui_engine_acquire
+            -Wl,--wrap=radios_audio_ui_ready)
+        add_test(NAME native_broadcast_online COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_online_services_ui.py $<TARGET_FILE:test_broadcast_online_ui>)
+        set_tests_properties(native_broadcast_online PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_data_connection_ui tests/test_data_connection_ui.c)
+        target_link_libraries(test_data_connection_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_data_connection COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_data_connection_ui.py $<TARGET_FILE:test_data_connection_ui>)
+        set_tests_properties(native_data_connection PROPERTIES TIMEOUT 240
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_media_drop_ui tests/test_media_drop_ui.c)
+        target_link_libraries(test_media_drop_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_media_drop COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_data_ui.py $<TARGET_FILE:test_media_drop_ui>)
+        set_tests_properties(native_media_drop PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_emergency_transfer_ui tests/test_emergency_transfer_ui.c)
+        target_link_libraries(test_emergency_transfer_ui PRIVATE radios_ui radios_warnings)
+        add_executable(test_broadcast_catalogue_ui tests/test_broadcast_catalogue_ui.c)
+        target_link_libraries(test_broadcast_catalogue_ui PRIVATE radios_ui radios_warnings)
+        target_link_options(test_broadcast_catalogue_ui PRIVATE -Wl,--wrap=gtk_drag_finish)
+        add_test(NAME native_broadcast_catalogue COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_broadcast_catalogue_ui.py $<TARGET_FILE:test_broadcast_catalogue_ui>)
+        set_tests_properties(native_broadcast_catalogue PROPERTIES TIMEOUT 150
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+        add_test(NAME native_emergency_transfer COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_emergency_transfer_ui.py $<TARGET_FILE:test_emergency_transfer_ui>)
+        set_tests_properties(native_emergency_transfer PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_programme_ui tests/test_programme_ui.c)
+        target_link_libraries(test_programme_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_programme COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_programme_ui.py $<TARGET_FILE:test_programme_ui>)
+        set_tests_properties(native_programme PROPERTIES TIMEOUT 150 SKIP_RETURN_CODE 77
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_rekordbox_ui tests/test_rekordbox_ui.c)
+        target_link_libraries(test_rekordbox_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_rekordbox COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_rekordbox_ui.py $<TARGET_FILE:test_rekordbox_ui>)
+        set_tests_properties(native_rekordbox PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_application_shutdown src/app/main.c tests/application_shutdown_driver.c)
+        target_link_libraries(test_application_shutdown PRIVATE radios_ui radios_warnings)
+        target_link_options(test_application_shutdown PRIVATE -Wl,--wrap=radios_window_present)
+        add_test(NAME native_application_shutdown COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/test_application_shutdown.py $<TARGET_FILE:test_application_shutdown>)
+        set_tests_properties(native_application_shutdown PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_external_access_ui tests/test_external_access_ui.c)
+        target_link_libraries(test_external_access_ui PRIVATE radios_ui radios_warnings)
+        target_link_options(test_external_access_ui PRIVATE -Wl,--wrap=gtk_show_uri_on_window -Wl,--wrap=radios_external_probe_sync)
+        add_test(NAME native_external_access COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/tests/run_admin_ui.py $<TARGET_FILE:test_external_access_ui>)
+        set_tests_properties(native_external_access PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_online_services_ui tests/test_online_services_ui.c)
+        target_link_libraries(test_online_services_ui PRIVATE radios_ui radios_warnings)
+        target_link_options(test_online_services_ui PRIVATE -Wl,--wrap=gtk_show_uri_on_window)
+        add_test(NAME native_online_services COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_online_services_ui.py $<TARGET_FILE:test_online_services_ui>)
+        set_tests_properties(native_online_services PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_routing_ui tests/test_routing_ui.c)
+        target_link_libraries(test_routing_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_routing COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_routing_ui.py $<TARGET_FILE:test_routing_ui>)
+        set_tests_properties(native_routing PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_ui tests/test_ui.c)
+        target_link_libraries(test_ui PRIVATE radios_ui radios_warnings)
+        target_compile_definitions(test_ui PRIVATE RADIOS_TEST_PROJECT_ROOT="${CMAKE_SOURCE_DIR}")
+        add_test(NAME native_controls COMMAND test_ui)
+        set_tests_properties(native_controls PROPERTIES TIMEOUT 30 WORKING_DIRECTORY /tmp
+            ENVIRONMENT "G_DEBUG=fatal-warnings")
+        add_executable(test_data_ui tests/test_data_ui.c)
+        target_link_libraries(test_data_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_data COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_native_data_ui.py $<TARGET_FILE:test_data_ui>)
+        set_tests_properties(native_data PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_test(NAME native_media COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_data_ui.py $<TARGET_FILE:test_data_ui> -p /native-media)
+        set_tests_properties(native_media PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_audio_ui tests/test_audio_ui.c)
+        target_link_libraries(test_audio_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_audio COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_audio_ui.py $<TARGET_FILE:test_audio_ui>)
+        set_tests_properties(native_audio PROPERTIES TIMEOUT 180
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_dj_ui tests/test_dj_ui.c)
+        target_link_libraries(test_dj_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_dj COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_dj_ui.py $<TARGET_FILE:test_dj_ui>)
+        set_tests_properties(native_dj PROPERTIES TIMEOUT 180
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_playout_ui tests/test_playout_ui.c)
+        target_link_libraries(test_playout_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_playout COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_playout_ui.py $<TARGET_FILE:test_playout_ui>)
+        set_tests_properties(native_playout PROPERTIES TIMEOUT 240
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_advert_ui tests/test_advert_ui.c)
+        target_link_libraries(test_advert_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_advert COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_advert_ui.py $<TARGET_FILE:test_advert_ui>)
+        set_tests_properties(native_advert PROPERTIES TIMEOUT 300
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_broadcast_ui tests/test_broadcast_ui.c)
+        target_link_libraries(test_broadcast_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_broadcast COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_broadcast_ui.py $<TARGET_FILE:test_broadcast_ui>)
+        set_tests_properties(native_broadcast PROPERTIES TIMEOUT 300
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_executable(test_admin_ui tests/test_admin_ui.c)
+        target_link_libraries(test_admin_ui PRIVATE radios_ui radios_warnings)
+        add_test(NAME native_admin COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_admin_ui.py $<TARGET_FILE:test_admin_ui> -p /native-admin)
+        set_tests_properties(native_admin PROPERTIES TIMEOUT 180
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings")
+        add_test(NAME audio_devices COMMAND ${Python3_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR}/tests/run_audio_ui.py --engine-only $<TARGET_FILE:test_audio>)
+        set_tests_properties(audio_devices PROPERTIES TIMEOUT 120
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+        add_test(NAME native_window COMMAND radios --smoke-test
+                 --project-root ${CMAKE_SOURCE_DIR}
+                 --capture ${CMAKE_BINARY_DIR}/native-window.png)
+        set_tests_properties(native_window PROPERTIES TIMEOUT 20 WORKING_DIRECTORY /tmp)
+    endif()
+endif()

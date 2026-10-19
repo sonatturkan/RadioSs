@@ -1,0 +1,222 @@
+<section class="advert-workspace" data-advert-workspace>
+  <div class="advert-top">
+    <div class="advert-summary" data-advert-summary>
+      <button type="button" data-advert-goto="campaigns" data-advert-goto-filter="live"><span>Yayında kampanya</span><strong data-advert-sum="live">0</strong></button>
+      <button type="button" data-advert-goto="campaigns" data-advert-goto-filter="pending"><span>Onay bekleyen</span><strong data-advert-sum="pending">0</strong></button>
+      <button type="button" data-advert-goto="breaks"><span>Bugün kuşak doluluğu</span><strong data-advert-sum="fill">—</strong></button>
+      <button type="button" data-advert-goto="breaks"><span>Yerleşemeyen spot</span><strong data-advert-sum="unplaced">0</strong></button>
+      <button type="button" data-advert-goto="changes"><span>Sürüm ve teslim</span><strong data-advert-sum="changes">0</strong></button>
+      <button type="button" data-advert-goto="asrun"><span>Telafi bekleyen</span><strong data-advert-sum="makegoods">0</strong></button>
+    </div>
+    <section class="advert-card advert-notifications" aria-labelledby="advert-notifications-title">
+      <header class="advert-toolbar"><h3 id="advert-notifications-title">Bildirimler</h3><div class="advert-segment" role="group" aria-label="Bildirim filtresi"><button type="button" data-advert-notification-filter="all" aria-pressed="true">Tümü</button><button type="button" data-advert-notification-filter="unread" aria-pressed="false">Okunmamış <span data-advert-unread-count>0</span></button></div></header>
+      <ul class="advert-notification-list" data-advert-notification-list></ul>
+    </section>
+  </div>
+
+  <nav class="advert-tabs" role="tablist" aria-label="Reklam bölümleri">
+    <button type="button" role="tab" id="advert-tab-campaigns" aria-controls="advert-pane-campaigns" aria-selected="true" data-advert-tab="campaigns">Kampanyalar</button>
+    <button type="button" role="tab" id="advert-tab-breaks" aria-controls="advert-pane-breaks" aria-selected="false" tabindex="-1" data-advert-tab="breaks">Kuşaklar</button>
+    <button type="button" role="tab" id="advert-tab-changes" aria-controls="advert-pane-changes" aria-selected="false" tabindex="-1" data-advert-tab="changes">Sürüm değişikliği</button>
+    <button type="button" role="tab" id="advert-tab-asrun" aria-controls="advert-pane-asrun" aria-selected="false" tabindex="-1" data-advert-tab="asrun">Gerçekleşme ve telafi</button>
+  </nav>
+
+  <section class="advert-pane" id="advert-pane-campaigns" role="tabpanel" aria-labelledby="advert-tab-campaigns">
+    <div class="advert-grid">
+      <section class="advert-card advert-fill" aria-labelledby="advert-campaigns-title">
+        <header class="advert-toolbar"><h3 id="advert-campaigns-title">Kampanyalar</h3><button type="button" class="advert-primary" data-advert-act="new-campaign" aria-haspopup="dialog" aria-controls="advert-campaign-dialog">+ Kampanya</button></header>
+        <div class="advert-filters">
+          <label class="advert-sr" for="advert-campaign-search">Kampanya ara</label><input id="advert-campaign-search" type="search" data-advert-search placeholder="Kampanya, reklamveren, sözleşme" autocomplete="off">
+          <label class="advert-sr" for="advert-campaign-filter">Durum</label><select id="advert-campaign-filter" data-advert-campaign-filter><option value="all">Tümü</option><option value="live">Yayında</option><option value="pending">Onay bekleyen</option><option value="upcoming">Başlamadı</option><option value="ended">Bitti</option><option value="paused">Askıda</option></select>
+        </div>
+        <div class="advert-table-scroll advert-grow"><table class="advert-table"><thead><tr><th scope="col">Kampanya</th><th scope="col">Geçerlilik</th><th scope="col">Günlük</th><th scope="col">Durum</th></tr></thead><tbody data-advert-campaign-list></tbody></table></div>
+      </section>
+
+      <section class="advert-card" data-advert-campaign-detail aria-labelledby="advert-campaign-name">
+        <header class="advert-toolbar"><div><h3 id="advert-campaign-name" data-advert-c="name">—</h3><p class="advert-sub" data-advert-c="sub">—</p></div><span class="advert-badge" data-advert-c="state">—</span></header>
+        <div class="advert-actions">
+          <button type="button" data-advert-act="edit-campaign" aria-haspopup="dialog" aria-controls="advert-campaign-dialog">Düzenle</button>
+          <button type="button" class="advert-primary" data-advert-act="approve-campaign">Onayla</button>
+          <button type="button" data-advert-act="pause-campaign">Askıya al</button>
+          <button type="button" data-advert-act="download-campaign">İndir</button>
+          <button type="button" class="advert-danger" data-advert-act="remove-campaign">Sil</button>
+        </div>
+        <p class="advert-warning" data-advert-c="missing" hidden></p>
+        <dl class="advert-facts">
+          <div><dt>Reklamveren</dt><dd data-advert-c="advertiser">—</dd></div>
+          <div><dt>Sözleşme / sipariş</dt><dd data-advert-c="reference">—</dd></div>
+          <div><dt>Geçerlilik</dt><dd data-advert-c="dates">—</dd></div>
+          <div><dt>Günler · saatler</dt><dd data-advert-c="window">—</dd></div>
+          <div><dt>Hedef çıkış</dt><dd data-advert-c="target">—</dd></div>
+          <div><dt>Rakip kategorisi · sıra</dt><dd data-advert-c="rules">—</dd></div>
+          <div><dt>Günlük · toplam</dt><dd data-advert-c="plan">—</dd></div>
+          <div><dt>Bugün yerleşen</dt><dd data-advert-c="today">—</dd></div>
+          <div><dt>Gerçekleşen</dt><dd data-advert-c="aired">—</dd></div>
+          <div><dt>Sorumlu</dt><dd data-advert-c="owner">—</dd></div>
+          <div><dt>Bedel</dt><dd data-advert-c="price">—</dd></div>
+        </dl>
+        <div class="advert-subhead"><h4>Sürümler</h4><button type="button" data-advert-act="new-version" aria-haspopup="dialog" aria-controls="advert-version-dialog">+ Sürüm</button></div>
+        <div class="advert-table-scroll"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Sürüm</th><th scope="col">Süre</th><th scope="col">Saat</th><th scope="col">Durum</th><th scope="col">Ana</th><th scope="col">Yedek</th><th scope="col"><span class="advert-sr">İşlemler</span></th></tr></thead><tbody data-advert-version-list></tbody></table></div>
+        <details class="advert-history"><summary>Değişiklik geçmişi</summary><ol data-advert-history></ol></details>
+      </section>
+    </div>
+  </section>
+
+  <section class="advert-pane" id="advert-pane-breaks" role="tabpanel" aria-labelledby="advert-tab-breaks" hidden>
+    <div class="advert-pane-toolbar">
+      <label for="advert-day">Gün</label><input id="advert-day" type="date" data-advert-day required>
+      <span class="advert-badge" data-advert-plan-mode>Otomatik</span>
+      <button type="button" data-advert-act="replan">Yeniden yerleştir</button>
+      <button type="button" class="advert-primary" data-advert-act="new-break" aria-haspopup="dialog" aria-controls="advert-break-dialog">+ Kuşak</button>
+    </div>
+    <div class="advert-grid advert-break-grid">
+      <section class="advert-card advert-fill" aria-labelledby="advert-breaks-title">
+        <header class="advert-toolbar"><h3 id="advert-breaks-title">Kuşaklar</h3><span class="advert-sub" data-advert-break-total>—</span></header>
+        <ul class="advert-break-list advert-grow" data-advert-break-list></ul>
+      </section>
+      <section class="advert-card" data-advert-break-detail aria-labelledby="advert-break-name">
+        <header class="advert-toolbar"><div><h3 id="advert-break-name" data-advert-b="name">—</h3><p class="advert-sub" data-advert-b="sub">—</p></div><div class="advert-actions"><button type="button" data-advert-act="edit-break" aria-haspopup="dialog" aria-controls="advert-break-dialog">Ayarlar</button><button type="button" class="advert-danger" data-advert-act="remove-break">Sil</button></div></header>
+        <dl class="advert-facts advert-facts-row">
+          <div><dt>Başlama</dt><dd data-advert-b="start">—</dd></div>
+          <div><dt>Tahmini başlangıç</dt><dd>—</dd></div>
+          <div><dt>Boş kuşakta</dt><dd data-advert-b="empty">—</dd></div>
+        </dl>
+        <div class="advert-capacity" data-advert-b="capacity"></div>
+        <div class="advert-table-scroll"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">#</th><th scope="col">Kampanya · sürüm</th><th scope="col">Süre</th><th scope="col">Kural</th><th scope="col">Ana · yedek</th><th scope="col"><span class="advert-sr">İşlemler</span></th></tr></thead><tbody data-advert-spot-list></tbody></table></div>
+        <div class="advert-add-spot"><label class="advert-sr" for="advert-add-spot">Kuşağa eklenecek kampanya</label><select id="advert-add-spot" data-advert-add-spot></select><button type="button" data-advert-act="add-spot">+ Spot</button></div>
+        <div class="advert-regions" data-advert-region-block hidden>
+          <h4>Bölgesel çıkışlar</h4>
+          <div class="advert-table-scroll"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Bölge</th><th scope="col">Yerel kuşak</th><th scope="col">Merkeze göre</th><th scope="col">Kısa kalırsa</th><th scope="col">Uzun kalırsa</th><th scope="col">Durum</th></tr></thead><tbody data-advert-region-list></tbody></table></div>
+        </div>
+      </section>
+    </div>
+    <section class="advert-card advert-unplaced" aria-labelledby="advert-unplaced-title">
+      <header class="advert-toolbar"><h3 id="advert-unplaced-title">Yerleşemeyenler</h3><span class="advert-badge" data-advert-unplaced-count>0</span></header>
+      <div class="advert-table-scroll"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Kampanya</th><th scope="col">Eksik</th><th scope="col">Neden</th><th scope="col">Çözüm</th><th scope="col"><span class="advert-sr">İşlem</span></th></tr></thead><tbody data-advert-unplaced-list></tbody></table></div>
+    </section>
+  </section>
+
+  <section class="advert-pane" id="advert-pane-changes" role="tabpanel" aria-labelledby="advert-tab-changes" hidden>
+    <div class="advert-grid">
+      <section class="advert-card advert-fill" aria-labelledby="advert-changes-title">
+        <header class="advert-toolbar"><h3 id="advert-changes-title">Sürüm değişiklikleri</h3><button type="button" class="advert-primary" data-advert-act="new-version" aria-haspopup="dialog" aria-controls="advert-version-dialog">+ Yeni sürüm</button></header>
+        <div class="advert-change-list advert-grow" data-advert-change-list></div>
+      </section>
+      <section class="advert-card advert-fill" aria-labelledby="advert-deliveries-title">
+        <header class="advert-toolbar"><h3 id="advert-deliveries-title">Gelen teslimler</h3><span class="advert-badge" data-advert-delivery-count>0</span></header>
+        <div class="advert-table-scroll advert-grow"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Dosya</th><th scope="col">Kanal</th><th scope="col">Alındı</th><th scope="col">Bütünlük</th><th scope="col">Durum</th><th scope="col"><span class="advert-sr">İşlemler</span></th></tr></thead><tbody data-advert-delivery-list></tbody></table></div>
+      </section>
+    </div>
+  </section>
+
+  <section class="advert-pane" id="advert-pane-asrun" role="tabpanel" aria-labelledby="advert-tab-asrun" hidden>
+    <div class="advert-pane-toolbar">
+      <label for="advert-asrun-from">Başlangıç</label><input id="advert-asrun-from" type="date" data-advert-asrun="from" required>
+      <label for="advert-asrun-to">Bitiş</label><input id="advert-asrun-to" type="date" data-advert-asrun="to" required>
+      <label for="advert-asrun-campaign">Kampanya</label><select id="advert-asrun-campaign" data-advert-asrun="campaign"></select>
+      <label for="advert-asrun-output">Çıkış</label><select id="advert-asrun-output" data-advert-asrun="output"></select>
+      <button type="button" data-advert-act="export-csv">CSV indir</button>
+    </div>
+    <dl class="advert-states" data-advert-states></dl>
+    <div class="advert-grid advert-asrun-grid">
+      <section class="advert-card advert-fill" aria-labelledby="advert-asrun-title">
+        <header class="advert-toolbar"><h3 id="advert-asrun-title">Yayın kayıtları</h3><span class="advert-sub" data-advert-asrun-count>—</span></header>
+        <div class="advert-table-scroll advert-grow advert-scroll-y"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Tarih</th><th scope="col">Saat</th><th scope="col">Kampanya · sürüm</th><th scope="col">Çıkış</th><th scope="col">Plan</th><th scope="col">Sonuç</th><th scope="col"><span class="advert-sr">İşlem</span></th></tr></thead><tbody data-advert-asrun-list></tbody></table></div>
+      </section>
+      <section class="advert-card advert-fill" aria-labelledby="advert-makegood-title">
+        <header class="advert-toolbar"><h3 id="advert-makegood-title">Telafi önerileri</h3><span class="advert-badge" data-advert-makegood-count>0</span></header>
+        <div class="advert-table-scroll advert-grow"><table class="advert-table advert-table-compact"><thead><tr><th scope="col">Kaçan yayın</th><th scope="col">Önerilen kuşak</th><th scope="col">Denetim</th><th scope="col">Durum</th><th scope="col"><span class="advert-sr">İşlemler</span></th></tr></thead><tbody data-advert-makegood-list></tbody></table></div>
+      </section>
+    </div>
+  </section>
+
+  <p class="advert-sr" role="status" aria-live="polite" data-advert-status></p>
+
+  <dialog class="advert-dialog" id="advert-campaign-dialog" aria-labelledby="advert-campaign-dialog-title">
+    <form class="advert-form" data-advert-form="campaign" novalidate>
+      <header class="advert-dialog-heading"><h2 id="advert-campaign-dialog-title">Kampanya</h2><button type="button" data-advert-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="advert-fields">
+        <div><label for="advert-f-name">Kampanya adı</label><input id="advert-f-name" name="name" maxlength="120" required></div>
+        <div><label for="advert-f-advertiser">Reklamveren</label><input id="advert-f-advertiser" name="advertiser" maxlength="120" required></div>
+        <div><label for="advert-f-reference">Sözleşme / sipariş</label><input id="advert-f-reference" name="reference" maxlength="120"></div>
+        <div><label for="advert-f-owner">Sorumlu</label><input id="advert-f-owner" name="owner" maxlength="120"></div>
+        <div><label for="advert-f-start">Başlangıç</label><input id="advert-f-start" name="start" type="date" required></div>
+        <div><label for="advert-f-end">Bitiş</label><input id="advert-f-end" name="end" type="date" required></div>
+        <div><label for="advert-f-from">Yayın saati başı</label><input id="advert-f-from" name="from" type="time" step="60" required></div>
+        <div><label for="advert-f-to">Yayın saati sonu</label><input id="advert-f-to" name="to" type="time" step="60" required></div>
+        <div><label for="advert-f-perday">Günlük adet</label><input id="advert-f-perday" name="perDay" type="number" min="1" max="200" step="1" required></div>
+        <div><label for="advert-f-target">Hedef çıkış</label><select id="advert-f-target" name="target"><option value="all">Tüm çıkışlar</option><option value="fm">Karasal</option><option value="web">İnternet</option></select></div>
+        <div><label for="advert-f-category">Rakip kategorisi</label><input id="advert-f-category" name="category" maxlength="60" list="advert-category-list"><datalist id="advert-category-list" data-advert-category-list></datalist></div>
+        <div><label for="advert-f-position">Kuşaktaki sıra</label><select id="advert-f-position" name="position"><option value="any">Herhangi</option><option value="first">İlk</option><option value="last">Son</option></select></div>
+      </div>
+      <fieldset class="advert-days"><legend>Günler</legend>
+        <label><input type="checkbox" name="day" value="1">Pzt</label><label><input type="checkbox" name="day" value="2">Sal</label><label><input type="checkbox" name="day" value="3">Çar</label><label><input type="checkbox" name="day" value="4">Per</label><label><input type="checkbox" name="day" value="5">Cum</label><label><input type="checkbox" name="day" value="6">Cmt</label><label><input type="checkbox" name="day" value="7">Paz</label>
+      </fieldset>
+      <div class="advert-fields" data-advert-first-version>
+        <div><label for="advert-f-vname">İlk sürüm</label><input id="advert-f-vname" name="versionName" maxlength="120"></div>
+        <div><label for="advert-f-vduration">Sürüm süresi (sn)</label><input id="advert-f-vduration" name="versionDuration" type="number" min="1" max="600" step="1"></div>
+      </div>
+      <details class="advert-more"><summary>Satış</summary>
+        <div class="advert-fields">
+          <div><label for="advert-f-price">Bedel</label><input id="advert-f-price" name="price" type="number" min="0" max="1000000000" step="0.01"></div>
+          <div><label for="advert-f-currency">Para birimi</label><select id="advert-f-currency" name="currency"><option value="TRY">TRY</option><option value="EUR">EUR</option><option value="USD">USD</option></select></div>
+        </div>
+        <label for="advert-f-note">Not</label><textarea id="advert-f-note" name="note" rows="2" maxlength="1000"></textarea>
+      </details>
+      <div class="advert-dialog-actions"><button type="button" data-advert-close>Vazgeç</button><button type="submit" class="advert-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="advert-dialog" id="advert-version-dialog" aria-labelledby="advert-version-dialog-title">
+    <form class="advert-form" data-advert-form="version" novalidate>
+      <header class="advert-dialog-heading"><h2 id="advert-version-dialog-title">Sürüm</h2><button type="button" data-advert-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="delivery">
+      <div class="advert-fields">
+        <div class="advert-span"><label for="advert-v-campaign">Kampanya</label><select id="advert-v-campaign" name="campaign" required></select></div>
+        <div><label for="advert-v-name">Sürüm adı</label><input id="advert-v-name" name="name" maxlength="120" required></div>
+        <div><label for="advert-v-duration">Süre (sn)</label><input id="advert-v-duration" name="duration" type="number" min="1" max="600" step="1" required></div>
+        <div><label for="advert-v-from">Saat başı</label><input id="advert-v-from" name="from" type="time" step="60"></div>
+        <div><label for="advert-v-to">Saat sonu</label><input id="advert-v-to" name="to" type="time" step="60"></div>
+        <div class="advert-span"><label for="advert-v-replaces">Yerine geçtiği sürüm</label><select id="advert-v-replaces" name="replaces"></select></div>
+        <div class="advert-span"><label for="advert-v-file">Ses dosyası</label><input id="advert-v-file" name="file" type="file" accept="audio/*"></div>
+      </div>
+      <div class="advert-dialog-actions"><button type="button" data-advert-close>Vazgeç</button><button type="submit" class="advert-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="advert-dialog" id="advert-break-dialog" aria-labelledby="advert-break-dialog-title">
+    <form class="advert-form" data-advert-form="break" novalidate>
+      <header class="advert-dialog-heading"><h2 id="advert-break-dialog-title">Kuşak</h2><button type="button" data-advert-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="advert-fields advert-fields-3">
+        <div><label for="advert-k-time">Saat</label><input id="advert-k-time" name="time" type="time" step="60" required></div>
+        <div class="advert-span-2"><label for="advert-k-name">Ad</label><input id="advert-k-name" name="name" maxlength="60" required></div>
+        <div><label for="advert-k-capacity">Kapasite (sn)</label><input id="advert-k-capacity" name="capacity" type="number" min="10" max="1800" step="1" required></div>
+        <div><label for="advert-k-tolerance">İzin verilen aşım (sn)</label><input id="advert-k-tolerance" name="tolerance" type="number" min="0" max="120" step="1" required></div>
+        <div><label for="advert-k-fixed">Sabit anons (sn)</label><input id="advert-k-fixed" name="fixed" type="number" min="0" max="300" step="1" required></div>
+        <div><label for="advert-k-opener">Açılış (sn)</label><input id="advert-k-opener" name="opener" type="number" min="0" max="120" step="1" required></div>
+        <div><label for="advert-k-closer">Kapanış (sn)</label><input id="advert-k-closer" name="closer" type="number" min="0" max="120" step="1" required></div>
+        <div><label for="advert-k-empty">Boş kuşakta</label><select id="advert-k-empty" name="empty"><option value="bumpers">Açılış/kapanış çalmaz</option><option value="skip">Kuşak atlanır</option><option value="always">Açılış/kapanış çalar</option></select></div>
+        <div class="advert-span-2"><label for="advert-k-start">Başlama</label><select id="advert-k-start" name="start"><option value="next">Çalan parça bitince</option><option value="hard">Kesin saatte, ses kısılır</option><option value="wait">En fazla bekle, sonra kıs</option></select></div>
+        <div data-advert-wait-field><label for="advert-k-wait">En fazla bekleme (sn)</label><input id="advert-k-wait" name="wait" type="number" min="5" max="600" step="1"></div>
+      </div>
+      <fieldset class="advert-region-editor"><legend>Bölgesel çıkışlar</legend>
+        <div class="advert-region-rows" data-advert-region-rows></div>
+        <button type="button" data-advert-act="add-region">+ Bölge</button>
+      </fieldset>
+      <div class="advert-dialog-actions"><button type="button" data-advert-close>Vazgeç</button><button type="submit" class="advert-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="advert-dialog advert-dialog-small" id="advert-result-dialog" aria-labelledby="advert-result-dialog-title">
+    <form class="advert-form" data-advert-form="result" novalidate>
+      <header class="advert-dialog-heading"><h2 id="advert-result-dialog-title">Yayın sonucu</h2><button type="button" data-advert-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="key">
+      <p class="advert-sub" data-advert-result-target>—</p>
+      <label for="advert-r-state">Sonuç</label><select id="advert-r-state" name="state"><option value="completed">Tamamlandı</option><option value="interrupted">Yarıda kesildi</option><option value="skipped">Atlandı</option><option value="failed">Başarısız</option><option value="unknown">Belirsiz</option></select>
+      <label for="advert-r-reason">Neden</label><input id="advert-r-reason" name="reason" maxlength="160">
+      <div class="advert-dialog-actions"><button type="button" class="advert-danger" data-advert-act="clear-result">Sonucu kaldır</button><button type="button" data-advert-close>Vazgeç</button><button type="submit" class="advert-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+</section>

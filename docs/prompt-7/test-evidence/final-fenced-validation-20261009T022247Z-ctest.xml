@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="3"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="52"
+	timestamp="2026-10-09T02:22:51"
+	>
+	<testcase name="native_audio" classname="native_audio" time="42.0528" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S2d1f7ccf56d3597f7355350b06633a64
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# Start of native-audio tests
+# /native-audio/transport-real-PCM
+# /native-audio/preview-CUE-main-silence
+# /native-audio/inline-waveform-transport-owner
+# /native-audio/inline-markers-picker-latest
+# /native-audio/station-path-hash-rejection
+# /native-audio/preferences-CAS-reopen
+# /native-audio/generation-owner-close
+# /native-audio/card-CUE-loaded-owner
+# End of native-audio tests
+1..8
+Native audio independent fixture: /native-audio/transport-real-PCM
+TAP version 14
+# random seed: R02Sf27fcadc45620a3d7293efe1c37cdb00
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default:...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_live_players" classname="native_live_players" time="10.2777" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sd84ee372abba7be1293747c61c8fbe74
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..18
+# Start of live-players tests
+ok 1 /live-players/replacement-late-reply
+ok 2 /live-players/stop-invalidates-lookup
+ok 3 /live-players/stopped-next-loads-current
+# slow test /live-players/stopped-next-loads-current executed in 0.65 secs
+ok 4 /live-players/stopped-next-invalidates-old-lookup
+# slow test /live-players/stopped-next-invalidates-old-lookup executed in 0.67 secs
+ok 5 /live-players/current-removal-loads-current
+# slow test /live-players/current-removal-loads-current executed in 0.68 secs
+ok 6 /live-players/pending-lookup-keeps-current-on-old-EOF
+# slow test /live-players/pending-lookup-keeps-current-on-old-EOF executed in 0.69 secs
+ok 7 /live-players/failed-lookup-retries-current
+ok 8 /live-players/lookup-version-mismatch-rejected...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_player_loader" classname="native_player_loader" time="0.235693" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sbff121d58edfe6e1daa40ce154ea7c9f
+1..5
+# Start of player-loader tests
+ok 1 /player-loader/tab-restore
+ok 2 /player-loader/provider-refresh-keeps-selection
+ok 3 /player-loader/hidden-selection-isolation
+ok 4 /player-loader/late-tracks-current-tab
+ok 5 /player-loader/destroyed-owner
+# End of player-loader tests
+</system-out>
+	</testcase>
+</testsuite>

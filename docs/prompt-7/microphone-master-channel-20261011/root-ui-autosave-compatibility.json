@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-11T12:19:12.263350+00:00",
+  "agent": "/root",
+  "path": "src/ui/dj.c",
+  "before": "9e1ab7b5555e50a77e73de88d6ea133829b5ec23f50fc6376edaf993005591e6",
+  "after": "2facd3adc705cd9d740d33402075f029f50aadae5fab3b46320ca1fb0a2cdd59",
+  "changes": "Preserve concurrent existing autosave implementation; microphone FX/target tooltips reflect current automatic persistence."
+}

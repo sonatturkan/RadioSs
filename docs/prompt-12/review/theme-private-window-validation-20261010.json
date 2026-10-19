@@ -1,0 +1,72 @@
+{
+  "started_utc": "2026-10-10T23:30:08.049397+00:00",
+  "owner": "/root/theme_visual_qa_12",
+  "private_project": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/theme-window-private-20261010/RadioS Theme QA",
+  "default_binary_written": false,
+  "existing_application_controlled": false,
+  "production_source_written": false,
+  "capture_method": "own private-project unique-title/new-XID external GDK framebuffer",
+  "passed": false,
+  "canonical_lock": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/source-edit.lock",
+  "watched_before": {
+    "build/prompt12/release/radios": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+    "build/radios": "7bef76d1b552596b3ce0db9b5cfc48fc2462847c8a7a170412aa4642af13c8c4",
+    "src/ui/playlist.c": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+    "assets/themes/radios.css": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+    "design/reference/tasarrım/playlist-workspace.css": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+    "config/radios.example.ini": "b9b5e1ff62c1290cb46566acc0e34d1d83bd3831f79580aebbfbc433a8e72ad8"
+  },
+  "private_credentials_present_before": false,
+  "private_assets_sha256": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+  "baseline_window_count": 25,
+  "command": [
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/release/radios",
+    "--project-root",
+    "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt12/theme-window-private-20261010/RadioS Theme QA",
+    "--profile",
+    "playlist"
+  ],
+  "candidate_pid": 12669,
+  "candidate_sha256": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+  "candidate_xid": "0x1800007",
+  "xid_new_since_baseline": true,
+  "xid_unique_private_title_verified": true,
+  "window_pid_property": null,
+  "window_map_state": "IsViewable",
+  "window_dimensions": [
+    1920,
+    1042
+  ],
+  "screenshot": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/screenshots/theme-20261010/native-playlist-private-window.png",
+  "screenshot_sha256": "2fca196fc56199107f5bbf9f7f5f95912b52fd4e613c29808f8412a980886ad3",
+  "screenshot_dimensions": [
+    1920,
+    1042
+  ],
+  "termination_sent_only_owned_pid": 12669,
+  "exit_code": 0,
+  "owned_child_cleaned": true,
+  "log": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/review/theme-private-window-20261010.log",
+  "runtime_log_bytes": 0,
+  "private_credentials_present_after": false,
+  "private_preferences_present_after": false,
+  "private_db_file_present_after": false,
+  "x_read_errors": 0,
+  "watched_after": {
+    "build/prompt12/release/radios": "a671b0054c5c7cba9cd0897aa39386d5c7c4a9225ee02dab7bfcc68b6260e98e",
+    "build/radios": "7bef76d1b552596b3ce0db9b5cfc48fc2462847c8a7a170412aa4642af13c8c4",
+    "src/ui/playlist.c": "075558333e7f0aba47f94d7cf83e46588ccd355b057bc195b9ff4bfd7b733f03",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+    "assets/themes/radios.css": "5175c511f110fe68641325fa1edc5e402572aed2ff4b1e1c0e520744eb03f904",
+    "design/reference/tasarrım/playlist-workspace.css": "ec8b5b534f2f4fa93d30e03edca9847de8abb760df3a4d04e7f5c9aa2ce84c62",
+    "config/radios.example.ini": "b9b5e1ff62c1290cb46566acc0e34d1d83bd3831f79580aebbfbc433a8e72ad8"
+  },
+  "source_drift": [],
+  "completed_utc": "2026-10-10T23:30:10.961742+00:00",
+  "capture_technical_passed": true,
+  "visual_profile_matches_requested": false,
+  "visual_observation": "Playlist navigation tab selected; body shows Broadcast views rather than requested playlist workspace. Not playlist viewport acceptance.",
+  "qa_metadata_updated_utc": "2026-10-10T23:31:15.764519+00:00",
+  "qa_metadata_note": "Technical capture/cleanup success remains; composite acceptance requires requested profile body in actual image."
+}

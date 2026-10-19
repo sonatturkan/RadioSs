@@ -1,0 +1,105 @@
+/* Five shared effectors are edited in one mixer table. */
+#dj-mixer .dj-performance-tools.quick-tools {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'effects' 'speech';
+  align-items: start; gap: 12px; padding: 12px; border-bottom: 1px solid #333; background: #080808;
+  container: dj-performance / inline-size;
+}
+#dj-mixer .dj-performance-tools:has(.dj-mixer-monitor) {
+  grid-template-columns: minmax(0, 1fr) 184px;
+  grid-template-areas: 'effects monitor' 'speech monitor';
+}
+#dj-mixer .dj-effects-section { grid-area: effects; min-width: 0; }
+#dj-mixer .dj-effects-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#dj-mixer .dj-effects-heading > div { display: flex; align-items: baseline; gap: 10px; }
+#dj-mixer .dj-effects-heading h3 { margin: 0; color: #ddd; font-size: 12px; font-weight: 450; }
+#dj-mixer [data-dj-effect-count] { color: #909090; font-size: 9px; }
+#dj-mixer .dj-effects-table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow: auto; border: 1px solid #3d3d3d; border-radius: 3px; scrollbar-width: thin; scrollbar-color: #555 #080808; }
+#dj-mixer .dj-effects-table { width: 100%; min-width: 800px; table-layout: fixed; border-collapse: collapse; background: #101010; }
+#dj-mixer .dj-effects-table th,
+#dj-mixer .dj-effects-table td { padding: 6px; border-bottom: 1px solid #333; vertical-align: middle; color: #bbb; font-size: 9px; text-align: left; }
+#dj-mixer .dj-effects-table thead th { padding-block: 8px; background: #202020; color: #999; font-size: 8px; font-weight: 450; letter-spacing: .3px; }
+#dj-mixer .dj-effects-table tr:last-child > :is(th, td) { border-bottom: 0; }
+#dj-mixer .dj-effects-table tbody tr:nth-child(even) { background: #151515; }
+#dj-mixer .dj-effects-table tbody tr:focus-within { background: #1c1c1c; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(1) { width: 38px; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(2) { width: 130px; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(4),
+#dj-mixer .dj-effects-table :is(th, td):nth-child(5),
+#dj-mixer .dj-effects-table :is(th, td):nth-child(6) { width: 62px; text-align: center; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(7) { width: 106px; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(8) { width: 58px; }
+#dj-mixer .dj-effects-table :is(th, td):nth-child(9) { width: 60px; }
+#dj-mixer .fx-table-row .fx-slot-number { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid #555; border-radius: 3px; background: #252525; color: #ccc; font-size: 10px; }
+#dj-mixer .fx-table-row select { width: 100%; min-width: 0; height: 26px; padding: 3px 5px; border-color: #505050; background: #080808; color: #ccc; font-size: 9px; }
+#dj-mixer .fx-table-incoming { display: flex; flex-wrap: wrap; gap: 3px; max-height: 58px; overflow-y: auto; color: #777; scrollbar-width: thin; }
+#dj-mixer .fx-table-incoming > span { padding: 3px 5px; border: 1px solid #414141; border-radius: 3px; background: #222; color: #bbb; font-size: 8px; overflow-wrap: anywhere; }
+#dj-mixer .fx-table-knob { --dial-size: 28px; --knob-color: #aaa; width: 35px; margin: auto; gap: 3px; }
+#dj-mixer .fx-table-knob .knob-shell { width: 28px; height: 28px; }
+#dj-mixer .fx-table-knob .knob-ring { border-color: #555; }
+#dj-mixer .fx-table-knob .knob-rotor { border-color: #777; background: #292929; }
+#dj-mixer .fx-table-knob .knob-rotor::before { top: 3px; height: 5px; background: #ddd; }
+#dj-mixer .fx-table-knob .knob-value { margin: 0; color: #aaa; font-size: 8px; line-height: 1.2; }
+#dj-mixer .fx-table-row button.fx-power-button { display: inline-grid; place-items: center; width: 44px; height: 25px; min-height: 25px; padding: 3px; border: 1px solid #555; border-radius: 3px; background: #202020; box-shadow: none; color: #aaa; font-size: 8px; }
+#dj-mixer .fx-table-row button.fx-power-button::before { display: none; }
+#dj-mixer .fx-table-row button.fx-power-button[aria-pressed='true'] { border-color: #b89b58; background: #40351f; color: #e3c47b; }
+#dj-mixer .fx-table-row button.fx-power-button:hover:not(:disabled) { border: 1px solid #aaa; background: #303030; color: #ddd; }
+#dj-mixer .fx-table-row button.fx-monitor-button { min-width: 44px; min-height: 25px; height: 25px; padding: 4px 6px; border-radius: 3px; font-size: 9px; }
+#dj-mixer .quick-tools button:is(.headphone-cue-button, .fx-monitor-button) { border-color: #d7931c; background: linear-gradient(180deg, #ffcf5d, #f4a620); color: #251b0c; -webkit-text-fill-color: #251b0c; }
+#dj-mixer .quick-tools button:is(.headphone-cue-button, .fx-monitor-button):hover:not(:disabled) { border-color: #ffdb7d; background: linear-gradient(180deg, #ffdc81, #ffb52f); color: #251b0c; }
+#dj-mixer .quick-tools button:is(.headphone-cue-button, .fx-monitor-button):disabled { opacity: 1; border-color: #685024; background: #3f331d; color: #d8b462; -webkit-text-fill-color: #d8b462; box-shadow: none; }
+#dj-mixer .dj-effects-status { margin: 3px 0 0; color: #909090; font-size: 9px; }
+
+#dj-mixer .dj-speech-bar { grid-area: speech; width: 100%; max-width: none; min-width: 0; margin: 0; padding: 10px; border: 1px solid #3d3d3d; border-radius: 3px; background: #101010; }
+#dj-mixer .dj-speech-main-row { display: grid; grid-template-columns: minmax(120px, .85fr) minmax(110px, .75fr) minmax(140px, 1.25fr) auto auto; align-items: center; gap: 12px; }
+#dj-mixer .dj-speech-main-row > * { min-width: 0; }
+#dj-mixer .dj-speech-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+#dj-mixer .dj-speech-heading h2 { margin: 0; color: #ddd; font-size: 11px; font-weight: 450; }
+#dj-mixer .ops-badge { padding: 1px 4px; border-color: #555; background: #222; color: #999; font-size: 7px; }
+#dj-mixer .dj-speech-source label,
+#dj-mixer .dj-speech-bed label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; color: #aaa; font-size: 8px; }
+#dj-mixer .dj-speech-source select { width: 100%; height: 28px; font-size: 9px; }
+#dj-mixer .dj-speech-bed input { display: block; width: 100%; min-width: 0; height: 18px; margin: 0; padding: 0; accent-color: #aaa; }
+#dj-mixer .dj-speech-ducking { display: flex; align-items: center; gap: 5px; margin: 0; color: #aaa; font-size: 9px; }
+#dj-mixer .dj-speech-ducking input { width: 12px; min-height: 12px; height: 12px; padding: 0; accent-color: #aaa; }
+#dj-mixer .dj-speech-rehearsal { display: flex; align-items: center; gap: 5px; }
+#dj-mixer .dj-speech-rehearsal-clock { display: grid; gap: 2px; padding-right: 5px; }
+#dj-mixer .dj-speech-rehearsal-clock > span { color: #888; font-size: 7px; }
+#dj-mixer .dj-speech-rehearsal-clock output { color: #ccc; font-size: 14px; font-variant-numeric: tabular-nums; }
+#dj-mixer .dj-speech-rehearsal button { padding: 4px 6px; font-size: 8px; }
+#dj-mixer .dj-speech-status-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #333; }
+#dj-mixer .dj-speech-status { display: flex; flex-wrap: wrap; gap: 5px 14px; margin: 0; }
+#dj-mixer .dj-speech-status > div { display: flex; gap: 5px; }
+#dj-mixer .dj-speech-status dt,
+#dj-mixer .dj-speech-status dd { margin: 0; color: #888; font-size: 7px; }
+#dj-mixer .dj-speech-status dd { color: #aaa; }
+#dj-mixer .dj-speech-note { margin: 0; color: #808080; font-size: 7px; }
+
+#dj-mixer .dj-mixer-monitor.headphone-monitor { grid-area: monitor; grid-column: 2; grid-row: 1 / 3; justify-self: stretch; align-self: start; width: 184px; min-width: 0; padding: 10px 10px 10px 14px; border-top: 0; border-left: 1px solid #444; }
+#dj-mixer .dj-mixer-monitor .cue-module-heading { margin-bottom: 13px; }
+#dj-mixer .dj-mixer-monitor h3 { color: #ccc; font-size: 10px; }
+#dj-mixer .dj-mixer-monitor .cue-module-context,
+#dj-mixer .dj-mixer-monitor .knob-label { color: #999; font-size: 8px; }
+#dj-mixer .dj-mixer-monitor .headphone-controls { gap: 12px; }
+#dj-mixer .dj-mixer-monitor .knob-control { --knob-color: #bbb; }
+#dj-mixer .dj-mixer-monitor .knob-value { color: #aaa; font-size: 10px; }
+#dj-mixer .dj-mixer-monitor .knob-ring { border-color: #555; }
+#dj-mixer .dj-mixer-monitor .knob-rotor { border-color: #777; background: #303030; }
+#dj-mixer .dj-mixer-monitor .headphone-meter-scale { color: #999; }
+#dj-mixer .dj-monitor-source { display: grid; gap: 4px; margin-top: 13px; }
+#dj-mixer .dj-monitor-source label { color: #999; font-size: 8px; }
+#dj-mixer .dj-monitor-source select { width: 100%; height: 28px; font-size: 9px; }
+#dj-mixer .dj-mixer-monitor .headphone-cue-row { align-items: center; gap: 7px; }
+#dj-mixer .dj-mixer-monitor button.headphone-cue-button { min-width: 64px; min-height: 36px; padding: 5px 7px; border-radius: 5px; font-size: 16px; }
+#dj-mixer .dj-mixer-monitor [data-monitor-gui-status] { max-width: 82px; color: #999; font-size: 7px; overflow-wrap: anywhere; }
+#dj-mixer .quick-tools :focus-visible { outline: 2px solid #ddd; outline-offset: 2px; }
+@container dj-performance (max-width: 1050px) {
+  #dj-mixer .dj-speech-main-row { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 8px 12px; }
+  #dj-mixer .dj-speech-heading { grid-column: 1 / -1; }
+  #dj-mixer .dj-speech-rehearsal { justify-content: end; }
+}
+@media (max-width: 900px) {
+  #dj-mixer .dj-performance-tools.quick-tools { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'effects' 'speech' 'monitor'; padding: 8px; }
+  #dj-mixer .dj-mixer-monitor.headphone-monitor { grid-column: 1; grid-row: auto; justify-self: end; border-left: 1px solid #444; }
+  #dj-mixer .dj-speech-rehearsal { flex-wrap: wrap; }
+}

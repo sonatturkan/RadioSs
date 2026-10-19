@@ -1,0 +1,1337 @@
+{
+  "copies": [
+    {
+      "destination": "database/SDBASE/.gitignore",
+      "origin": "SDBASE/.gitignore",
+      "sha256": "631e1e49071560b2656ef8394d9593614273bface482e0a0bddc88d37d973ec7",
+      "size_bytes": 57
+    },
+    {
+      "destination": "database/SDBASE/IMPLEMENTATION_STATUS.md",
+      "origin": "SDBASE/IMPLEMENTATION_STATUS.md",
+      "sha256": "d7140c3834a8bb9406d81866d07b8e146b24abcb74d0f911a954c1a936096546",
+      "size_bytes": 10140
+    },
+    {
+      "destination": "database/SDBASE/README.md",
+      "origin": "SDBASE/README.md",
+      "sha256": "3f05aade629909cee43da02449dc19fbd60e1637174767e8dd4a564cafd94c40",
+      "size_bytes": 11636
+    },
+    {
+      "destination": "database/SDBASE/docs/adapter_coverage.md",
+      "origin": "SDBASE/docs/adapter_coverage.md",
+      "sha256": "394d4c4ddb58d06b705d3df8aff30b1805437932adeef602ac4d388b07c30880",
+      "size_bytes": 10563
+    },
+    {
+      "destination": "database/SDBASE/docs/api.md",
+      "origin": "SDBASE/docs/api.md",
+      "sha256": "2a6144411fcd89442e2511715f4948d532af60a5696c08d06b4a8a5fcd078820",
+      "size_bytes": 21897
+    },
+    {
+      "destination": "database/SDBASE/docs/architecture.md",
+      "origin": "SDBASE/docs/architecture.md",
+      "sha256": "f5dd6d73ef30e04314f0d354f3223fa0a481b88690bc9b7c63128ca6cf44f43b",
+      "size_bytes": 7383
+    },
+    {
+      "destination": "database/SDBASE/docs/audit_closure.md",
+      "origin": "SDBASE/docs/audit_closure.md",
+      "sha256": "01822a9f0b53e8f380efcd93a6655d27840d9ae1f11b25aa6bbaf1a333d83241",
+      "size_bytes": 11925
+    },
+    {
+      "destination": "database/SDBASE/docs/automatic_failover.md",
+      "origin": "SDBASE/docs/automatic_failover.md",
+      "sha256": "463f698d54f396fdba8b8b62010e2400b66b1474045ace7a3da863a0160b08d1",
+      "size_bytes": 8138
+    },
+    {
+      "destination": "database/SDBASE/docs/data_dictionary.md",
+      "origin": "SDBASE/docs/data_dictionary.md",
+      "sha256": "3c06cebd62af8124ce302ca22f2c26b1480861facc3eafc3c4ec1ad6ad21223e",
+      "size_bytes": 45598
+    },
+    {
+      "destination": "database/SDBASE/docs/disk_indexes.md",
+      "origin": "SDBASE/docs/disk_indexes.md",
+      "sha256": "ad43c8b7d7e274ba4e4cd3870884048cc5be805491d10978ed903ac8091e33ac",
+      "size_bytes": 12717
+    },
+    {
+      "destination": "database/SDBASE/docs/engine_operations.md",
+      "origin": "SDBASE/docs/engine_operations.md",
+      "sha256": "481113756b42d2d5c54600189e26705ad0fc72e8a491ef34598e127a116c6425",
+      "size_bytes": 6267
+    },
+    {
+      "destination": "database/SDBASE/docs/finalization_081.md",
+      "origin": "SDBASE/docs/finalization_081.md",
+      "sha256": "73bbf07ea1c2135837f628e3f51aa5cd75ca700a6be0c799d5abab04863cc877",
+      "size_bytes": 4664
+    },
+    {
+      "destination": "database/SDBASE/docs/gap_matrix.md",
+      "origin": "SDBASE/docs/gap_matrix.md",
+      "sha256": "25a63ca950a01ea99dcd38c7594dd37e369204f2c7facf011a3a3e74482c1649",
+      "size_bytes": 27424
+    },
+    {
+      "destination": "database/SDBASE/docs/integrity.md",
+      "origin": "SDBASE/docs/integrity.md",
+      "sha256": "ae8972c6a1f5aafc7dc46a98fe44227769f5e386cd2dad015f8fd1235dc291f6",
+      "size_bytes": 6005
+    },
+    {
+      "destination": "database/SDBASE/docs/load_verification.md",
+      "origin": "SDBASE/docs/load_verification.md",
+      "sha256": "337a4aead2f233a4585b77b14fd72df958082c3ae86f0d45f93a5dbe3148aff0",
+      "size_bytes": 9913
+    },
+    {
+      "destination": "database/SDBASE/docs/local_manual_audit.md",
+      "origin": "SDBASE/docs/local_manual_audit.md",
+      "sha256": "3b6d7cf4895ad4725a319be5abe84c96d38870fc3dee63c61176b8cb326c642c",
+      "size_bytes": 13103
+    },
+    {
+      "destination": "database/SDBASE/docs/mairlist31_csv.md",
+      "origin": "SDBASE/docs/mairlist31_csv.md",
+      "sha256": "66c4de6c0b2d3742bca3843ee818ee527ff380090f631930fc59df1c6e91a5bf",
+      "size_bytes": 4990
+    },
+    {
+      "destination": "database/SDBASE/docs/maturity_080.md",
+      "origin": "SDBASE/docs/maturity_080.md",
+      "sha256": "6afc2b8d41bc558bfe057bea83292bb12f50ef8978afab88bf6ca210521ca992",
+      "size_bytes": 11126
+    },
+    {
+      "destination": "database/SDBASE/docs/new_features.md",
+      "origin": "SDBASE/docs/new_features.md",
+      "sha256": "bdbc7d933118af78af02e1a0b76f4d1a40620c725895ae073b8a0e7f1a9ef450",
+      "size_bytes": 13211
+    },
+    {
+      "destination": "database/SDBASE/docs/online_maintenance.md",
+      "origin": "SDBASE/docs/online_maintenance.md",
+      "sha256": "ea1600e31796f9fdad7f3c8843e18581b02dcc12e9878a9183c611a892da9779",
+      "size_bytes": 4605
+    },
+    {
+      "destination": "database/SDBASE/docs/open_source_app_verification.md",
+      "origin": "SDBASE/docs/open_source_app_verification.md",
+      "sha256": "adc9e5e10a74b8728af8e547b14de09513d6ebb48dc1cfbf2ac1a7ab67e83308",
+      "size_bytes": 16345
+    },
+    {
+      "destination": "database/SDBASE/docs/operations.md",
+      "origin": "SDBASE/docs/operations.md",
+      "sha256": "b0d3450bda680555b4dcafc753d86361a56d428de5902a34ee1d65f1a9d5c02c",
+      "size_bytes": 8540
+    },
+    {
+      "destination": "database/SDBASE/docs/ops_archive.md",
+      "origin": "SDBASE/docs/ops_archive.md",
+      "sha256": "213026785088832de99bb3327863c957dd72bc28b61058ab1bf6e7cfd49e702e",
+      "size_bytes": 4937
+    },
+    {
+      "destination": "database/SDBASE/docs/ops_scheduler.md",
+      "origin": "SDBASE/docs/ops_scheduler.md",
+      "sha256": "612b95ba6a45a9038c78b82a3e5188cf4cce07dd3d81bcd2e2fbfa308ef98bf7",
+      "size_bytes": 5660
+    },
+    {
+      "destination": "database/SDBASE/docs/playback_markers.md",
+      "origin": "SDBASE/docs/playback_markers.md",
+      "sha256": "b1cd3aa8fce569e7d5096c19a60904b6078e6c26bb40bddb9731b995a3f19ae1",
+      "size_bytes": 6628
+    },
+    {
+      "destination": "database/SDBASE/docs/portable_export.md",
+      "origin": "SDBASE/docs/portable_export.md",
+      "sha256": "d29fed9430ca1cf627b1f2d4951f971cd38a4ee66fd689b53b0e1101cdbe15a5",
+      "size_bytes": 8583
+    },
+    {
+      "destination": "database/SDBASE/docs/production_acceptance.md",
+      "origin": "SDBASE/docs/production_acceptance.md",
+      "sha256": "a59764c888ebe054209d5877aa77d5157b918a0654c8b880cb6954acdb993196",
+      "size_bytes": 6452
+    },
+    {
+      "destination": "database/SDBASE/docs/radioboss_m3u8.md",
+      "origin": "SDBASE/docs/radioboss_m3u8.md",
+      "sha256": "e162fa8f605dc4cf945b71976448e76a85a73752c7b1996dc4369f2aec609492",
+      "size_bytes": 5622
+    },
+    {
+      "destination": "database/SDBASE/docs/rekordbox.md",
+      "origin": "SDBASE/docs/rekordbox.md",
+      "sha256": "bbec06054d7c46058b1e604fe26a3eb38341c6d68704684ec79bed11787901f6",
+      "size_bytes": 3321
+    },
+    {
+      "destination": "database/SDBASE/docs/replication.md",
+      "origin": "SDBASE/docs/replication.md",
+      "sha256": "c96116bb6f4778dc7b95c62489348fe08d2c084bd0902a350c83c791175f742e",
+      "size_bytes": 9091
+    },
+    {
+      "destination": "database/SDBASE/docs/replication_stream.md",
+      "origin": "SDBASE/docs/replication_stream.md",
+      "sha256": "6bac76e894279560492f37c95cbc78ebba08dc68d06c52b4ba167324cfd9fe02",
+      "size_bytes": 12899
+    },
+    {
+      "destination": "database/SDBASE/docs/requirements.md",
+      "origin": "SDBASE/docs/requirements.md",
+      "sha256": "855dafe0abad1424943df0c8b887291bc4f45dcab4b99e820c0651c944f47a8a",
+      "size_bytes": 2082
+    },
+    {
+      "destination": "database/SDBASE/docs/research.md",
+      "origin": "SDBASE/docs/research.md",
+      "sha256": "c0d0266c9e1377a02ac76bb12238875d0d5a9a5ca77691650a8053a7dde161f5",
+      "size_bytes": 4664
+    },
+    {
+      "destination": "database/SDBASE/docs/retention.md",
+      "origin": "SDBASE/docs/retention.md",
+      "sha256": "376b545f81dff946a0141dcd76416d4c88252d3d7eef893a4cf76fd86014f755",
+      "size_bytes": 6010
+    },
+    {
+      "destination": "database/SDBASE/docs/schema_migration.md",
+      "origin": "SDBASE/docs/schema_migration.md",
+      "sha256": "d2ee7ef3a01539b4f53f8455fd215c7f3858d3a5c9900506f569fc411b004ccf",
+      "size_bytes": 7590
+    },
+    {
+      "destination": "database/SDBASE/docs/snapshot_queries.md",
+      "origin": "SDBASE/docs/snapshot_queries.md",
+      "sha256": "427cfd8ebcf209cdfd8ea90428ebf697f0f9b26fb204aa9c03cef2fc9edeaced",
+      "size_bytes": 10058
+    },
+    {
+      "destination": "database/SDBASE/docs/storage_maturity.md",
+      "origin": "SDBASE/docs/storage_maturity.md",
+      "sha256": "87508c1d64c6af4960d632c8a23193550db7fd4a45f63d3b2c3bac23a9918fdd",
+      "size_bytes": 7607
+    },
+    {
+      "destination": "database/SDBASE/docs/verification.md",
+      "origin": "SDBASE/docs/verification.md",
+      "sha256": "308da555ecdc92979833198c76775450bf37ab1c61762abffcd8f68b4397a1ef",
+      "size_bytes": 21911
+    },
+    {
+      "destination": "database/SDBASE/docs/wal_recovery.md",
+      "origin": "SDBASE/docs/wal_recovery.md",
+      "sha256": "925437ed508ece4920f02d3e11a723a710ed66ecfc169bd84fc8064f2281602a",
+      "size_bytes": 10143
+    },
+    {
+      "destination": "database/SDBASE/pyproject.toml",
+      "origin": "SDBASE/pyproject.toml",
+      "sha256": "291c55557eceaac5bbd56cd2719b2f5f70bcff7f54bd308d73968c3bc389f87d",
+      "size_bytes": 376
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/__init__.py",
+      "origin": "SDBASE/src/sdbase/__init__.py",
+      "sha256": "fae127babd5ba6f05354d981fdec12ab42c50dfcf29b7f6a21fe0669d75a0fb7",
+      "size_bytes": 296
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/_production_common.py",
+      "origin": "SDBASE/src/sdbase/_production_common.py",
+      "sha256": "f5800e25c99e247c0363d0627f4b9e2717242b654d3ca529bac4990f5fd94f2d",
+      "size_bytes": 2182
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/access_admin.py",
+      "origin": "SDBASE/src/sdbase/access_admin.py",
+      "sha256": "3ec77daba5d85bf01e741847c151123d8c74c993da07e6e406f931185b492a1a",
+      "size_bytes": 6739
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/ads.py",
+      "origin": "SDBASE/src/sdbase/ads.py",
+      "sha256": "ca7038d9363e20a9661a9bb5eff33af62353f2178edcf4a0ad4ebbc9d27a7579",
+      "size_bytes": 33204
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/ads_service.py",
+      "origin": "SDBASE/src/sdbase/ads_service.py",
+      "sha256": "17877d574c35273ebc931bf7f50e66fcb739d3bddbacd564a2d767d6dade7e34",
+      "size_bytes": 36077
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/api_server.py",
+      "origin": "SDBASE/src/sdbase/api_server.py",
+      "sha256": "ff8558ca423df5cec7f2b67ce7a4619d0a54567b1ff2025fc7f6b575500e8a00",
+      "size_bytes": 2573
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/asrun_reports.py",
+      "origin": "SDBASE/src/sdbase/asrun_reports.py",
+      "sha256": "37ac31d7257f65bbebbf64681d3f8d52cb9320295f8cca9834bc518e87a8b551",
+      "size_bytes": 33666
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/audio_playout.py",
+      "origin": "SDBASE/src/sdbase/audio_playout.py",
+      "sha256": "7a8ef0e67e3e2e3f36f83e450506584e4a6a157f209a939423cff920390dd136",
+      "size_bytes": 19261
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/auto_schedule.py",
+      "origin": "SDBASE/src/sdbase/auto_schedule.py",
+      "sha256": "f818509c6717e4cd75f97f8fa9cc9f0af6570349d9452d3ee5c039a2e2bc5433",
+      "size_bytes": 16278
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/backup.py",
+      "origin": "SDBASE/src/sdbase/backup.py",
+      "sha256": "633a61ade89d9b342ead347a18286c21f9f05cf74b5663a949b08ae289fb22c5",
+      "size_bytes": 34165
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/broadcast_services.py",
+      "origin": "SDBASE/src/sdbase/broadcast_services.py",
+      "sha256": "92390ae53b1332c9a9c5e3a9dfaf00a064e76f940a30267128c76524700dae9b",
+      "size_bytes": 11064
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/bulk.py",
+      "origin": "SDBASE/src/sdbase/bulk.py",
+      "sha256": "af6c047ce83e1feba5b989b45e6bbe717437f543152e7482e5f3e66b755099cc",
+      "size_bytes": 10728
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/capacity_monitor.py",
+      "origin": "SDBASE/src/sdbase/capacity_monitor.py",
+      "sha256": "c5457225686b7f191929bef27bc13cb9d01b63acb77249e6c81f2c68876d29b2",
+      "size_bytes": 39076
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/carts.py",
+      "origin": "SDBASE/src/sdbase/carts.py",
+      "sha256": "7ee89f0a7fe5c12a82d42bb0374369321db7b425067d6e45271ecd37d3bca7f9",
+      "size_bytes": 15166
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/catalog.py",
+      "origin": "SDBASE/src/sdbase/catalog.py",
+      "sha256": "2e150711cc2c4aff8eba0fc1fda9bcab82a0dd470a46e30980d064d9bb82d7fe",
+      "size_bytes": 11421
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/catalog_admin.py",
+      "origin": "SDBASE/src/sdbase/catalog_admin.py",
+      "sha256": "f9799a3583720c9de3111c8e5cee418f1fcd875a3b84a97ebf257a6b457a8436",
+      "size_bytes": 3585
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/cli.py",
+      "origin": "SDBASE/src/sdbase/cli.py",
+      "sha256": "bc3c5bec8ebbf8c274cb29b58f6241bf29c0ea9f804212bd946ebcd9e3cdf912",
+      "size_bytes": 33284
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/clocks.py",
+      "origin": "SDBASE/src/sdbase/clocks.py",
+      "sha256": "41ea8e5b10860ebdab1558a4dbf6b9e7ad00e6e6080e9ce037422dc94c124669",
+      "size_bytes": 33916
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/controller_profiles.py",
+      "origin": "SDBASE/src/sdbase/controller_profiles.py",
+      "sha256": "bb6853370745b9ce982613e80ca669a46e95c952c3b748bbb065dfe2dc772762",
+      "size_bytes": 15485
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/diagnostics.py",
+      "origin": "SDBASE/src/sdbase/diagnostics.py",
+      "sha256": "f224a006d9310981764e8eecf4ec17a7ae893dfead49bb1267e2099edf9d0dad",
+      "size_bytes": 10987
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/disk_index.py",
+      "origin": "SDBASE/src/sdbase/disk_index.py",
+      "sha256": "de5131ee417f567d4a84338331ae54250dc80c79b02cd8cf254020def9c4ac59",
+      "size_bytes": 32772
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/emergency_alerts.py",
+      "origin": "SDBASE/src/sdbase/emergency_alerts.py",
+      "sha256": "92fb92f2f60316f8751b5d467eaf7c910c6a677768330695f1cb2e4eff2ee1de",
+      "size_bytes": 21900
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/endpoint.py",
+      "origin": "SDBASE/src/sdbase/endpoint.py",
+      "sha256": "4ece66d49ea9e8ad56d3052932a3b6a3d68bf3bf49069b14e28067b518dfa981",
+      "size_bytes": 50947
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/endpoint_journal.py",
+      "origin": "SDBASE/src/sdbase/endpoint_journal.py",
+      "sha256": "7caac2e7cee637432ffde26c9873976df7d84a1f5345d9c2795616bf3dde0acd",
+      "size_bytes": 7539
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/endpoint_media.py",
+      "origin": "SDBASE/src/sdbase/endpoint_media.py",
+      "sha256": "9ce4c4aac3af8fbc3290a9c696fe5ae53ef4fd6a33fb2aa077f912006e8a5452",
+      "size_bytes": 6295
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/endpoint_protocol.py",
+      "origin": "SDBASE/src/sdbase/endpoint_protocol.py",
+      "sha256": "407f8049720b407d25d9e1125046c51f4c2492339fbda7cf7cc61484627965ca",
+      "size_bytes": 2259
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/engine_metrics.py",
+      "origin": "SDBASE/src/sdbase/engine_metrics.py",
+      "sha256": "f0eab0b09279370628fa1745086e21d98b18ef14b3109845529e6ebb10c0cc3a",
+      "size_bytes": 1501
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/failover.py",
+      "origin": "SDBASE/src/sdbase/failover.py",
+      "sha256": "f99551cdbd96c48a4684da5d9488b8008f60baa7b6131c63d1b8e4b6bfdde370",
+      "size_bytes": 18940
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/failover_server.py",
+      "origin": "SDBASE/src/sdbase/failover_server.py",
+      "sha256": "96d816a2721f8e5b1904dc731270b2899e03a3bffcff5ac4396c4a0cd8e06e13",
+      "size_bytes": 4613
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/http_limits.py",
+      "origin": "SDBASE/src/sdbase/http_limits.py",
+      "sha256": "accef589f2466ccf1de421df7c7990dc4cf4627f441e97e4f1f1cc92d6fd546e",
+      "size_bytes": 1318
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/http_pool.py",
+      "origin": "SDBASE/src/sdbase/http_pool.py",
+      "sha256": "d72478000640682e6951bca2c403611624ccb0b3340a5450f0f0cd2f164931f0",
+      "size_bytes": 5079
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/http_server.py",
+      "origin": "SDBASE/src/sdbase/http_server.py",
+      "sha256": "564a817789e461c5b953ed3881dd17c6e695716d7fd045f04390288b1adec2e5",
+      "size_bytes": 31159
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/identity.py",
+      "origin": "SDBASE/src/sdbase/identity.py",
+      "sha256": "8baa981d97016a818c83a17a75f7461cde4e2e7a4b0eec9cbae7194139f33c41",
+      "size_bytes": 6182
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/importer.py",
+      "origin": "SDBASE/src/sdbase/importer.py",
+      "sha256": "e36e69303d2764ba645f67e87d823e3a5e7772c5061488e8432b8f9aa57c625c",
+      "size_bytes": 41244
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/integrity.py",
+      "origin": "SDBASE/src/sdbase/integrity.py",
+      "sha256": "3f29a0a81eef9d12936641c608d33737bebbc5e08846e9e6a5387daf1304aa41",
+      "size_bytes": 28029
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/libretime_adapter.py",
+      "origin": "SDBASE/src/sdbase/libretime_adapter.py",
+      "sha256": "0fd5aab087153a1b667d6db73665f287ed924f24dc81c1561aa46992281145c6",
+      "size_bytes": 16585
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/listener_requests.py",
+      "origin": "SDBASE/src/sdbase/listener_requests.py",
+      "sha256": "c2c47a368a034163ce522ba6f215b54f39d0ddd72357db8c9dfc3dabe30a9592",
+      "size_bytes": 13757
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/listener_stats.py",
+      "origin": "SDBASE/src/sdbase/listener_stats.py",
+      "sha256": "d865faa2557932a3761518b918e09a4f37bb7fa6b5320755cf9ac001e689c38c",
+      "size_bytes": 19766
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/live_overrides.py",
+      "origin": "SDBASE/src/sdbase/live_overrides.py",
+      "sha256": "7064decaf4689497b5ff4b1fa721edd9cfced87978cd6e658dd96c2e62e11358",
+      "size_bytes": 27170
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/mairlist31_csv.py",
+      "origin": "SDBASE/src/sdbase/mairlist31_csv.py",
+      "sha256": "c933264f0a074e673d3fc3ab539485c00567e59d3e023ae9fa4fc358b5fe16a9",
+      "size_bytes": 10713
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/mairlist31_export.py",
+      "origin": "SDBASE/src/sdbase/mairlist31_export.py",
+      "sha256": "8ebbc3c5a0afddc0d5e89e1f1c559be20dd01f4a61c7981c4151eefda2674693",
+      "size_bytes": 10141
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/mairlist31_import.py",
+      "origin": "SDBASE/src/sdbase/mairlist31_import.py",
+      "sha256": "fd1c1d7d3e9c02b30b97b013d29913ab1ede25a8fe2ecb2835f4f215d3626c93",
+      "size_bytes": 9318
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/makegoods.py",
+      "origin": "SDBASE/src/sdbase/makegoods.py",
+      "sha256": "7e92a7c707cea3a00183313dfac0e8012badc0d05d9bcaf2135deeed4d7d5de3",
+      "size_bytes": 13463
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/media.py",
+      "origin": "SDBASE/src/sdbase/media.py",
+      "sha256": "dc963491272f32b4ab5ca4e3c5e431773a8ae1920578435053307365f51c43dd",
+      "size_bytes": 24030
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/metadata.py",
+      "origin": "SDBASE/src/sdbase/metadata.py",
+      "sha256": "eabbc7b424b1fe97ce80548132b41190accb7366f29d825ae5223f6e456026ed",
+      "size_bytes": 14296
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/migration.py",
+      "origin": "SDBASE/src/sdbase/migration.py",
+      "sha256": "64f9845c040f3e39a9f7ca84260d704e05f5daa262dfd20c9146d1bb09d2dd00",
+      "size_bytes": 24855
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/monitoring.py",
+      "origin": "SDBASE/src/sdbase/monitoring.py",
+      "sha256": "5f8f1ebb2ff64f3ec89ee60cad196243b0eb7f3e1c3bf4812e6591b8333f3a4e",
+      "size_bytes": 2520
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/now_playing.py",
+      "origin": "SDBASE/src/sdbase/now_playing.py",
+      "sha256": "07ac3d477cbee1f9cb795a8ed1b64e2e6069c2cc66ef55d59aff1a899981b07a",
+      "size_bytes": 21395
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/online_maintenance.py",
+      "origin": "SDBASE/src/sdbase/online_maintenance.py",
+      "sha256": "27db27bf5796794e6ebac363b6caad9a27049593f28ad2dbab3815da8f984ad8",
+      "size_bytes": 15609
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/openapi.py",
+      "origin": "SDBASE/src/sdbase/openapi.py",
+      "sha256": "93a909f5e7ca3176ecd5db4d6d889771235a50ee83b88711cfd6ab3b9daf2581",
+      "size_bytes": 19297
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/ops_archive.py",
+      "origin": "SDBASE/src/sdbase/ops_archive.py",
+      "sha256": "daf4396a1a799a8216013f145f300108b9b65192f640e07a0d21b5b0abd3a9f7",
+      "size_bytes": 25016
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/ops_scheduler.py",
+      "origin": "SDBASE/src/sdbase/ops_scheduler.py",
+      "sha256": "ac9bf2d7de10296bb5fdb08a02de1a3e60183e633a3acb2d206bee85c438fcfb",
+      "size_bytes": 28612
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/pitr.py",
+      "origin": "SDBASE/src/sdbase/pitr.py",
+      "sha256": "7c180e382de026a4f7a68713c8987ea0b89f3237fa4c0b894c357cd2abe13f33",
+      "size_bytes": 12083
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/planning.py",
+      "origin": "SDBASE/src/sdbase/planning.py",
+      "sha256": "4eae5b1eaeb9515e427d18ee5b96a5e7afb40b09f3153c2e86cecce0e7188569",
+      "size_bytes": 33326
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/plans.py",
+      "origin": "SDBASE/src/sdbase/plans.py",
+      "sha256": "863911caf053c32b373149cf05751a782eff26bb26df4e7da870ad20499787d4",
+      "size_bytes": 22962
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/playback_markers.py",
+      "origin": "SDBASE/src/sdbase/playback_markers.py",
+      "sha256": "4486fdee7d3410d79cd3a6ec7fa40fbf5f4c4ae44c14996b8955882d546e96f5",
+      "size_bytes": 20167
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/playlists.py",
+      "origin": "SDBASE/src/sdbase/playlists.py",
+      "sha256": "2f807812f5ba2b17dba7106c5de852efb88be1e60891e66ab74ae4fbde11568c",
+      "size_bytes": 36667
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/playout.py",
+      "origin": "SDBASE/src/sdbase/playout.py",
+      "sha256": "d932b009eb616a3cf3310e0967f84ccaedbd9344a1ea79104a8c35bacfa8c705",
+      "size_bytes": 55522
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/podcast.py",
+      "origin": "SDBASE/src/sdbase/podcast.py",
+      "sha256": "91ef98365a3e1b079584b6714ba631f7fd7141b1acc09f3b9e27ad3f281635d0",
+      "size_bytes": 43774
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/portable_export.py",
+      "origin": "SDBASE/src/sdbase/portable_export.py",
+      "sha256": "335d3cf899c0611406913fc7538dc4d7e60e9e666a6fcad393d2abac0e4e0d1f",
+      "size_bytes": 27274
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/portable_import.py",
+      "origin": "SDBASE/src/sdbase/portable_import.py",
+      "sha256": "2fcd248b5d174ac5ff3f2d409d0a609e65a34cb7855b06180d54d753e3d960d6",
+      "size_bytes": 21778
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/production.py",
+      "origin": "SDBASE/src/sdbase/production.py",
+      "sha256": "1e8f373010654cfd5675db6b465350fdc0422a2aa35aa360920a042b8328c777",
+      "size_bytes": 29773
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/query.py",
+      "origin": "SDBASE/src/sdbase/query.py",
+      "sha256": "e057e0d366b33527f273f66ea2e2a3756f9fc3123d7e5fd23bae22158335f7f1",
+      "size_bytes": 22278
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/radio_cues.py",
+      "origin": "SDBASE/src/sdbase/radio_cues.py",
+      "sha256": "a0b06f8a233bf44257eb53e7f888b70914c919bb00273e2da2e04af23b85147f",
+      "size_bytes": 10299
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/radioboss_m3u8.py",
+      "origin": "SDBASE/src/sdbase/radioboss_m3u8.py",
+      "sha256": "6f3d1f75d5a70415a5545c0a3051b58607599dc863b43d8545f98eee9068b96c",
+      "size_bytes": 6470
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/radioboss_m3u8_export.py",
+      "origin": "SDBASE/src/sdbase/radioboss_m3u8_export.py",
+      "sha256": "b9b1f2e51227ff8ed53be9b9f5de0403ebcd12a13df48edab45421767c0d8102",
+      "size_bytes": 6982
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/radioboss_m3u8_import.py",
+      "origin": "SDBASE/src/sdbase/radioboss_m3u8_import.py",
+      "sha256": "e9f3a5822ee7084d7f74e9f20fd33f84afb41d5b4236142dfae0ec1ec31c0c11",
+      "size_bytes": 13214
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/read_api.py",
+      "origin": "SDBASE/src/sdbase/read_api.py",
+      "sha256": "0f891b332deda8ae2b25b182ad3e94ece78b70ed780ee2e96d3d161412c3f392",
+      "size_bytes": 11779
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/read_snapshot.py",
+      "origin": "SDBASE/src/sdbase/read_snapshot.py",
+      "sha256": "fa169f2a6df0c87937e056d1b6af69a9ce604b3364c73a121ad2220249732952",
+      "size_bytes": 7252
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/readiness.py",
+      "origin": "SDBASE/src/sdbase/readiness.py",
+      "sha256": "70528cc8050ad0a2c646db7f0f2836bc9019c0c45d67b6e96454b1f3b9767897",
+      "size_bytes": 9923
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/recording_jobs.py",
+      "origin": "SDBASE/src/sdbase/recording_jobs.py",
+      "sha256": "1a87c14c5efe4dce2b3697e72338041d452bae17eae320255b1ffc4e50fa4721",
+      "size_bytes": 26176
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/rekordbox.py",
+      "origin": "SDBASE/src/sdbase/rekordbox.py",
+      "sha256": "52bf8c156431e677df623aa834d46ee5abf7b11fad2bcb0d6edd167799c76c39",
+      "size_bytes": 29467
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/replication.py",
+      "origin": "SDBASE/src/sdbase/replication.py",
+      "sha256": "41981e7b1f6ae4d3403476368cf506e11cd4ad7898c00e864deb629708c7a733",
+      "size_bytes": 52974
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/replication_stream.py",
+      "origin": "SDBASE/src/sdbase/replication_stream.py",
+      "sha256": "e8ca68d9ef17d2fd797f1abc06cda49b202478f09e7a2e54626eca3f6960b42b",
+      "size_bytes": 45475
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/retention.py",
+      "origin": "SDBASE/src/sdbase/retention.py",
+      "sha256": "4b767ddb32c7151e222816b1759b5f68b59b0dc4fe0fad4f86c53b54da3d61a5",
+      "size_bytes": 24658
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/rights.py",
+      "origin": "SDBASE/src/sdbase/rights.py",
+      "sha256": "fb24290e8865c773b564518462c99c869133466a76cc3a6f9a85b9fecf6b9b49",
+      "size_bytes": 1649
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/rotation.py",
+      "origin": "SDBASE/src/sdbase/rotation.py",
+      "sha256": "716661ab125cb33dbb1d2be777cece8b68dd31648ece18a2ee21000b3a7cfc68",
+      "size_bytes": 17623
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/schedules.py",
+      "origin": "SDBASE/src/sdbase/schedules.py",
+      "sha256": "0bbf52693bdef8be4ea34134fdccaceca0d16c5054d0eefc918636a26315caf0",
+      "size_bytes": 40752
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/schema.py",
+      "origin": "SDBASE/src/sdbase/schema.py",
+      "sha256": "d8636eae01fac396bc53e47f7765726c4e1b7b1e7e56f6805356fed573b6e802",
+      "size_bytes": 182128
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/search.py",
+      "origin": "SDBASE/src/sdbase/search.py",
+      "sha256": "e7b733c42b0bba340cd76b085f478fad6b4d2ce5948c345d88880dc088e00dc2",
+      "size_bytes": 20519
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/settings.py",
+      "origin": "SDBASE/src/sdbase/settings.py",
+      "sha256": "3fb92a57060367da06631a6ef2e344c6a56bb9a77936836caec42e0de72c3e49",
+      "size_bytes": 9781
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/smart_blocks.py",
+      "origin": "SDBASE/src/sdbase/smart_blocks.py",
+      "sha256": "34a50fec5437be26b9a17fe9571480046665f17696d04fa7c4882272e579d05d",
+      "size_bytes": 31123
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/snapshot_contract.py",
+      "origin": "SDBASE/src/sdbase/snapshot_contract.py",
+      "sha256": "49b468de9b69b356d156d8f9cb3a872389d310da1615eb79cba8b4ea05ce5524",
+      "size_bytes": 10914
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/station_admin.py",
+      "origin": "SDBASE/src/sdbase/station_admin.py",
+      "sha256": "ef6865356916e5b0e4ff3686280f343c0d8bf864f0edd84e5513302a67d7b13f",
+      "size_bytes": 4560
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/station_clone.py",
+      "origin": "SDBASE/src/sdbase/station_clone.py",
+      "sha256": "4a6805a6c9f76cff4a883ca5b31645e09fb27b73d483c030c7936e73d831789e",
+      "size_bytes": 16848
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/station_outputs.py",
+      "origin": "SDBASE/src/sdbase/station_outputs.py",
+      "sha256": "39eb8a5249b83734220dee0a75b97f296b8e6b24b00337f53f07de781a10c351",
+      "size_bytes": 5566
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/storage.py",
+      "origin": "SDBASE/src/sdbase/storage.py",
+      "sha256": "0443435a79b93d1f06026d498430fe1275959f8777fdd31d8a98dee5ce4b5c95",
+      "size_bytes": 37979
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/store_health.py",
+      "origin": "SDBASE/src/sdbase/store_health.py",
+      "sha256": "97c8f8a94dc6f16657d01e59d619ec2fc800e338bd81dd7c9e409b8a2d270aca",
+      "size_bytes": 10671
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/store_provision.py",
+      "origin": "SDBASE/src/sdbase/store_provision.py",
+      "sha256": "38eacec30c38088a6251feec9bd176ab8e1f52e9f7bf64a1684240bbe5a041c1",
+      "size_bytes": 1375
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/traffic_changes.py",
+      "origin": "SDBASE/src/sdbase/traffic_changes.py",
+      "sha256": "0d1dd3dc894f1f9ec0095d231cfd68b1139f49288fa14f60feaa5f23cccc625d",
+      "size_bytes": 22484
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/transport.py",
+      "origin": "SDBASE/src/sdbase/transport.py",
+      "sha256": "c607efaf60478fc2b2bcf9474d1a98ba843a6166a5b3df1dcb553971e8d100e7",
+      "size_bytes": 6217
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/wal_archive.py",
+      "origin": "SDBASE/src/sdbase/wal_archive.py",
+      "sha256": "1ef9b99d33f72e81bd566123b27cb554e5bf27b9eb2ceeb3ddd9e8822475eee4",
+      "size_bytes": 44882
+    },
+    {
+      "destination": "database/SDBASE/src/sdbase/workflow_api.py",
+      "origin": "SDBASE/src/sdbase/workflow_api.py",
+      "sha256": "8a7d69e98645f555df7cca97d169c8be59e85c1bb77481c18638d12ca137afaf",
+      "size_bytes": 11104
+    },
+    {
+      "destination": "database/SDBASE/tools/acceptance.py",
+      "origin": "SDBASE/tools/acceptance.py",
+      "sha256": "3b23f58f43628d87813441a1d96ef316dafd753b7c1d3e33d2e01dabbb5d98ba",
+      "size_bytes": 33322
+    },
+    {
+      "destination": "database/SDBASE/tools/acceptance_playout.py",
+      "origin": "SDBASE/tools/acceptance_playout.py",
+      "sha256": "343e414cebc7418781f2fb70c8a513d97c28fc679c59581495252a812c1f7906",
+      "size_bytes": 10595
+    },
+    {
+      "destination": "database/SDBASE/tools/benchmark.py",
+      "origin": "SDBASE/tools/benchmark.py",
+      "sha256": "941309a3f117653614270eab21983127d962908181746aa30a92689e8eb6c03d",
+      "size_bytes": 29961
+    },
+    {
+      "destination": "database/SDBASE/tools/disk_index_acceptance.py",
+      "origin": "SDBASE/tools/disk_index_acceptance.py",
+      "sha256": "0a13d4a75e6d86ad62ff8906419090c405e14f47c74306c068f676da9349ef6b",
+      "size_bytes": 20475
+    },
+    {
+      "destination": "database/SDBASE/tools/engine_acceptance.py",
+      "origin": "SDBASE/tools/engine_acceptance.py",
+      "sha256": "c8cc721faf835f1ced980f9076b6fb4cbebf3986464ad7ff7d81c61567709d75",
+      "size_bytes": 12586
+    },
+    {
+      "destination": "database/SDBASE/tools/failover_acceptance.py",
+      "origin": "SDBASE/tools/failover_acceptance.py",
+      "sha256": "bd428771b85c90076e9b057d74db4c7748d06c61dc317d6d07f8cd76953ecce6",
+      "size_bytes": 16272
+    },
+    {
+      "destination": "database/SDBASE/tools/maintenance_acceptance.py",
+      "origin": "SDBASE/tools/maintenance_acceptance.py",
+      "sha256": "19589079b51c57533d35531d3e7d0e7e6af41b1f82ad288a701de51d81deca2a",
+      "size_bytes": 15645
+    },
+    {
+      "destination": "database/SDBASE/tools/ops_archive.py",
+      "origin": "SDBASE/tools/ops_archive.py",
+      "sha256": "eb6146811201311a7bc3e82a3d4300b4fac3893f86a96eb0059280bf7e478173",
+      "size_bytes": 6507
+    },
+    {
+      "destination": "database/SDBASE/tools/ops_scheduler.py",
+      "origin": "SDBASE/tools/ops_scheduler.py",
+      "sha256": "52683ceadebd3f1510f3dda8bfc5f4d70ca340331f38f0a37da6d6f0f79ea61b",
+      "size_bytes": 5225
+    },
+    {
+      "destination": "database/SDBASE/tools/query_integrity_acceptance.py",
+      "origin": "SDBASE/tools/query_integrity_acceptance.py",
+      "sha256": "7aea294d58c5fffa50bc1cbe06d908ecd4e62b4d661d6a070971127b5d3750b4",
+      "size_bytes": 14773
+    },
+    {
+      "destination": "database/SDBASE/tools/recovery_acceptance.py",
+      "origin": "SDBASE/tools/recovery_acceptance.py",
+      "sha256": "70f94916dab06a1926c16a4ee2472a95d47f9d68cc045af4f8a25dbd258e20e4",
+      "size_bytes": 15089
+    },
+    {
+      "destination": "database/SDBASE/tools/replication_acceptance.py",
+      "origin": "SDBASE/tools/replication_acceptance.py",
+      "sha256": "3cb953c6b2d8c0d03998d8369fb94314c67fdc0b5f8d53db538ccc31a5e3f785",
+      "size_bytes": 18829
+    },
+    {
+      "destination": "database/SDBASE/tools/stream_acceptance.py",
+      "origin": "SDBASE/tools/stream_acceptance.py",
+      "sha256": "8f3d7f58b65201552f4c1e6432c1b2e0d1fef7134fe7cee9bdca1a72acd30f3b",
+      "size_bytes": 29122
+    },
+    {
+      "destination": "design/reference/tasarrım/advert-workspace.css",
+      "origin": "tasarrım/advert-workspace.css",
+      "sha256": "4a762b8a16aed31917c3e737873519123b25ad2a6116bb19674b488ccb5b983c",
+      "size_bytes": 8275
+    },
+    {
+      "destination": "design/reference/tasarrım/advert-workspace.fragment.html",
+      "origin": "tasarrım/advert-workspace.fragment.html",
+      "sha256": "33016e41a8c1bdd0b3cef68a2b66784dc6ca28bd9d53e676688877871724ca61",
+      "size_bytes": 23388
+    },
+    {
+      "destination": "design/reference/tasarrım/advert-workspace.js",
+      "origin": "tasarrım/advert-workspace.js",
+      "sha256": "267c199e332fc974d9c1c2c1f2e8543725ebf3b2d6d98d652769df3f3738a265",
+      "size_bytes": 26906
+    },
+    {
+      "destination": "design/reference/tasarrım/automation-workspace.css",
+      "origin": "tasarrım/automation-workspace.css",
+      "sha256": "330a24a837a6ebf025c2190ade84e567f16a1d39c97af6ed7d09ebf4840c4a82",
+      "size_bytes": 8398
+    },
+    {
+      "destination": "design/reference/tasarrım/automation-workspace.fragment.html",
+      "origin": "tasarrım/automation-workspace.fragment.html",
+      "sha256": "615fe595c27d5e93e6b35e3d7089400ab0f87677b79bc25887d127fdf93487c4",
+      "size_bytes": 16999
+    },
+    {
+      "destination": "design/reference/tasarrım/automation-workspace.js",
+      "origin": "tasarrım/automation-workspace.js",
+      "sha256": "7acb36bb40397cfb7b091ca153c219754a4b7da1043e5b24cbc18acfca489fc4",
+      "size_bytes": 44029
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast-black.css",
+      "origin": "tasarrım/broadcast-black.css",
+      "sha256": "33e39fb0181cc9c6744317ad81781546ef338d494da5a32695090cdfd4513fa2",
+      "size_bytes": 9134
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast-catalog.fragment.html",
+      "origin": "tasarrım/broadcast-catalog.fragment.html",
+      "sha256": "410c3b0d8d16e66a884dbe42ae9b7817f567d362cbd9f96e46f745affaaa72c9",
+      "size_bytes": 6370
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast-details-gui.js",
+      "origin": "tasarrım/broadcast-details-gui.js",
+      "sha256": "62eed11c415b6db5199cd9ec747c3c54fe11ad04fda755e58b3360e72ce51686",
+      "size_bytes": 4036
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast-workspace.css",
+      "origin": "tasarrım/broadcast-workspace.css",
+      "sha256": "6a8384d7fd5a5345adae28bff5bfec0a62e0a7bc09c02e0daa40b9d44f987e98",
+      "size_bytes": 21876
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast-workspace.js",
+      "origin": "tasarrım/broadcast-workspace.js",
+      "sha256": "05b3a030e3f43315b42e66d60db348fb8d483755e378f03f9fefcf4b2f1c4ffc",
+      "size_bytes": 3058
+    },
+    {
+      "destination": "design/reference/tasarrım/broadcast.css",
+      "origin": "tasarrım/broadcast.css",
+      "sha256": "4438e809d5f293d1cc8b3c0c6040e8dcaafc6da1040a05ab783d8e987e46198e",
+      "size_bytes": 7024
+    },
+    {
+      "destination": "design/reference/tasarrım/cue-controls.css",
+      "origin": "tasarrım/cue-controls.css",
+      "sha256": "5ff5e848cfb8f1c92e6ce782c17930af15bf677d26ce5abcc48b26a34996f160",
+      "size_bytes": 14939
+    },
+    {
+      "destination": "design/reference/tasarrım/cue-fx.js",
+      "origin": "tasarrım/cue-fx.js",
+      "sha256": "b28aa114367dba7f7465093a495833acfa4083feae6563883344120b7e2f2f73",
+      "size_bytes": 17484
+    },
+    {
+      "destination": "design/reference/tasarrım/dj-mixer-gui.css",
+      "origin": "tasarrım/dj-mixer-gui.css",
+      "sha256": "ca114154fb82b5d1563a925f81d3be945e336cfa4c5dc102756c711f1e1c87b6",
+      "size_bytes": 12996
+    },
+    {
+      "destination": "design/reference/tasarrım/dj-mixer-gui.js",
+      "origin": "tasarrım/dj-mixer-gui.js",
+      "sha256": "a2ae6a051773025a8dde25654615e9ab4fb078dd5a375200154340450631592e",
+      "size_bytes": 35378
+    },
+    {
+      "destination": "design/reference/tasarrım/dj-mixer-links.js",
+      "origin": "tasarrım/dj-mixer-links.js",
+      "sha256": "34b5dfc15e97b1cca241aa0f19157d7b75e87f139db951c5d8de26d9988dd90b",
+      "size_bytes": 3908
+    },
+    {
+      "destination": "design/reference/tasarrım/dj-performance-layout.css",
+      "origin": "tasarrım/dj-performance-layout.css",
+      "sha256": "7b0ae42affa4d68449d2e71ca047ef030b026669c4b3641be2684c341fcedbd3",
+      "size_bytes": 9660
+    },
+    {
+      "destination": "design/reference/tasarrım/dj-speech-bar.fragment.html",
+      "origin": "tasarrım/dj-speech-bar.fragment.html",
+      "sha256": "fe3c544e1736d52860f5aa9d7065aff16af91c2ecdc52e2817afc0b30566c1cc",
+      "size_bytes": 1909
+    },
+    {
+      "destination": "design/reference/tasarrım/emergency-workspace.css",
+      "origin": "tasarrım/emergency-workspace.css",
+      "sha256": "ce737744e9a84639996c659d88bc8fc1c3229a536eb7ec850efa79af3a192f85",
+      "size_bytes": 30576
+    },
+    {
+      "destination": "design/reference/tasarrım/emergency-workspace.fragment.html",
+      "origin": "tasarrım/emergency-workspace.fragment.html",
+      "sha256": "4784dd22675ac809b5d7d6d7ce6ff933bb02db20b6d43570b85eef4b4411099d",
+      "size_bytes": 25389
+    },
+    {
+      "destination": "design/reference/tasarrım/emergency-workspace.js",
+      "origin": "tasarrım/emergency-workspace.js",
+      "sha256": "66611d5739ab590204af2742646135a38a2c1768958a250863da4f91e64d96e8",
+      "size_bytes": 77070
+    },
+    {
+      "destination": "design/reference/tasarrım/fonts/InterVariable.woff2",
+      "origin": "tasarrım/fonts/InterVariable.woff2",
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+      "size_bytes": 352240
+    },
+    {
+      "destination": "design/reference/tasarrım/fonts/LICENSE.txt",
+      "origin": "tasarrım/fonts/LICENSE.txt",
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+      "size_bytes": 4380
+    },
+    {
+      "destination": "design/reference/tasarrım/header-clock.css",
+      "origin": "tasarrım/header-clock.css",
+      "sha256": "dc4ea095dc33eed744d732b84797994243799309b6c5927863a8feb0571b3901",
+      "size_bytes": 2487
+    },
+    {
+      "destination": "design/reference/tasarrım/header-clock.js",
+      "origin": "tasarrım/header-clock.js",
+      "sha256": "fc4030a1bf6b5f9dc45e0062521be61243cedca6b3eb5a0f4a38e1affe4455dc",
+      "size_bytes": 1947
+    },
+    {
+      "destination": "design/reference/tasarrım/header-layout.css",
+      "origin": "tasarrım/header-layout.css",
+      "sha256": "9b0887fd1176a93fd2f64e62e28574676f0783e5b4466f8b4907dded01761e54",
+      "size_bytes": 15150
+    },
+    {
+      "destination": "design/reference/tasarrım/header-monitor-gui.js",
+      "origin": "tasarrım/header-monitor-gui.js",
+      "sha256": "32e92843fd8922de4ea03f2001d5dcba1ca7e3b4074a6101f51755847b16efff",
+      "size_bytes": 2073
+    },
+    {
+      "destination": "design/reference/tasarrım/index.html",
+      "origin": "tasarrım/index.html",
+      "sha256": "a858c6e8341345d7515101d52970c85b48e42e138a00b1447998447c83a306eb",
+      "size_bytes": 173198
+    },
+    {
+      "destination": "design/reference/tasarrım/knobs.css",
+      "origin": "tasarrım/knobs.css",
+      "sha256": "77ae2d29859d3494e9d1ab0392c8df2a7328d8ec41ba15be5246d02d6801355d",
+      "size_bytes": 4034
+    },
+    {
+      "destination": "design/reference/tasarrım/knobs.js",
+      "origin": "tasarrım/knobs.js",
+      "sha256": "89a83a88c713562b9ce78c95383919190bfd1451bc28dcfa57e3227bc44b2385",
+      "size_bytes": 5265
+    },
+    {
+      "destination": "design/reference/tasarrım/live-desk.css",
+      "origin": "tasarrım/live-desk.css",
+      "sha256": "2df9feed31ff0b8cf64957335f37497a043f86adceaee3692696d4156c2c50ab",
+      "size_bytes": 31320
+    },
+    {
+      "destination": "design/reference/tasarrım/live-player-gui.css",
+      "origin": "tasarrım/live-player-gui.css",
+      "sha256": "413005d693c69e5f84d380b1c5d09d13450aacddea4eed03249265ceb049aeb3",
+      "size_bytes": 9144
+    },
+    {
+      "destination": "design/reference/tasarrım/live-player-gui.js",
+      "origin": "tasarrım/live-player-gui.js",
+      "sha256": "ea284bee535a7951c1336b56c96c867ffd1550d8e6039d23874dda960b960415",
+      "size_bytes": 21424
+    },
+    {
+      "destination": "design/reference/tasarrım/neon-tabs.css",
+      "origin": "tasarrım/neon-tabs.css",
+      "sha256": "42dba9bda1da06b6d4ffc83c6cc20184cd3d1295abe03fd912a0514750c38ac4",
+      "size_bytes": 7309
+    },
+    {
+      "destination": "design/reference/tasarrım/operations-ui.css",
+      "origin": "tasarrım/operations-ui.css",
+      "sha256": "ca5fea7865fb4e11ca00735fdb4ed2c2517fb12f1963f5a51e38b4226e5c09f0",
+      "size_bytes": 10899
+    },
+    {
+      "destination": "design/reference/tasarrım/operations-ui.fragment.html",
+      "origin": "tasarrım/operations-ui.fragment.html",
+      "sha256": "a3cab6524c6e4f95c8ad7f321dd29c3d2a89162e98607e7253b59510abaaf6d6",
+      "size_bytes": 12103
+    },
+    {
+      "destination": "design/reference/tasarrım/operations-ui.js",
+      "origin": "tasarrım/operations-ui.js",
+      "sha256": "17b104bb7e08b7f312a4cb010c4ec5bd18430bb06e2865a2444be92937d03910",
+      "size_bytes": 29544
+    },
+    {
+      "destination": "design/reference/tasarrım/pad-pages.js",
+      "origin": "tasarrım/pad-pages.js",
+      "sha256": "ea0082744bf668501c7c55fe81cca5cb37fec689ff4f633f8b9e7b736ff509ed",
+      "size_bytes": 1440
+    },
+    {
+      "destination": "design/reference/tasarrım/panel-selection.css",
+      "origin": "tasarrım/panel-selection.css",
+      "sha256": "29f90bbd1c5e58d920f6834dfea2d6a19c798717965eca838e8cb55c05f8c13e",
+      "size_bytes": 3541
+    },
+    {
+      "destination": "design/reference/tasarrım/panel-selection.js",
+      "origin": "tasarrım/panel-selection.js",
+      "sha256": "62fac4c0623aaf8925cf5ad337d84460c8e5d717588f65cd9fb7f929ce0da5c0",
+      "size_bytes": 1083
+    },
+    {
+      "destination": "design/reference/tasarrım/playlist-gui.css",
+      "origin": "tasarrım/playlist-gui.css",
+      "sha256": "449ac3ed209f9775448095984e997b6b3623b2a3e36e46ad8d56932d55713bd2",
+      "size_bytes": 6956
+    },
+    {
+      "destination": "design/reference/tasarrım/playlist-gui.js",
+      "origin": "tasarrım/playlist-gui.js",
+      "sha256": "25bdb30c4da7c7c61379e379a902671abb30f245c885802a4fc464223e221f56",
+      "size_bytes": 20187
+    },
+    {
+      "destination": "design/reference/tasarrım/playlist-workspace.css",
+      "origin": "tasarrım/playlist-workspace.css",
+      "sha256": "14ac7736bc98d6846f6b00d861211bfd68eacb6dc5b45eb7c0e53ca85ea62671",
+      "size_bytes": 7850
+    },
+    {
+      "destination": "design/reference/tasarrım/playlist-workspace.fragment.html",
+      "origin": "tasarrım/playlist-workspace.fragment.html",
+      "sha256": "fcf70371cbf34de5e59da1d8e0e8f545c753d86d18b9e3a94512c6914963973b",
+      "size_bytes": 9455
+    },
+    {
+      "destination": "design/reference/tasarrım/playlist-workspace.js",
+      "origin": "tasarrım/playlist-workspace.js",
+      "sha256": "18dd0b340c83cbf1761aedc7ed01a956bc218da8be11bcd8eaaedf18d560b1d8",
+      "size_bytes": 29372
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-blocks.css",
+      "origin": "tasarrım/programme-blocks.css",
+      "sha256": "1d662bf29c3cb5beb8c464f838be56a6a80b7ce374cea399aaae0620fad7cc9d",
+      "size_bytes": 11540
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-gui.css",
+      "origin": "tasarrım/programme-gui.css",
+      "sha256": "0e549b044d251fe14ebc9683c7388ecdc6eed62352d72e436a8a3dfd96c0d879",
+      "size_bytes": 13395
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-gui.js",
+      "origin": "tasarrım/programme-gui.js",
+      "sha256": "54c5b11917b9160df412b96eb6373d1666d1917596d8a80788fbead80ca7772e",
+      "size_bytes": 62260
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-operations.fragment.html",
+      "origin": "tasarrım/programme-operations.fragment.html",
+      "sha256": "9c415b3666d2c48586bfc83b59443614b702d6061e72977f8292a684f8ef5157",
+      "size_bytes": 4773
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-properties.fragment.html",
+      "origin": "tasarrım/programme-properties.fragment.html",
+      "sha256": "b44270f1c5750e71433a45d52021fe7a1ad5b60945734f3461320e407c25a797",
+      "size_bytes": 1665
+    },
+    {
+      "destination": "design/reference/tasarrım/programme-transition-controls.css",
+      "origin": "tasarrım/programme-transition-controls.css",
+      "sha256": "f3bd85cd40bad3418b37544d4b901b8ffe47eb7229adbe4059eb26a9216cd771",
+      "size_bytes": 1957
+    },
+    {
+      "destination": "design/reference/tasarrım/queue-waveform.css",
+      "origin": "tasarrım/queue-waveform.css",
+      "sha256": "26a5ea44c9691f3b8b8844c8d446ddfb9ef35a3cef9d1e67596c244c374feedb",
+      "size_bytes": 6166
+    },
+    {
+      "destination": "design/reference/tasarrım/queue-waveform.fragment.html",
+      "origin": "tasarrım/queue-waveform.fragment.html",
+      "sha256": "837154bc279a76bede0b61579faff7dfc5f13d3562ddbae86cdac189042e25ef",
+      "size_bytes": 4444
+    },
+    {
+      "destination": "design/reference/tasarrım/queue-waveform.js",
+      "origin": "tasarrım/queue-waveform.js",
+      "sha256": "55d4524acfea3ea28b9fb342cb0460d8cf4cd00a2fe64c3115a79800de656e05",
+      "size_bytes": 23027
+    },
+    {
+      "destination": "design/reference/tasarrım/readability.css",
+      "origin": "tasarrım/readability.css",
+      "sha256": "ef52d6595393379725c9467ce6b0212a943fcc95fba2585f23c1940cb87f0987",
+      "size_bytes": 8072
+    },
+    {
+      "destination": "design/reference/tasarrım/settings.fragment.html",
+      "origin": "tasarrım/settings.fragment.html",
+      "sha256": "a9dd2a0ff4644220b2e941927121d43ff0922e455bc5ce691e9dae1217609d67",
+      "size_bytes": 60357
+    },
+    {
+      "destination": "design/reference/tasarrım/task-views.css",
+      "origin": "tasarrım/task-views.css",
+      "sha256": "435c43edf2c36d32c69ccd63bb96d1ad5aecb6f00e19318dfdbf596de3f7ec17",
+      "size_bytes": 11381
+    },
+    {
+      "destination": "design/reference/tasarrım/task-views.fragment.html",
+      "origin": "tasarrım/task-views.fragment.html",
+      "sha256": "e21d5b51198860874d182b6d20e6b82032bf63646a4a573ea5cbc268e22b92a1",
+      "size_bytes": 30420
+    },
+    {
+      "destination": "design/reference/tasarrım/task-views.js",
+      "origin": "tasarrım/task-views.js",
+      "sha256": "c97863759f442a20b753ddd6342fc7e59a22cf23cea9ac612af8b2dc78afdd32",
+      "size_bytes": 6928
+    },
+    {
+      "destination": "design/reference/tasarrım/technical-management.css",
+      "origin": "tasarrım/technical-management.css",
+      "sha256": "fa7a67ef4985feb880fc4cdce190bcc24191d0f4489b3a6a87158b2e39303cca",
+      "size_bytes": 8985
+    },
+    {
+      "destination": "design/reference/tasarrım/technical-management.fragment.html",
+      "origin": "tasarrım/technical-management.fragment.html",
+      "sha256": "c6372168f36d82e3b21d750fbbd48c4ac7eb4539137279b22e38a0f2dd5d98b7",
+      "size_bytes": 13613
+    },
+    {
+      "destination": "design/reference/tasarrım/technical-management.js",
+      "origin": "tasarrım/technical-management.js",
+      "sha256": "04d7ce2176fad19f1c060bab3b2103d9e36935dcc7dea265dbbc802957e8afd9",
+      "size_bytes": 29988
+    },
+    {
+      "destination": "design/reference/tasarrım/track-library-gui.js",
+      "origin": "tasarrım/track-library-gui.js",
+      "sha256": "26bf8bba8823ed39c695b55a8df799a30cc906d157979d8c3e6c1c84b103d8d9",
+      "size_bytes": 30605
+    },
+    {
+      "destination": "design/reference/tasarrım/transition-editor.css",
+      "origin": "tasarrım/transition-editor.css",
+      "sha256": "8b0e331774d8951c8270e06d7c7693b27f9d29986d238d71bf1f1c458cc2220f",
+      "size_bytes": 8104
+    },
+    {
+      "destination": "design/reference/tasarrım/transition-editor.fragment.html",
+      "origin": "tasarrım/transition-editor.fragment.html",
+      "sha256": "a266fe93cf7ea1f35cee380f1e1dbd626731298f2267f1c55dabe3f855eeed7e",
+      "size_bytes": 7549
+    },
+    {
+      "destination": "design/reference/tasarrım/transition-editor.js",
+      "origin": "tasarrım/transition-editor.js",
+      "sha256": "e396356c04047f8657622aa0cd6604e0ed92662c473816c9920465a5fd9d045e",
+      "size_bytes": 25714
+    },
+    {
+      "destination": "design/reference/tasarrım/ust_orta_alan_analizi.md",
+      "origin": "tasarrım/ust_orta_alan_analizi.md",
+      "sha256": "1fa1255bd801a2018e90ca2f4ad6e6d4cfb68c52e9416448986f3d6d33a6274b",
+      "size_bytes": 42343
+    },
+    {
+      "destination": "design/reference/tasarrım/waveform-edit-gui.css",
+      "origin": "tasarrım/waveform-edit-gui.css",
+      "sha256": "bc4469fa00852803d035ee29730f0f8fd3474890054db721581976611f5bcd8e",
+      "size_bytes": 5406
+    },
+    {
+      "destination": "design/reference/tasarrım/waveform-edit-gui.js",
+      "origin": "tasarrım/waveform-edit-gui.js",
+      "sha256": "92a89e019701a50f2827812c65ba694f76e1390e7d884760fccdc9626f4c137c",
+      "size_bytes": 8703
+    },
+    {
+      "destination": "design/reference/tasarrım/workbench.css",
+      "origin": "tasarrım/workbench.css",
+      "sha256": "263a66ccc7bd125ab982bca270b6e25a49e9e7679f100ec88a6c056369047149",
+      "size_bytes": 7715
+    },
+    {
+      "destination": "design/reference/tasarrım/workbench.js",
+      "origin": "tasarrım/workbench.js",
+      "sha256": "f8a44434e69a5dab8692289c91b64c8237cbeb272203f19cf874caced808ab3f",
+      "size_bytes": 1300
+    }
+  ],
+  "destination_root": ".",
+  "extracted_resources": [
+    {
+      "destination": "assets/fonts/InterVariable.woff2",
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+      "size_bytes": 352240,
+      "source": "design/reference/tasarrım/fonts/InterVariable.woff2"
+    },
+    {
+      "destination": "assets/fonts/LICENSE.txt",
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+      "size_bytes": 4380,
+      "source": "design/reference/tasarrım/fonts/LICENSE.txt"
+    }
+  ],
+  "import_date": "2026-10-06",
+  "origin_root": "..",
+  "purpose": "Aşama 2 ilk kaynak kopyasının köken ve SHA-256 kaydı; uygulama veya canlı DB değildir.",
+  "schema_version": 1,
+  "summary": {
+    "design_reference_files": 72,
+    "resource_files": 2,
+    "sdbase_files": 146,
+    "total_imported_files": 218
+  }
+}

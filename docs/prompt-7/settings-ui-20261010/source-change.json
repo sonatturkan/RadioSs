@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-10T23:45:52.538762+00:00",
+  "file": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/src/ui/preferences.c",
+  "before_sha256": "c264c91fd94bc28d0680b4506b30c725348cdc67c61f2e303d5eafb3cc6595b9",
+  "after_sha256": "81d8b6d68ba04012dbaf4b556a8576b542165af9fc979a0ab0a6f22aae5e18cd",
+  "changes": [
+    "charcoal Inter theme",
+    "theme foreground category icons",
+    "Turkish display labels and bilingual search",
+    "compact window with scrollable routing",
+    "bounded status wrapping"
+  ],
+  "backup": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/settings-ui-20261010/preferences.before.c"
+}

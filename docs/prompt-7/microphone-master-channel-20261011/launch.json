@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-11T12:29:13.612372+00:00",
+  "agent": "/root",
+  "host_launcher_pid": 94061,
+  "expected_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "product_inputs_match": true,
+  "requested_profile": "dj",
+  "service_pid": 94058
+}

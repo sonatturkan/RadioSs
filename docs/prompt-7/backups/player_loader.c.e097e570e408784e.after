@@ -1,0 +1,420 @@
+#include "radios/player_loader.h"
+#include "radios/playout_ui.h"
+#include "radios/programme_model.h"
+#include "radios/official_player.h"
+#include "radios/widgets.h"
+#include "radios/data.h"
+#include <string.h>
+
+/* The card's "Playlist yükle": one dialog with the lists RadioS can play on a
+ * live player. Nothing is written; the chosen list becomes the card's inputs. */
+
+enum { PAGE_LIBRARY, PAGE_PROVIDERS, PAGE_AUTOMATION, PAGE_PROGRAMME, PAGES };
+enum { RESPONSE_APPEND = 1 };
+
+typedef struct {
+    RadioSViewContext *ctx;
+    RadioSBroadcastOnline *online;
+    GtkWidget *dialog, *stack, *sources[PAGES], *items[PAGES], *status;
+    JsonArray *lists[PAGES];
+    JsonArray *current;
+    gchar *current_name;
+    guint generation;
+    gboolean loaded[PAGES], rendering[PAGES];
+    GWeakRef owner;
+    RadioSPlayerLoaderDone done;
+    gpointer data;
+} Loader;
+
+static const gchar *const binding_keys[] = {"media_id", "version_id", "media_file_id", "media_sha256"};
+
+static JsonObject *list_selected(Loader *loader, guint page);
+static void source_selected(GtkTreeSelection *selection, gpointer data);
+
+static JsonObject *member_object(JsonObject *object, const gchar *key)
+{ JsonNode *node = object ? json_object_get_member(object, key) : NULL; return node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL; }
+static JsonArray *member_array(JsonObject *object, const gchar *key)
+{ JsonNode *node = object ? json_object_get_member(object, key) : NULL; return node && JSON_NODE_HOLDS_ARRAY(node) ? json_node_get_array(node) : NULL; }
+static gboolean video_valid(const gchar *video)
+{
+    gboolean valid = video && strlen(video) == 11;
+    for (guint i = 0; valid && video[i]; ++i) valid = g_ascii_isalnum(video[i]) || video[i] == '_' || video[i] == '-';
+    return valid;
+}
+
+JsonObject *radios_player_input_new(JsonObject *source)
+{
+    if (!source) return NULL;
+    JsonObject *metadata = member_object(source, "metadata"); if (!metadata) metadata = source;
+    gboolean bound = TRUE;
+    for (guint i = 0; i < G_N_ELEMENTS(binding_keys); ++i) bound &= *radios_json_string(source, binding_keys[i], "") != '\0';
+    /* A Spotify / Apple Music provider_id is never a YouTube Music id. */
+    const gchar *provider = radios_json_string(source, "source_provider", "");
+    if (g_strcmp0(provider, "spotify") && g_strcmp0(provider, "apple_music")) provider = "";
+    const gchar *video = *provider ? radios_json_string(source, "youtube_id", "") :
+        radios_json_string(source, "online_id", radios_json_string(source, "provider_id", ""));
+    const gchar *title = radios_json_string(metadata, "title", "");
+    gboolean match = *provider && !video_valid(video) && *title;
+    if (!bound && !video_valid(video) && !match) return NULL;
+    JsonObject *input = json_object_new();
+    json_object_set_string_member(input, "title", *title ? title : "—");
+    json_object_set_string_member(input, "artist", radios_json_string(metadata, "artist", ""));
+    json_object_set_string_member(input, "album", radios_json_string(metadata, "album", ""));
+    json_object_set_int_member(input, "duration_ms", MAX(0, radios_json_int(metadata, "duration_ms", radios_json_int(source, "duration_ms", 0))));
+    if (bound) for (guint i = 0; i < G_N_ELEMENTS(binding_keys); ++i)
+        json_object_set_string_member(input, binding_keys[i], radios_json_string(source, binding_keys[i], ""));
+    else if (video_valid(video)) json_object_set_string_member(input, "online_id", video);
+    else {
+        /* Plays in the official player when installed, else through its YouTube Music match. */
+        json_object_set_string_member(input, "match_provider", provider);
+        gchar *official = radios_official_player_item_id(provider, radios_json_string(source, "provider_id", ""));
+        if (official) json_object_set_string_member(input, "official_id", official);
+        g_free(official);
+    }
+    return input;
+}
+const gchar *radios_player_input_source(JsonObject *input)
+{
+    const gchar *provider = radios_json_string(input, "match_provider", "");
+    return json_object_has_member(input, "online_id") ? "YouTube Music" : !g_strcmp0(provider, "spotify") ? "Spotify" :
+        !g_strcmp0(provider, "apple_music") ? "Apple Music" : "Kütüphane";
+}
+
+static Loader *loader_get(GtkWidget *dialog) { return g_object_get_data(G_OBJECT(dialog), "radios-player-loader"); }
+static void loader_free(gpointer data)
+{
+    Loader *loader = data;
+    for (guint i = 0; i < PAGES; ++i) if (loader->lists[i]) json_array_unref(loader->lists[i]);
+    if (loader->current) json_array_unref(loader->current);
+    g_weak_ref_clear(&loader->owner); g_free(loader->current_name); g_free(loader);
+}
+static void status_set(Loader *loader, const gchar *text) { gtk_label_set_text(GTK_LABEL(loader->status), text); }
+static void actions_update(Loader *loader)
+{
+    gboolean ready = loader->current && json_array_get_length(loader->current) > 0;
+    gtk_dialog_set_response_sensitive(GTK_DIALOG(loader->dialog), GTK_RESPONSE_ACCEPT, ready);
+    gtk_dialog_set_response_sensitive(GTK_DIALOG(loader->dialog), RESPONSE_APPEND, ready);
+}
+static gchar *duration_text(gint64 milliseconds)
+{
+    if (milliseconds <= 0) return g_strdup("—");
+    gint64 seconds = (milliseconds + 500) / 1000;
+    return g_strdup_printf("%" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, seconds / 60, seconds % 60);
+}
+
+/* ---- Lists and items ------------------------------------------------- */
+static void sources_render(Loader *loader, guint page)
+{
+    GtkTreeView *tree = g_object_get_data(G_OBJECT(loader->sources[page]), "tree-view");
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(tree);
+    JsonObject *selected = list_selected(loader, page);
+    gchar *selected_id = selected ? g_strdup(radios_json_string(selected, "id", "")) : NULL;
+    /* Saved and account lists arrive independently. Rebuilding this model
+     * must keep an existing selection and its already prepared inputs. */
+    loader->rendering[page] = TRUE;
+    GtkListStore *store = g_object_get_data(G_OBJECT(loader->sources[page]), "list-store"); gtk_list_store_clear(store);
+    for (guint i = 0; loader->lists[page] && i < json_array_get_length(loader->lists[page]); ++i) {
+        JsonObject *list = json_array_get_object_element(loader->lists[page], i); GtkTreeIter iter;
+        gint64 count = radios_json_int(list, "count", -1);
+        gchar *size = count >= 0 ? g_strdup_printf("%" G_GINT64_FORMAT, count) : g_strdup("—");
+        gtk_list_store_append(store, &iter); gtk_list_store_set(store, &iter, 0, radios_json_string(list, "name", ""), 1, size, -1);
+        if (selected_id && !g_strcmp0(selected_id, radios_json_string(list, "id", "")))
+            gtk_tree_selection_select_iter(selection, &iter);
+        g_free(size);
+    }
+    loader->rendering[page] = FALSE;
+    g_free(selected_id);
+}
+static void items_show(Loader *loader, guint page, JsonArray *sources, const gchar *name)
+{
+    GtkListStore *store = g_object_get_data(G_OBJECT(loader->items[page]), "list-store"); gtk_list_store_clear(store);
+    if (loader->current) json_array_unref(loader->current);
+    loader->current = json_array_new(); g_free(loader->current_name); loader->current_name = g_strdup(name);
+    guint skipped = 0;
+    for (guint i = 0; sources && i < json_array_get_length(sources); ++i) {
+        JsonNode *node = json_array_get_element(sources, i);
+        JsonObject *input = JSON_NODE_HOLDS_OBJECT(node) ? radios_player_input_new(json_node_get_object(node)) : NULL;
+        if (!input) { ++skipped; continue; }
+        json_array_add_object_element(loader->current, input);
+        gchar *number = g_strdup_printf("%u", json_array_get_length(loader->current)), *duration = duration_text(radios_json_int(input, "duration_ms", 0));
+        GtkTreeIter iter; gtk_list_store_append(store, &iter);
+        gtk_list_store_set(store, &iter, 0, number, 1, radios_json_string(input, "title", ""), 2, radios_json_string(input, "artist", ""),
+            3, duration, 4, radios_player_input_source(input), -1);
+        g_free(number); g_free(duration);
+    }
+    gchar *text = skipped ? g_strdup_printf("%u parça · ses dosyası olmayan %u parça listelenmedi.", json_array_get_length(loader->current), skipped) :
+        g_strdup_printf("%u parça", json_array_get_length(loader->current));
+    status_set(loader, text); g_free(text); actions_update(loader);
+}
+static void items_clear(Loader *loader, guint page)
+{
+    gtk_list_store_clear(g_object_get_data(G_OBJECT(loader->items[page]), "list-store"));
+    g_clear_pointer(&loader->current, json_array_unref); actions_update(loader);
+}
+static JsonObject *list_selected(Loader *loader, guint page)
+{
+    GtkTreeView *tree = g_object_get_data(G_OBJECT(loader->sources[page]), "tree-view"); GtkTreeModel *model; GtkTreeIter iter;
+    if (!loader->lists[page] || !gtk_tree_selection_get_selected(gtk_tree_view_get_selection(tree), &model, &iter)) return NULL;
+    GtkTreePath *path = gtk_tree_model_get_path(model, &iter); gint index = gtk_tree_path_get_indices(path)[0]; gtk_tree_path_free(path);
+    return index >= 0 && (guint)index < json_array_get_length(loader->lists[page]) ? json_array_get_object_element(loader->lists[page], (guint)index) : NULL;
+}
+static void list_add(Loader *loader, guint page, const gchar *id, const gchar *name, gint64 count, JsonNode *items, JsonNode *config)
+{
+    if (!loader->lists[page]) loader->lists[page] = json_array_new();
+    JsonObject *list = json_object_new();
+    json_object_set_string_member(list, "id", id); json_object_set_string_member(list, "name", name);
+    json_object_set_int_member(list, "count", count);
+    if (items) json_object_set_member(list, "items", items);
+    if (config) json_object_set_member(list, "config", config);
+    json_array_add_object_element(loader->lists[page], list);
+}
+
+/* Kütüphane: playlists of the station's media library. */
+static void library_loaded(RadioSViewContext *ctx, GtkWidget *dialog, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)data; Loader *loader = loader_get(dialog); if (!loader) return;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { status_set(loader, error ? error->message : "Playlistler okunamadı."); return; }
+    JsonArray *playlists = member_array(json_node_get_object(result), "playlists");
+    for (guint i = 0; playlists && i < json_array_get_length(playlists); ++i) {
+        JsonObject *playlist = json_array_get_object_element(playlists, i); JsonArray *tracks = member_array(playlist, "tracks");
+        JsonNode *items = json_node_new(JSON_NODE_ARRAY); json_node_set_array(items, tracks ? tracks : json_array_new());
+        if (!tracks) json_array_unref(json_node_get_array(items));
+        list_add(loader, PAGE_LIBRARY, radios_json_string(playlist, "_id", ""), radios_json_string(playlist, "name", ""),
+            tracks ? json_array_get_length(tracks) : 0, items, NULL);
+    }
+    sources_render(loader, PAGE_LIBRARY);
+    status_set(loader, loader->lists[PAGE_LIBRARY] ? "" : "Kütüphanede playlist yok.");
+}
+/* Sağlayıcılar: the YouTube Music account's playlists and the YouTube Music,
+ * Spotify and Apple Music lists saved in RadioS; Spotify / Apple Music items
+ * play through their YouTube Music matches. */
+static void saved_loaded(RadioSViewContext *ctx, GtkWidget *dialog, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)data; Loader *loader = loader_get(dialog); if (!loader) return;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { status_set(loader, error ? error->message : "Kayıtlı listeler okunamadı."); return; }
+    JsonArray *records = member_array(json_node_get_object(result), "records");
+    for (guint i = 0; records && i < json_array_get_length(records); ++i) {
+        JsonObject *record = json_array_get_object_element(records, i), *config = member_object(record, "config");
+        const gchar *provider = radios_json_string(config, "provider", "");
+        gboolean youtube = !g_strcmp0(provider, "youtube");
+        if (!youtube && g_strcmp0(provider, "spotify") && g_strcmp0(provider, "apple_music")) continue;
+        JsonArray *items = member_array(config, "items"), *marked = json_array_new(); JsonNode *node = json_node_new(JSON_NODE_ARRAY);
+        for (guint j = 0; items && j < json_array_get_length(items); ++j) {
+            JsonNode *element = json_array_get_element(items, j);
+            if (!JSON_NODE_HOLDS_OBJECT(element)) continue;
+            JsonObject *item = radios_programme_clone_object(json_node_get_object(element));
+            if (!youtube) json_object_set_string_member(item, "source_provider", provider);
+            json_array_add_object_element(marked, item);
+        }
+        json_node_take_array(node, marked);
+        gchar *name = g_strdup_printf("%s · %s", youtube ? "RadioS" : !g_strcmp0(provider, "spotify") ? "Spotify" : "Apple Music",
+            radios_json_string(record, "name", ""));
+        list_add(loader, PAGE_PROVIDERS, radios_json_string(record, "_id", ""), name, items ? json_array_get_length(items) : 0, node, NULL);
+        g_free(name);
+    }
+    sources_render(loader, PAGE_PROVIDERS);
+}
+typedef struct { GWeakRef dialog; guint generation; gchar *name; } Pending;
+static Pending *pending_new(Loader *loader, const gchar *name)
+{ Pending *pending = g_new0(Pending, 1); g_weak_ref_init(&pending->dialog, loader->dialog); pending->generation = loader->generation; pending->name = g_strdup(name); return pending; }
+static void pending_free(gpointer data)
+{ Pending *pending = data; g_weak_ref_clear(&pending->dialog); g_free(pending->name); g_free(pending); }
+static Loader *pending_loader(Pending *pending)
+{
+    GtkWidget *dialog = g_weak_ref_get(&pending->dialog); if (!dialog) return NULL;
+    Loader *loader = gtk_widget_in_destruction(dialog) ? NULL : loader_get(dialog); g_object_unref(dialog);
+    return loader;
+}
+static void account_lists(JsonObject *result, const gchar *error, gpointer data)
+{
+    Pending *pending = data; Loader *loader = pending_loader(pending); if (!loader) return;
+    if (error) { status_set(loader, error); return; }
+    JsonArray *playlists = member_array(result, "playlists");
+    for (guint i = 0; playlists && i < json_array_get_length(playlists); ++i) {
+        JsonObject *playlist = json_array_get_object_element(playlists, i);
+        gchar *id = g_strdup_printf("acct:%s", radios_json_string(playlist, "id", "")), *name = g_strdup_printf("YouTube · %s", radios_json_string(playlist, "name", ""));
+        list_add(loader, PAGE_PROVIDERS, id, name, radios_json_int(playlist, "count", -1), NULL, NULL); g_free(id); g_free(name);
+    }
+    sources_render(loader, PAGE_PROVIDERS);
+    if (!loader->lists[PAGE_PROVIDERS]) status_set(loader, "YouTube Music listesi yok.");
+}
+static void account_tracks(JsonObject *result, const gchar *error, gpointer data)
+{
+    Pending *pending = data; Loader *loader = pending_loader(pending);
+    if (!loader || pending->generation != loader->generation) return;
+    if (error) { status_set(loader, error); return; }
+    items_show(loader, PAGE_PROVIDERS, member_array(result, "items"), pending->name);
+}
+/* Otomasyon: the plan an automation provides (rules, rotation and verified media). */
+static void automations_loaded(RadioSViewContext *ctx, GtkWidget *dialog, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)data; Loader *loader = loader_get(dialog); if (!loader) return;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { status_set(loader, error ? error->message : "Otomasyonlar okunamadı."); return; }
+    JsonArray *records = member_array(json_node_get_object(result), "records");
+    for (guint i = 0; records && i < json_array_get_length(records); ++i) {
+        JsonObject *record = json_array_get_object_element(records, i), *config = member_object(record, "config");
+        const gchar *name = radios_json_string(config, "name", radios_json_string(record, "name", ""));
+        list_add(loader, PAGE_AUTOMATION, radios_json_string(record, "_id", ""), *name ? name : "Otomasyon",
+            radios_json_int(config, "previewCount", -1), NULL, json_node_copy(json_object_get_member(record, "config")));
+    }
+    sources_render(loader, PAGE_AUTOMATION);
+    status_set(loader, loader->lists[PAGE_AUTOMATION] ? "" : "Kayıtlı otomasyon yok.");
+}
+static void plan_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)owner; Pending *pending = data; Loader *loader = pending_loader(pending);
+    if (!loader || pending->generation != loader->generation) return;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { status_set(loader, error ? error->message : "Otomasyon planı hazırlanamadı."); return; }
+    items_show(loader, PAGE_AUTOMATION, member_array(json_node_get_object(result), "entries"), pending->name);
+}
+/* Program: the current draft and saved programmes, in playback order. */
+static void programmes_loaded(RadioSViewContext *ctx, GtkWidget *dialog, JsonNode *result, const GError *error, gpointer data)
+{
+    (void)ctx; (void)data; Loader *loader = loader_get(dialog); if (!loader) return;
+    if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { status_set(loader, error ? error->message : "Programlar okunamadı."); return; }
+    JsonArray *records = member_array(json_node_get_object(result), "records");
+    for (guint pass = 0; pass < 2; ++pass)
+        for (guint i = 0; records && i < json_array_get_length(records); ++i) {
+            JsonObject *record = json_array_get_object_element(records, i), *config = member_object(record, "config");
+            gboolean current = g_str_equal(radios_json_string(record, "name", ""), "Mevcut program");
+            if (current != (pass == 0) || !config) continue;
+            RadioSProgrammeTree *tree = radios_programme_tree_new(config);
+            JsonArray *leaves = json_array_new();
+            for (guint j = 0; j < radios_programme_tree_leaf_count(tree); ++j)
+                json_array_add_object_element(leaves, radios_programme_clone_object(radios_programme_tree_leaf_at(tree, j, NULL)));
+            radios_programme_tree_free(tree);
+            JsonNode *items = json_node_new(JSON_NODE_ARRAY); json_node_take_array(items, leaves);
+            const gchar *title = radios_json_string(config, "title", "");
+            gchar *name = current ? g_strdup_printf("Mevcut program · %s", title) : g_strdup(radios_json_string(record, "name", ""));
+            list_add(loader, PAGE_PROGRAMME, radios_json_string(record, "_id", ""), name, json_array_get_length(leaves), items, NULL);
+            g_free(name);
+        }
+    sources_render(loader, PAGE_PROGRAMME);
+    status_set(loader, loader->lists[PAGE_PROGRAMME] ? "" : "Program yok.");
+}
+
+static void page_load(Loader *loader, guint page)
+{
+    if (loader->loaded[page]) return;
+    loader->loaded[page] = TRUE;
+    if (!radios_data_connected(loader->ctx)) { status_set(loader, "Önce RadioS veritabanına bağlanın."); loader->loaded[page] = FALSE; return; }
+    status_set(loader, "Yükleniyor…");
+    JsonNode *body = radios_data_body(loader->ctx); JsonObject *object = json_node_get_object(body);
+    if (page == PAGE_LIBRARY)
+        radios_data_request(loader->ctx, loader->dialog, "POST", "/v1/workflows/desktop-playlists/list", body, library_loaded, NULL, NULL);
+    else if (page == PAGE_PROVIDERS) {
+        json_object_set_string_member(object, "kind", "external_playlist");
+        radios_data_request(loader->ctx, loader->dialog, "POST", "/v1/workflows/desktop/list", body, saved_loaded, NULL, NULL);
+        radios_broadcast_online_provider_lists(loader->online, account_lists, pending_new(loader, NULL), pending_free);
+    } else {
+        json_object_set_string_member(object, "kind", page == PAGE_AUTOMATION ? "automation" : "programme");
+        radios_data_request(loader->ctx, loader->dialog, "POST", "/v1/workflows/desktop/list", body,
+            page == PAGE_AUTOMATION ? automations_loaded : programmes_loaded, NULL, NULL);
+    }
+    json_node_free(body);
+}
+static guint page_current(Loader *loader)
+{
+    const gchar *name = gtk_stack_get_visible_child_name(GTK_STACK(loader->stack));
+    static const gchar *const names[] = {"library", "providers", "automation", "programme"};
+    for (guint i = 0; name && i < PAGES; ++i) if (g_str_equal(name, names[i])) return i;
+    return PAGE_LIBRARY;
+}
+static void page_changed(GObject *stack, GParamSpec *spec, gpointer data)
+{
+    (void)stack; (void)spec; Loader *loader = data; guint page = page_current(loader);
+    ++loader->generation; g_clear_pointer(&loader->current, json_array_unref); actions_update(loader);
+    status_set(loader, ""); page_load(loader, page);
+    GtkTreeView *tree = g_object_get_data(G_OBJECT(loader->sources[page]), "tree-view");
+    /* A tab keeps its selected row. Restore that row's inputs too; a pending
+     * provider/automation preview gets a new generation on return. */
+    source_selected(gtk_tree_view_get_selection(tree), loader);
+}
+static void source_selected(GtkTreeSelection *selection, gpointer data)
+{
+    Loader *loader = data; guint page = PAGES;
+    for (guint i = 0; i < PAGES; ++i) {
+        GtkTreeView *tree = g_object_get_data(G_OBJECT(loader->sources[i]), "tree-view");
+        if (gtk_tree_view_get_selection(tree) == selection) { page = i; break; }
+    }
+    /* A delayed refresh of a hidden tab cannot invalidate the current
+     * tab's selection or an outstanding track/automation request. */
+    if (page == PAGES || loader->rendering[page] || page != page_current(loader)) return;
+    JsonObject *list = list_selected(loader, page); ++loader->generation;
+    items_clear(loader, page);
+    if (!list) return;
+    const gchar *name = radios_json_string(list, "name", ""), *id = radios_json_string(list, "id", "");
+    if (json_object_has_member(list, "items")) { items_show(loader, page, member_array(list, "items"), name); return; }
+    if (page == PAGE_PROVIDERS && g_str_has_prefix(id, "acct:")) {
+        status_set(loader, "YouTube Music…");
+        radios_broadcast_online_provider_tracks(loader->online, id + 5, account_tracks, pending_new(loader, name), pending_free);
+    } else if (page == PAGE_AUTOMATION) {
+        JsonObject *config = member_object(list, "config"); GError *error = NULL;
+        if (!loader->ctx->playout) { status_set(loader, "Otomasyon planı için yerel yürütücü gerekli."); return; }
+        status_set(loader, "Otomasyon planı hazırlanıyor…");
+        if (!config || !radios_playout_ui_preview_automation(loader->ctx, loader->dialog, config, plan_received, pending_new(loader, name), pending_free, &error))
+            status_set(loader, error ? error->message : "Otomasyon planı hazırlanamadı.");
+        g_clear_error(&error);
+    }
+}
+
+static void loader_response(GtkDialog *dialog, gint response, gpointer data)
+{
+    Loader *loader = data;
+    if ((response == GTK_RESPONSE_ACCEPT || response == RESPONSE_APPEND) && loader->current && json_array_get_length(loader->current)) {
+        GtkWidget *owner = g_weak_ref_get(&loader->owner);
+        if (owner && !gtk_widget_in_destruction(owner) && loader->done)
+            loader->done(loader->current, loader->current_name, response == RESPONSE_APPEND, loader->data);
+        if (owner) g_object_unref(owner);
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+static GtkWidget *page_new(Loader *loader, guint page)
+{
+    GtkWidget *box = radios_ui_box(GTK_ORIENTATION_HORIZONTAL, 12, "player-loader-page");
+    const gchar *list_headers[] = {"Liste", "Parça"}, *item_headers[] = {"#", "Başlık", "Sanatçı", "Süre", "Kaynak"};
+    loader->sources[page] = radios_ui_table(list_headers, G_N_ELEMENTS(list_headers));
+    loader->items[page] = radios_ui_table(item_headers, G_N_ELEMENTS(item_headers));
+    gtk_widget_set_size_request(loader->sources[page], 320, 360);
+    static const gchar *const names[] = {"player-loader-library", "player-loader-providers", "player-loader-automation", "player-loader-programme"};
+    gtk_widget_set_name(loader->sources[page], names[page]);
+    gchar *items_name = g_strconcat(names[page], "-items", NULL); gtk_widget_set_name(loader->items[page], items_name); g_free(items_name);
+    GtkTreeView *tree = g_object_get_data(G_OBJECT(loader->sources[page]), "tree-view");
+    g_signal_connect(gtk_tree_view_get_selection(tree), "changed", G_CALLBACK(source_selected), loader);
+    gtk_box_pack_start(GTK_BOX(box), loader->sources[page], FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(box), loader->items[page], TRUE, TRUE, 0);
+    return box;
+}
+
+void radios_player_loader_open(RadioSViewContext *ctx, GtkWidget *owner, RadioSBroadcastOnline *online,
+    const gchar *title, RadioSPlayerLoaderDone done, gpointer data)
+{
+    Loader *loader = g_new0(Loader, 1); loader->ctx = ctx; loader->online = online; loader->done = done; loader->data = data;
+    g_weak_ref_init(&loader->owner, owner);
+    loader->dialog = gtk_dialog_new_with_buttons(title, ctx->parent, GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL,
+        "Vazgeç", GTK_RESPONSE_CANCEL, "Sona ekle", RESPONSE_APPEND, "Yükle", GTK_RESPONSE_ACCEPT, NULL);
+    gtk_widget_set_name(loader->dialog, "player-loader-dialog");
+    gtk_style_context_add_class(gtk_widget_get_style_context(loader->dialog), "radios");
+    gtk_style_context_add_class(gtk_widget_get_style_context(loader->dialog), "task-dialog");
+    gtk_window_set_default_size(GTK_WINDOW(loader->dialog), 980, 600);
+    GtkWidget *body = gtk_dialog_get_content_area(GTK_DIALOG(loader->dialog));
+    gtk_container_set_border_width(GTK_CONTAINER(body), 14); gtk_box_set_spacing(GTK_BOX(body), 10);
+    GtkWidget *tabs = gtk_stack_switcher_new(); loader->stack = gtk_stack_new(); gtk_widget_set_name(loader->stack, "player-loader-stack");
+    gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(tabs), GTK_STACK(loader->stack));
+    gtk_style_context_add_class(gtk_widget_get_style_context(tabs), "player-loader-tabs");
+    gtk_stack_add_titled(GTK_STACK(loader->stack), page_new(loader, PAGE_LIBRARY), "library", "Kütüphane");
+    gtk_stack_add_titled(GTK_STACK(loader->stack), page_new(loader, PAGE_PROVIDERS), "providers", "Sağlayıcılar");
+    gtk_stack_add_titled(GTK_STACK(loader->stack), page_new(loader, PAGE_AUTOMATION), "automation", "Otomasyon");
+    gtk_stack_add_titled(GTK_STACK(loader->stack), page_new(loader, PAGE_PROGRAMME), "programme", "Program");
+    gtk_box_pack_start(GTK_BOX(body), tabs, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(body), loader->stack, TRUE, TRUE, 0);
+    loader->status = radios_ui_label("", "application-status"); gtk_widget_set_name(loader->status, "player-loader-status");
+    gtk_box_pack_start(GTK_BOX(body), loader->status, FALSE, FALSE, 0);
+    g_object_set_data_full(G_OBJECT(loader->dialog), "radios-player-loader", loader, loader_free);
+    g_signal_connect(loader->stack, "notify::visible-child", G_CALLBACK(page_changed), loader);
+    g_signal_connect(loader->dialog, "response", G_CALLBACK(loader_response), loader);
+    g_signal_connect_object(owner, "destroy", G_CALLBACK(gtk_widget_destroy), loader->dialog, G_CONNECT_SWAPPED);
+    actions_update(loader);
+    gtk_widget_show_all(loader->dialog);
+    page_load(loader, PAGE_LIBRARY);
+}

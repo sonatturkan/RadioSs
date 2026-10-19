@@ -1,0 +1,131 @@
+/* Main broadcast workspace. DJ and the other profiles keep their own theme. */
+#live-task-view { background: #000; color: #b5b5b5; }
+#live-task-view .workbench-shell { border-color: #282828; background: #000; box-shadow: none; }
+
+#live-task-view .live-desk {
+    --ld-bg: #000;
+    --ld-bg-raised: #080808;
+    --ld-bg-sunken: #030303;
+    --ld-line: #282828;
+    --ld-line-strong: #404040;
+    --ld-text: #ededed;
+    --ld-text-2: #b5b5b5;
+    --ld-muted: #909090;
+    --ld-cyan: 205, 205, 205;
+    --ld-violet: 190, 190, 190;
+    --ld-green: 185, 185, 185;
+    --ld-music: #d6d6d6;
+    --ld-music-bg: #202020;
+    --ld-announcement: #bcbcbc;
+    --ld-announcement-bg: #181818;
+    --ld-focus: #eee;
+    border-color: #282828;
+    border-radius: 5px;
+}
+
+#live-task-view .live-desk *,
+#live-task-view .live-desk *::before,
+#live-task-view .live-desk *::after { box-shadow: none; text-shadow: none; }
+#live-task-view .ld-panel { --p: 205, 205, 205; --p-ink: #ededed; }
+#live-task-view :is(.ld-flow, .ld-bank, .ld-players, .ld-library, .ld-wave) { border-color: #282828; }
+#live-task-view .ld-bank { background: #000; }
+#live-task-view .ld-head { border-color: #282828; background: #050505; }
+#live-task-view .ld-head::before { background: #727272; }
+#live-task-view .ld-flow:not(.is-selected) .ld-head { background: #050505; border-color: #282828; box-shadow: none; }
+#live-task-view .ld-panel.is-selected { box-shadow: inset 0 0 0 1px #555; }
+#live-task-view .ld-panel.is-selected .ld-head { background: #111; border-color: #555; box-shadow: inset 0 2px #d4d4d4; }
+#live-task-view .ld-panel.is-selected .ld-head::before { background: #ededed; }
+#live-task-view .ld-panel:not(.is-selected):hover { box-shadow: inset 0 0 0 1px #383838; }
+
+#live-task-view :is(.ld-badge, .ld-revision, .ld-timed, .ld-add, .ld-segmented, .ld-bank-card, .ld-player, .ld-playlist, .ld-deck, .ld-empty) {
+    border-color: #333;
+    background: #080808;
+}
+#live-task-view .ld-timed { border-left-color: #aaa; }
+#live-task-view .ld-timed h3 { color: #ddd; }
+#live-task-view .ld-timed-mark { border-color: #aaa; }
+#live-task-view :is(.ld-table-wrap, .ld-playlists, .ld-track-list) { scrollbar-color: #444 #050505; }
+#live-task-view .ld-table th { background: #0b0b0b; }
+#live-task-view .ld-row:hover { background: #101010; }
+#live-task-view .ld-row.is-selected { background: #1b1b1b; box-shadow: inset 3px 0 #ddd; }
+#live-task-view .ld-row.is-selected .ld-item-title { color: #fff; }
+#live-task-view .ld-row.is-drop-before { box-shadow: inset 0 3px #ddd; }
+#live-task-view .ld-row.is-drop-after { box-shadow: inset 0 -3px #ddd; }
+#live-task-view .ld-transition-row td { background: #050505; }
+#live-task-view .ld-gap::before { border-color: #555; }
+#live-task-view .ld-gap.is-set { color: #c5c5c5; }
+#live-task-view .ld-drop-hint svg { stroke: #bbb; }
+#live-task-view .ld-flow.is-drop-target { box-shadow: inset 0 0 0 2px #ddd; }
+#live-task-view .ld-flow.is-drop-target .ld-add { border-color: #ccc; background: #1b1b1b; }
+#live-task-view .ld-flow.is-drop-target .ld-drop-hint { color: #eee; }
+
+#live-task-view :is(button.ld-btn, button.ld-add-btn, button.ld-gap-btn) { border-color: #444; background: #101010; color: #d8d8d8; box-shadow: none; }
+#live-task-view button.ld-btn--primary { border-color: #757575; background: #202020; }
+#live-task-view :is(button.ld-btn, button.ld-add-btn, button.ld-gap-btn):hover:not(:disabled) { border-color: #aaa; background: #252525; box-shadow: none; }
+#live-task-view :is(button.ld-btn, button.ld-add-btn):disabled { border-color: #282828; background: #070707; color: #717171; }
+#live-task-view button.ld-btn--remove { border-color: #5a3a39; color: #f0b9b1; }
+#live-task-view button.ld-btn--remove:hover:not(:disabled) { border-color: var(--ld-error); background: #2a1514; }
+#live-task-view button.ld-add-btn.ld-type--advert { border-color: #5b4a2c; color: var(--ld-advert); }
+#live-task-view .ld-segmented button[aria-selected="true"] { background: #242424; color: #eee; box-shadow: inset 0 0 0 1px #777; }
+#live-task-view button.ld-bank-card:hover { border-color: #777; background: #151515; }
+
+#live-task-view .ld-player { --pl: 205, 205, 205; }
+#live-task-view .ld-search input { border-color: #444; background: #070707; }
+#live-task-view .ld-search input::placeholder { color: #888; }
+#live-task-view .ld-search input:focus-visible { border-color: #ddd; }
+#live-task-view .ld-playlist.is-selected { border-color: #777; background: #1a1a1a; }
+#live-task-view .ld-playlist-icon { color: #ccc; }
+#live-task-view .ld-drag-mark { color: #777; }
+#live-task-view .ld-track.is-selected { border-color: #777; background: #171717; }
+
+#live-task-view :is(.ld-target-tag, .ld-deck-tag) { border-color: #555; color: #ddd; }
+#live-task-view .ld-timeline { background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #ffffff08 calc(10% - 1px) 10%), #050505; }
+#live-task-view :is(.ld-timeline-a, .ld-timeline-b) { color: #eee; }
+#live-task-view .ld-timeline-a { background: linear-gradient(90deg, #555 0 78%, #5550); }
+#live-task-view .ld-timeline-b { background: linear-gradient(90deg, #3330, #333 22%); }
+#live-task-view .ld-timeline small { background: #050505dd; }
+#live-task-view .ld-markers > div { border-color: #444; }
+#live-task-view .ld-cue-label span { color: #aaa; }
+#live-task-view :is(.ld-decks > svg, .ld-cue > svg) { stroke: #888; }
+#live-task-view .ld-cue-label svg { stroke: #ccc; }
+
+/* Match the selected broadcast tab to its black workspace. */
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) {
+    --profile-tab-active: #0a0a0a;
+    background: #000;
+    box-shadow: inset 0 -1px #282828;
+}
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-tabs button { color: #929292; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-tabs button::after { background: #333; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-tabs button[aria-selected="true"] { color: #eee; border-color: #333; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-tabs button[aria-selected="true"]::after { background: transparent; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-tabs button:hover:not([aria-selected="true"]) { background: #151515; color: #ddd; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) .task-profile-context { color: #777; }
+#task-profile-nav:has(#profile-broadcast-tab[aria-selected="true"]) :focus-visible { outline-color: #eee; }
+
+/* Editors opened from the broadcast workspace share the same palette. */
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) {
+    border-color: #444;
+    background: #080808;
+    color: #d6d6d6;
+    box-shadow: 0 12px 60px #000b;
+}
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) :where(*) {
+    color: inherit;
+    border-color: #3b3b3b;
+    box-shadow: none;
+    text-shadow: none;
+}
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) :is(p, label, small, legend) { color: #a5a5a5; }
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) :is(input:not([type="checkbox"]):not([type="range"]):not([type="file"]), select, textarea) { background: #030303; color: #ddd; color-scheme: dark; }
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) button { background: #151515; color: #ddd; }
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) button:hover:not(:disabled) { background: #222; border-color: #aaa; }
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) :focus-visible { outline-color: #eee; }
+:is(#programme-editor, #programme-item-editor, #programme-review-dialog, #programme-timing-editor, #playlist-editor, #playlist-track-editor, #transition-editor) :is(input[type="range"], input[type="checkbox"]) { accent-color: #bbb; }
+#transition-editor :is(.transition-source, .transition-preview-box) { background: #101010; }
+#transition-editor .transition-deck-tag { background: #191919; color: #ddd; }
+#transition-editor .transition-wave-canvas { background: #030303; }
+#transition-editor input::file-selector-button { background: #151515; border-color: #444; color: #ccc; }
+#transition-editor .transition-editor-status.is-error { color: #e8a78d; }
+#programme-timing-editor [data-direction="late"] { color: #eca087; }
+#programme-timing-editor [data-direction="early"] { color: #d9ba80; }

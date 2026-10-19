@@ -1,0 +1,78 @@
+#technical-task-view { background:#000;color:#d3d3d3; }
+#technical-task-view .task-view-heading h2 { color:#e0e0e0; }
+#technical-task-view .task-view-heading p { color:#929292; }
+#technical-task-view .task-eyebrow { color:#b8b8b8; }
+#technical-task-view .task-draft-badge { border-color:#414141;background:#151515;color:#a9a9a9; }
+#task-profile-nav:has(#profile-technical-tab[aria-selected="true"]) { --profile-tab-active:#101010;background:#050505;box-shadow:inset 0 -1px #333; }
+#task-profile-nav:has(#profile-technical-tab[aria-selected="true"]) .task-profile-tabs button[aria-selected="true"] { border-color:#333;color:#e2e2e2; }
+.technical-management { --technical-border:#303030;--technical-muted:#959595;color:#d3d3d3;min-width:0; }
+.technical-summary { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px; }
+.technical-summary > * { min-width:0;padding:15px 17px;border:1px solid var(--technical-border);border-radius:5px;background:#0b0b0b; }
+.technical-summary :is(p,span,dt,small) { color:var(--technical-muted);font-size:.92em;line-height:1.5; }
+.technical-summary :is(strong,output,dd) { display:block;margin:5px 0 0;color:#e6e6e6;font-size:1.6em;font-weight:400;overflow-wrap:anywhere; }
+.technical-tabs { display:flex;gap:3px;padding:6px 6px 0;border-bottom:1px solid #414141;background:#080808;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#424242 #080808; }
+.technical-tabs button { position:relative;flex:0 0 auto;min-width:150px;padding:13px 18px;border:1px solid transparent;border-bottom:0;border-radius:10px 10px 0 0;background:transparent;color:#8f8f8f;white-space:nowrap;font-size:.92em; }
+.technical-tabs button[aria-selected="true"] { border-color:#414141;background:#161616;color:#efefef; }
+.technical-tabs button[aria-selected="true"]::after { content:"";position:absolute;right:0;bottom:-1px;left:0;height:2px;background:#161616; }
+.technical-tabs button:hover:not(:disabled) { background:#202020;border-color:#414141;color:#e3e3e3; }
+.technical-pane { min-width:0;padding:20px 0; }
+.technical-pane[hidden] { display:none; }
+.technical-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start; }
+.technical-card { min-width:0;padding:20px;border:1px solid var(--technical-border);border-radius:5px;background:#0b0b0b; }
+.technical-management :is(h3,h4) { margin:0;color:#e3e3e3;font-size:1.17em;font-weight:400; }
+.technical-toolbar { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:17px; }
+.technical-toolbar p { margin:6px 0 0;color:var(--technical-muted);font-size:.92em;line-height:1.6; }
+.technical-actions { display:flex;align-items:center;flex-wrap:wrap;gap:7px; }
+.technical-management button:not([role="tab"]),.technical-dialog button { min-height:32px;padding:8px 12px;border:1px solid #424242;border-radius:4px;background:#171717;color:#d5d5d5;font:inherit;font-size:.92em;cursor:pointer; }
+.technical-management button:not([role="tab"]):hover,.technical-dialog button:hover { background:#222;border-color:#636363; }
+.technical-management button[type="submit"],.technical-dialog button[type="submit"],.technical-primary { border-color:#84703f!important;background:#292216!important;color:#e7cc8c!important; }
+.technical-management button:disabled,.technical-dialog button:disabled { opacity:.45;cursor:default; }
+.technical-management :focus-visible,.technical-dialog :focus-visible { outline:2px solid #b8b8b8!important;outline-offset:3px; }
+.technical-list { display:grid;gap:10px; }
+.technical-row { display:flex;justify-content:space-between;align-items:center;gap:18px;min-width:0;padding:15px;border:1px solid #303030;border-left:2px solid #727272;border-radius:4px;background:#101010; }
+.technical-row-main { min-width:0;flex:1; }
+.technical-row-main :is(strong,h4) { color:#e1e1e1;font-size:1.08em;font-weight:400;overflow-wrap:anywhere; }
+.technical-row-main p { margin:6px 0 0;line-height:1.6;overflow-wrap:anywhere; }
+.technical-meta { display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;color:#969696;font-size:.83em;line-height:1.6;overflow-wrap:anywhere; }
+.technical-badge { display:inline-block;padding:3px 6px;border:1px solid #444;border-radius:3px;color:#a8a8a8;font-size:.75em;line-height:1.3;white-space:nowrap; }
+.technical-empty { margin:0;padding:35px 20px;border:1px dashed #363636;border-radius:4px;color:#828282;text-align:center;font-size:1em;line-height:1.8; }
+.technical-form { min-width:0; }
+.technical-form label,.technical-dialog label { display:block;margin:14px 0 6px;color:#a7a7a7;font-size:.92em;line-height:1.5; }
+.technical-form :is(input,select,textarea),.technical-dialog :is(input,select,textarea) { box-sizing:border-box;width:100%;min-width:0;padding:9px 10px;border:1px solid #3a3a3a;border-radius:4px;background:#080808;color:#d6d6d6;font:inherit;font-size:1em;color-scheme:dark; }
+.technical-form input::placeholder,.technical-dialog input::placeholder { color:#636363; }
+.technical-form input[type="checkbox"],.technical-dialog input[type="checkbox"] { width:14px;height:14px;flex:0 0 auto;accent-color:#bfa66e; }
+.technical-form fieldset,.technical-dialog fieldset { min-width:0;margin:20px 0;padding:13px 15px 17px;border:1px solid #333;border-radius:4px; }
+.technical-form legend,.technical-dialog legend { padding:0 6px;color:#c7c7c7;font-size:.92em; }
+.technical-fields { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px; }
+.technical-fields > * { min-width:0; }
+.technical-checks { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px; }
+.technical-checks label { display:flex;align-items:center;gap:8px;margin:0; }
+.technical-form > .technical-actions { margin-top:18px; }
+.technical-status { margin:14px 0 0;color:#979797;font-size:.92em;line-height:1.7;overflow-wrap:anywhere; }
+.technical-status.has-warning { color:#d1b374; }
+.technical-preview { min-width:0;padding:20px;border:1px solid #383838;border-radius:5px;background:#101010; }
+.technical-facts { margin:15px 0 20px; }
+.technical-facts > div { display:flex;justify-content:space-between;align-items:start;gap:16px;padding:11px 0;border-bottom:1px solid #292929;font-size:.92em;line-height:1.7; }
+.technical-facts dt { flex:0 0 auto;color:#858585; }
+.technical-facts dd { min-width:0;margin:0;color:#cdcdcd;text-align:right;overflow-wrap:anywhere; }
+.technical-management a { color:#e2c788;overflow-wrap:anywhere; }
+.technical-management a[aria-disabled="true"] { color:#777;pointer-events:none; }
+.technical-audit { margin-top:20px; }
+.technical-audit ol { display:grid;gap:8px;max-height:230px;margin:14px 0 0;padding:0;list-style:none;overflow-y:auto;scrollbar-width:thin; }
+.technical-audit li { padding:10px 0;border-bottom:1px solid #292929;color:#ababab;font-size:.92em;line-height:1.6;overflow-wrap:anywhere; }
+.technical-audit :is(time,small) { display:block;margin-top:4px;color:#747474;font-size:.83em; }
+.technical-dialog { width:min(640px,calc(100vw - 28px));max-height:calc(100dvh - 28px);box-sizing:border-box;margin:auto;padding:24px;border:1px solid #4a4a4a;border-radius:7px;background:#101010;color:#cecece;font:inherit;overflow:auto;box-shadow:0 12px 60px #000b; }
+.technical-dialog::backdrop { background:#000c; }
+.technical-dialog-heading { display:flex;justify-content:space-between;align-items:center;gap:16px; }
+.technical-dialog-heading h2 { margin:0;color:#e5e5e5;font-size:1.5em;font-weight:400; }
+.technical-dialog-heading button { width:32px;padding:0;font-size:21px; }
+.technical-dialog-actions { display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-top:24px; }
+.technical-dialog [hidden],.technical-management [hidden] { display:none; }
+.technical-management .task-card { background:#0b0b0b;border-color:#303030;color:#d3d3d3; }
+.technical-management .task-card :is(h3,label) { color:#bababa; }
+.technical-management .task-card-heading { border-color:#303030; }
+.technical-management .task-card :is(input,select) { background:#080808;border-color:#3a3a3a;color:#d6d6d6; }
+.technical-management .task-card :is(.task-help,.task-feedback,.task-small-badge) { color:#919191; }
+.technical-management .task-small-badge { border-color:#363636;background:#171717; }
+@media(max-width:1000px) { .technical-grid { grid-template-columns:minmax(0,1fr); }.technical-tabs button { min-width:130px; } }
+@media(max-width:600px) { .technical-summary { grid-template-columns:repeat(2,minmax(0,1fr));gap:6px; }.technical-summary > * { padding:12px 9px; }.technical-summary :is(strong,output,dd) { font-size:1.25em; }.technical-card,.technical-preview { padding:15px; }.technical-row { align-items:flex-start;flex-direction:column;gap:12px; }.technical-fields,.technical-checks { grid-template-columns:minmax(0,1fr); }.technical-dialog { padding:18px; }.technical-facts > div { flex-direction:column;gap:3px; }.technical-facts dd { text-align:left; }.technical-tabs button { min-width:118px;padding:12px; } }

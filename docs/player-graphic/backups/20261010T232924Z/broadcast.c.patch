@@ -1,0 +1,32 @@
+--- broadcast.c.before
++++ broadcast.c.after
+@@ -3655,7 +3655,8 @@
+     }
+     gtk_label_set_text(GTK_LABEL(player->metadata), information->str);
+     gtk_widget_set_tooltip_text(player->metadata, information->len ? information->str : NULL);
+-    gtk_widget_set_visible(player->metadata, information->len > 0); g_string_free(information, TRUE);
++    /* Reserve the metadata line while empty so loading cannot resize the square card. */
++    gtk_widget_set_visible(player->metadata, TRUE); g_string_free(information, TRUE);
+     gchar *following = g_strdup_printf("Sıradaki  %s%s%s", *next_artist && *next_title ? next_artist : "",
+         *next_artist && *next_title ? " — " : "", *next_title ? next_title : "—");
+     gtk_label_set_text(GTK_LABEL(player->next_label), following);
+@@ -4220,15 +4221,18 @@
+     GtkWidget *media_title = radios_ui_label("—", "lp-current-title"); audio->title = media_title;
+     gchar *metadata_name = g_strdup_printf("deck-%u-title", deck); gtk_widget_set_name(media_title, metadata_name); g_free(metadata_name);
+     gtk_label_set_line_wrap(GTK_LABEL(media_title), FALSE); gtk_label_set_ellipsize(GTK_LABEL(media_title), PANGO_ELLIPSIZE_END);
++    gtk_label_set_single_line_mode(GTK_LABEL(media_title), TRUE); gtk_label_set_max_width_chars(GTK_LABEL(media_title), 32);
+     g_object_set_data(G_OBJECT(card), "radios-deck-title-widget", media_title);
+     pack(current, media_title, FALSE);
+     audio->metadata = radios_ui_label("", "lp-current-meta");
+     metadata_name = g_strdup_printf("deck-%u-metadata", deck); gtk_widget_set_name(audio->metadata, metadata_name); g_free(metadata_name);
+     gtk_label_set_line_wrap(GTK_LABEL(audio->metadata), FALSE); gtk_label_set_ellipsize(GTK_LABEL(audio->metadata), PANGO_ELLIPSIZE_END);
+-    gtk_widget_set_no_show_all(audio->metadata, TRUE); pack(current, audio->metadata, FALSE);
++    gtk_label_set_single_line_mode(GTK_LABEL(audio->metadata), TRUE); gtk_label_set_max_width_chars(GTK_LABEL(audio->metadata), 32);
++    pack(current, audio->metadata, FALSE);
+     audio->next_label = radios_ui_label("Sıradaki  —", "lp-next");
+     metadata_name = g_strdup_printf("deck-%u-next-title", deck); gtk_widget_set_name(audio->next_label, metadata_name); g_free(metadata_name);
+     gtk_label_set_line_wrap(GTK_LABEL(audio->next_label), FALSE); gtk_label_set_ellipsize(GTK_LABEL(audio->next_label), PANGO_ELLIPSIZE_END);
++    gtk_label_set_single_line_mode(GTK_LABEL(audio->next_label), TRUE); gtk_label_set_max_width_chars(GTK_LABEL(audio->next_label), 32);
+     pack(current, audio->next_label, FALSE);
+     pack(card, current, FALSE);
+     GtkWidget *source = named_box(GTK_ORIENTATION_HORIZONTAL, 5, "lp-source-row");

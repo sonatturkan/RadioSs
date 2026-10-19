@@ -1,0 +1,182 @@
+/* Compact matte controls directly beneath the output meter. */
+.header-meter {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    align-self: start;
+    width: 280px;
+    max-width: 100%;
+    gap: 5px;
+}
+
+.header-meter .level-meter,
+.header-meter .meter-caption,
+.header-meter .mixer-strip {
+    align-self: flex-end;
+    width: 100%;
+    max-width: 260px;
+    margin-left: 0;
+}
+
+.header-meter .level-meter { gap: 8px; padding: 6px 2px; }
+
+.header-meter .mixer-strip {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.master-section {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+}
+
+.eq-section { min-width: 0; }
+.eq-caption { display: none; }
+
+.eq-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-items: center;
+    gap: 8px;
+}
+
+.knob-control {
+    --dial-size: 44px;
+    --knob-angle: 0deg;
+    --knob-color: #67b8d7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: var(--dial-size);
+}
+
+.eq-controls .knob-control:nth-child(2) { --knob-color: #ad9acb; }
+.eq-controls .knob-control:nth-child(3) { --knob-color: #79bfa9; }
+
+.knob-label {
+    margin-bottom: 4px;
+    color: #a4afbc;
+    font-size: 9px;
+    font-weight: 450;
+    letter-spacing: 1px;
+    line-height: 1.4;
+}
+
+.knob-shell {
+    position: relative;
+    width: var(--dial-size);
+    height: var(--dial-size);
+    flex-shrink: 0;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.knob-ticks { position: absolute; inset: 0; pointer-events: none; }
+.knob-ticks i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 1px;
+    height: 3px;
+    border-radius: 1px;
+    background: #4c5865;
+    transform: translate(-50%, -50%) rotate(var(--tick-angle))
+               translateY(calc(var(--dial-size) / -2 + 2px));
+}
+
+.knob-ticks i:not(:nth-child(1)):not(:nth-child(3)):not(:nth-child(6)):not(:nth-child(9)):not(:nth-child(11)) { display: none; }
+
+.knob-ticks i:nth-child(6) {
+    width: 1px;
+    height: 4px;
+    border-radius: 1px;
+    background: var(--knob-color);
+}
+
+.knob-ring {
+    position: absolute;
+    inset: 4px;
+    border: 1px solid #343c45;
+    border-radius: 50%;
+    background: transparent;
+    pointer-events: none;
+}
+
+.knob-rotor {
+    position: absolute;
+    inset: 8px;
+    border: 1px solid #4a535e;
+    border-radius: 50%;
+    background: #292f35;
+    transform: rotate(var(--knob-angle));
+    pointer-events: none;
+}
+
+.knob-rotor::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: calc(50% - .75px);
+    width: 1.5px;
+    height: 7px;
+    border-radius: 1px;
+    background: #d3dce4;
+}
+
+.knob-control.is-dragging .knob-shell { cursor: grabbing; }
+.knob-shell:focus-within { outline: 1px solid var(--knob-color); outline-offset: 2px; }
+
+.knob-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.knob-scale {
+    display: none;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 0;
+    color: #69788a;
+    font-size: 7px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+}
+
+.knob-value {
+    min-width: 0;
+    width: 100%;
+    margin-top: 3px;
+    color: #9cabbc;
+    font-size: 9px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.knob-control--master { --dial-size: 44px; --knob-color: #bec6cf; }
+.knob-control--master .knob-label { color: #b2b9c2; font-size: 9px; letter-spacing: .6px; }
+.knob-control--master .knob-ring { inset: 2px; border-color: #4b535d; }
+.knob-control--master .knob-rotor {
+    inset: 5px;
+    border-color: #646d78;
+    background: #41474f;
+}
+.knob-control--master .knob-rotor::before { top: 3px; height: 8px; background: #e0e4e9; }

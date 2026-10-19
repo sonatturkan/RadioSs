@@ -1,0 +1,99 @@
+{
+  "timestamp_utc": "2026-10-09T02:09:15.182170+00:00",
+  "scope": "prompt/14/14.pdf, page 1, figure 1; provider login popup",
+  "requirements_status": "R14-01 through R14-07 passed",
+  "implementation_files_sha256": {
+    "src/ui/online_services.c": "771ed4e6d5686f79279d076d9d524892ff054d8ab9c40f6de629f31c800c113b",
+    "include/radios/online_services_ui.h": "ba3a535673f1de163ee1f6dc6133d4a794c87ea85e3e1bd9abc974cb3b5c1159",
+    "tests/test_online_services_ui.c": "60f25fc47ce47a19961738c2ed46be9ad564f86d895e529c91742db6e2252726"
+  },
+  "current_source_build": {
+    "started_utc": "2026-10-09T02:07:23.060117+00:00",
+    "finished_utc": "2026-10-09T02:07:29.585183+00:00",
+    "command": [
+      "cmake",
+      "--build",
+      "build-prompt-14",
+      "--target",
+      "radios",
+      "test_online_services_ui",
+      "test_youtube_music_ui",
+      "--parallel",
+      "2"
+    ],
+    "exit_code": 0
+  },
+  "native_acceptance": {
+    "started_utc": "2026-10-09T02:07:29.585489+00:00",
+    "finished_utc": "2026-10-09T02:07:37.128916+00:00",
+    "command": [
+      "ctest",
+      "--test-dir",
+      "build-prompt-14",
+      "--output-on-failure",
+      "--output-junit",
+      "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build-prompt-14/evidence/final-current-native.xml",
+      "-R",
+      "^native_(online_services|youtube_music)$",
+      "--parallel",
+      "1"
+    ],
+    "exit_code": 0
+  },
+  "suites": [
+    {
+      "suite": "native_youtube_music",
+      "passed": 5,
+      "checks": [
+        "/native-youtube/browser-account-inline-library-native-play",
+        "/native-youtube/database-import-cas-rename-order-remove-reopen",
+        "/native-youtube/auth-error-masked-headers-cancel-viewer",
+        "/native-youtube/same-user-reconnect-owner-close",
+        "/native-youtube/spotify-list-matches-and-plays"
+      ]
+    },
+    {
+      "suite": "native_online_services",
+      "passed": 7,
+      "checks": [
+        "/native-online/persistence-cas-reference-validation",
+        "/native-online/fresh-permission-cancel-owner-close",
+        "/native-online/basic-login-without-database-or-developer-keys",
+        "/native-online/login-dialog-singleton-reopen",
+        "/native-online/broadcast-connect-button-opens-login-only-popup",
+        "/native-online/workspace-three-provider-lists-reopen",
+        "/native-online/workspace-youtube-reference-validation"
+      ]
+    }
+  ],
+  "passed_glib_checks": 12,
+  "visual_captures": [
+    "reference/login/capture-spotify.png",
+    "reference/login/capture-apple_music.png",
+    "reference/login/capture-youtube.png"
+  ],
+  "evidence_files": [
+    "final-current-build.log",
+    "final-current-build-result.json",
+    "final-current-native.log",
+    "final-current-native-result.json",
+    "final-current-native.xml"
+  ],
+  "historical_failures_preserved": "build-prompt-14/evidence/before-shell-fix-* and other earlier build results; see coordination journal",
+  "limits": [
+    "Provider URI dispatch uses a linker wrapper; actual external account authorization is not claimed.",
+    "Captures show GTK structure without the application CSS provider.",
+    "Only the two relevant native suites ran; the entire project test suite is not claimed."
+  ],
+  "agents": {
+    "concurrent_limit": 4,
+    "used": 4,
+    "roles": [
+      "root implementation/integration",
+      "coordination14 continuity/logging",
+      "pdf14 source/visual review",
+      "release_audit14 tests/audit"
+    ]
+  },
+  "pending_prompt14_requirements": []
+}

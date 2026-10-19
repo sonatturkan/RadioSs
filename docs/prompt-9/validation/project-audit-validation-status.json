@@ -1,0 +1,208 @@
+{
+  "updated_utc": "2026-10-09T02:26:34.028438+00:00",
+  "responsible_agent": "scope9/project_audit",
+  "write_ownership": "released to PDF10; current work read/build only",
+  "source_mutations": [
+    "tests/test_broadcast_catalogue_ui.c",
+    "tests/test_broadcast_online_ui.c",
+    "tests/run_broadcast_catalogue_ui.py"
+  ],
+  "first_acceptance": {
+    "status": "passed",
+    "ctest_targets": 2,
+    "native_cases": 19,
+    "seconds": 24.99,
+    "evidence": [
+      "catalogue-online.xml",
+      "catalogue-online.log"
+    ],
+    "source_manifest": "pre-test-hashes.json"
+  },
+  "current_integrated_build": {
+    "status": "passed",
+    "evidence": "current-integration-strict-build.log",
+    "source_manifest": "queue-switch-pre-test-hashes.json"
+  },
+  "current_broader_tests": {
+    "status": "historical 4 passed, 4 failed; catalogue/online subsequently passed as full groups; data/playout failing cases subsequently passed in focused owner runs only",
+    "seconds": 71.95,
+    "passed": [
+      "programme_model",
+      "native_programme",
+      "native_controls",
+      "native_window"
+    ],
+    "failed": [
+      "native_broadcast_catalogue",
+      "native_broadcast_online",
+      "native_data",
+      "native_playout"
+    ],
+    "evidence": [
+      "queue-switch-broader.xml",
+      "queue-switch-broader.log"
+    ]
+  },
+  "direct_current_scope9_tests": {
+    "status": "3 native cases passed; no skips",
+    "cases": {
+      "multiple-media-ordered-insert-drag-one-CAS": {
+        "native_seconds": 0.56,
+        "evidence": "multiple-media-ordered-insert-drag-one-CAS-x11.log"
+      },
+      "multiple-media-stale-selection-failed-member-no-partial": {
+        "native_seconds": 1.23,
+        "includes": "queue-switch busy recovery and old epoch rejection followed by new atomic insert",
+        "evidence": "multiple-media-stale-selection-failed-member-no-partial.log"
+      },
+      "all-six-category-tabs-reset-playlist-scope": {
+        "native_seconds": 1.02,
+        "evidence": "all-six-category-tabs-reset-playlist-scope.log"
+      }
+    }
+  },
+  "remaining": [
+    "Full latest shared-tree/all-tests integration remains outside scope9 acceptance; no new whole native_data/native_playout group result claimed here.",
+    "Shared broadcast.c/broadcast_online.c/editors.c runtime deltas and a later foreign online-test flow hunk are outside the immutable compiled proof. Scope9 requirement contract read-only root review remained intact."
+  ],
+  "visual_provenance": {
+    "first_phase": "Root and project_audit viewed original screenshot in conversation; original disk screenshot was not separately copied before current capture.",
+    "current_phase": "visual/scope9-online-multiple-current-broader.png",
+    "final_phase": "resumed-20261009T022323Z/visual/scope9-online-multiple.png"
+  },
+  "scope9_requirements_status": "All four PDF9 requirements and required queue-switch recovery regression validated in current native fixtures.",
+  "current_closure": {
+    "overall_status": "passed in recorded immutable compiled snapshot; subsequent shared source deltas not retested",
+    "ctest_targets": 2,
+    "passed_ctest_targets": 2,
+    "total_native_cases": 21,
+    "passed_native_cases": 21,
+    "failed_native_cases": 0,
+    "skipped": 0,
+    "seconds": 28.19,
+    "catalogue": {
+      "passed_native_cases": 10,
+      "seconds": 28.1843
+    },
+    "online": {
+      "passed_native_cases": 11,
+      "seconds": 19.1038
+    },
+    "native_case_names": {
+      "broadcast-online": [
+        "/broadcast-online/youtube-source-lists-plays-account-saved-search",
+        "/broadcast-online/viewer-cannot-play",
+        "/broadcast-online/youtube-items-become-flow-events",
+        "/broadcast-online/flow-plays-youtube-events",
+        "/broadcast-online/card-loads-and-plays-provider-list",
+        "/broadcast-online/spotify-list-plays-through-youtube-matches",
+        "/broadcast-online/apple-list-prepares-before-play",
+        "/broadcast-online/multiple-sources-music-playlist-scope",
+        "/broadcast-online/source-menu-search-hints-scope",
+        "/broadcast-online/multiple-selected-rows-insert-play-visible-order",
+        "/broadcast-online/selected-account-multiple-provider-playlists"
+      ],
+      "native-broadcast-catalogue": [
+        "/native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded",
+        "/native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close",
+        "/native-broadcast-catalogue/playlist-tab-programme-toolbar",
+        "/native-broadcast-catalogue/playlist-drop-after-event-opened-event-track-programme-reopen",
+        "/native-broadcast-catalogue/playlist-drop-delayed-target-owner-close",
+        "/native-broadcast-catalogue/player-queues-database-switch-stale-drop-reopen",
+        "/native-broadcast-catalogue/multiple-media-ordered-insert-drag-one-CAS",
+        "/native-broadcast-catalogue/multiple-media-stale-selection-failed-member-no-partial",
+        "/native-broadcast-catalogue/all-six-category-tabs-reset-playlist-scope",
+        "/native-broadcast-catalogue/selected-media-playlist-cancel-order-bindings-reopen"
+      ]
+    },
+    "evidence": [
+      "resumed-20261009T022323Z/tests.log",
+      "resumed-20261009T022323Z/tests.xml"
+    ],
+    "provenance": "resumed-20261009T022323Z/pre-test.json",
+    "status": "resumed-20261009T022323Z/status.json",
+    "visual": "resumed-20261009T022323Z/visual/scope9-online-multiple.png",
+    "compile_source_drift": [],
+    "runtime_source_drift": [
+      "src/ui/broadcast.c",
+      "src/ui/broadcast_online.c",
+      "src/ui/editors.c"
+    ],
+    "runtime_binary_drift": []
+  },
+  "parent_fresh_online_single_case": {
+    "responsible_agent": "scope9/root",
+    "utc": "2026-10-09 02:14:06 UTC",
+    "status": "pass",
+    "native_seconds": 0.5,
+    "proof": "exit 0; TAP ok 1 and 1..1",
+    "note": "parent owns its independent private-runner artifact"
+  },
+  "requirements": {
+    "R01": "Upper programme-properties/Edit absent: current catalogue toolbar native acceptance passed.",
+    "R02": "Upper programme-save/Download absent: same native toolbar acceptance passed.",
+    "R03": "GTK MULTIPLE, noncontiguous and range selection, ordered two-media insert/drag with one CAS, all-or-none SHA failure, stale selection and queue-epoch rejection, future action recovery, selected-only online play/next/insert passed.",
+    "R04": "All six categories change native visible/filter content; Playlist scope resets on category changes and already-active music tab click; saved Playlist display and returning music content passed."
+  },
+  "source_write_state": "All source/test writes released to PDF10; no source mutation or active source-write lock. build-prompt9 and own validation artifacts only.",
+  "previous_closure": {
+    "ctest_targets": 2,
+    "overall_status": "1 target passed; 1 target failed only in new PDF10 case after ten successful cases",
+    "seconds": 24.18,
+    "catalogue": {
+      "passed_native_cases": 10,
+      "failed_native_cases": 0,
+      "seconds": 24.18
+    },
+    "online": {
+      "passed_native_cases": 10,
+      "failed_native_cases": 1,
+      "seconds": 12.85,
+      "scope9_selected_only_case": "passed (TAP ok 10; native 1.09 sec)",
+      "external_failed_case": "/broadcast-online/selected-account-multiple-provider-playlists",
+      "external_failure": "PDF10 create_online_selection expects two selected rows after calling a helper that clears the previous selection; actual one row selected."
+    },
+    "skipped": 0,
+    "evidence": [
+      "current-closure.log",
+      "current-closure.xml"
+    ],
+    "provenance": "current-closure-pre-test-hashes.json",
+    "current_visual": "visual-current-retest/scope9-online-multiple.png",
+    "total_passed_native_cases": 20,
+    "total_failed_native_cases": 1
+  },
+  "count_correction": {
+    "utc": "2026-10-09T02:26:34.028438+00:00",
+    "reason": "Actual verbose TAP lists ten catalogue cases and eleven online cases. Earlier catalogue=11 / total=22 reporting was incorrect. Historical closure corrected to 20 pass plus one foreign failure; final actual 21 pass."
+  },
+  "closed_previous_external_failures": {
+    "data": {
+      "case": "/native-data/all-profiles-persistence",
+      "owner": "PDF10/validation",
+      "reported_complete_utc": "2026-10-09 02:20:11 UTC",
+      "exit_code": 0,
+      "native_seconds": 8.78,
+      "wrapper_seconds": 9.951,
+      "evidence": "../prompt/agent/validation10/runtime-data-profiles.log",
+      "manifest": "../prompt/agent/validation10/runtime-data-profiles.json"
+    },
+    "playout": {
+      "case": "/native-playout/verified-queue-auto-next-crossfade-PCM",
+      "owner": "prompt3/root",
+      "result_utc": "2026-10-09T02:23:21.880068+00:00",
+      "exit_code": 0,
+      "native_seconds": 15.28,
+      "evidence": "build-prompt3/artifacts/root/final/pcm.log",
+      "manifest": "build-prompt3/artifacts/root/final/manifest.json",
+      "result": "build-prompt3/artifacts/root/final/pcm-result.json"
+    }
+  },
+  "previous_closure_test_file_sha256": {
+    "tests/test_broadcast_catalogue_ui.c": "89d7669f022c149fb4e2775a4e10d7be859048120ff725b10c62673630258f58",
+    "tests/test_broadcast_online_ui.c": "c7c3fb4f4e4907e76beffd203eb2acd2511b4e1f9d531a3acbc257bf2c494251",
+    "tests/run_broadcast_catalogue_ui.py": "4908ec497018e5bb5fe7f902e2f81a3e9b9d6e1e2d1a010a8a6389920c14fbc6"
+  },
+  "final_fingerprints": "final-fingerprints.json",
+  "summary": "summary.md"
+}

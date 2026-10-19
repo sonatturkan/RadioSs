@@ -1,0 +1,7 @@
+TAP version 14
+# random seed: R02S7c9190e353098f28c6b452156e09b89d
+# Start of player-loader tests
+not ok /player-loader/provider-refresh-keeps-selection - ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:178:test_provider_refresh_keeps_selection: 'gtk_tree_selection_get_selected(selection(h, "player-loader-providers"), NULL, NULL)' should be TRUE
+Bail out!
+**
+ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:178:test_provider_refresh_keeps_selection: 'gtk_tree_selection_get_selected(selection(h, "player-loader-providers"), NULL, NULL)' should be TRUE

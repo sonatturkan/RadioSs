@@ -1,0 +1,11 @@
+{
+  "pid": 94058,
+  "state": "running",
+  "sequence": 160,
+  "already_running": false,
+  "utc": "2026-10-11T12:29:13.611475+00:00",
+  "agent": "/root",
+  "previous_pid": 92778,
+  "schema_sha256": "3bf9b06219bc51b8289027381b303f2b34da5a065738a9a353f8b0506124b6d1",
+  "owned_service_refresh": true
+}

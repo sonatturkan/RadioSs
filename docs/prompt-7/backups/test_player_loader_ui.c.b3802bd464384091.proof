@@ -1,0 +1,217 @@
+#include "radios/player_loader.h"
+#include "radios/playout_ui.h"
+#include "radios/data.h"
+#include <string.h>
+
+/* Control only the asynchronous list boundaries. The real dialog, GTK
+ * selection signals, item conversion and response handling run unchanged. */
+typedef struct {
+    RadioSViewContext *ctx;
+    GWeakRef owner;
+    RadioSDataCallback callback;
+    gpointer data;
+    GDestroyNotify destroy;
+    gchar *kind;
+} DataReply;
+typedef struct {
+    RadioSOnlineReply callback;
+    gpointer data;
+    GDestroyNotify destroy;
+} OnlineReply;
+typedef struct {
+    RadioSViewContext ctx;
+    GtkWidget *window, *owner, *dialog;
+    guint calls, count;
+    gboolean append;
+    gchar *name, *title;
+} Harness;
+
+static GPtrArray *data_replies;
+static OnlineReply list_reply, track_reply;
+static guint track_requests;
+
+gboolean __wrap_radios_data_connected(RadioSViewContext *ctx);
+gboolean __wrap_radios_data_request(RadioSViewContext *ctx, GtkWidget *owner,
+    const gchar *method, const gchar *path, JsonNode *body,
+    RadioSDataCallback callback, gpointer data, GDestroyNotify destroy);
+void __wrap_radios_broadcast_online_provider_lists(RadioSBroadcastOnline *online,
+    RadioSOnlineReply callback, gpointer data, GDestroyNotify destroy);
+void __wrap_radios_broadcast_online_provider_tracks(RadioSBroadcastOnline *online, const gchar *id,
+    RadioSOnlineReply callback, gpointer data, GDestroyNotify destroy);
+
+gboolean __wrap_radios_data_connected(RadioSViewContext *ctx)
+{ (void)ctx; return TRUE; }
+gboolean __wrap_radios_data_request(RadioSViewContext *ctx, GtkWidget *owner,
+    const gchar *method, const gchar *path, JsonNode *body,
+    RadioSDataCallback callback, gpointer data, GDestroyNotify destroy)
+{
+    g_assert_cmpstr(method, ==, "POST");
+    DataReply *reply = g_new0(DataReply, 1); reply->ctx = ctx;
+    g_weak_ref_init(&reply->owner, owner); reply->callback = callback; reply->data = data; reply->destroy = destroy;
+    reply->kind = g_strdup(g_str_has_suffix(path, "desktop-playlists/list") ? "library" :
+        radios_json_string(json_node_get_object(body), "kind", ""));
+    g_ptr_array_add(data_replies, reply); return TRUE;
+}
+static void online_clear(OnlineReply *reply)
+{
+    if (reply->destroy) reply->destroy(reply->data);
+    memset(reply, 0, sizeof *reply);
+}
+void __wrap_radios_broadcast_online_provider_lists(RadioSBroadcastOnline *online,
+    RadioSOnlineReply callback, gpointer data, GDestroyNotify destroy)
+{
+    (void)online; g_assert_null(list_reply.callback);
+    list_reply = (OnlineReply){callback, data, destroy};
+}
+void __wrap_radios_broadcast_online_provider_tracks(RadioSBroadcastOnline *online, const gchar *id,
+    RadioSOnlineReply callback, gpointer data, GDestroyNotify destroy)
+{
+    (void)online; g_assert_cmpstr(id, ==, "account-list"); ++track_requests;
+    online_clear(&track_reply); track_reply = (OnlineReply){callback, data, destroy};
+}
+static GtkWidget *find(GtkWidget *root, const gchar *name)
+{
+    if (g_str_equal(gtk_widget_get_name(root), name)) return root;
+    if (!GTK_IS_CONTAINER(root)) return NULL;
+    GList *children = gtk_container_get_children(GTK_CONTAINER(root)); GtkWidget *result = NULL;
+    for (GList *item = children; item && !result; item = item->next) result = find(item->data, name);
+    g_list_free(children); return result;
+}
+static GtkWidget *loader_dialog(void)
+{
+    GList *windows = gtk_window_list_toplevels(); GtkWidget *result = NULL;
+    for (GList *item = windows; item && !result; item = item->next)
+        if (g_str_equal(gtk_widget_get_name(item->data), "player-loader-dialog")) result = item->data;
+    g_list_free(windows); return result;
+}
+static JsonNode *parse(const gchar *text)
+{
+    JsonParser *parser = json_parser_new(); g_assert_true(json_parser_load_from_data(parser, text, -1, NULL));
+    JsonNode *node = json_node_copy(json_parser_get_root(parser)); g_object_unref(parser); return node;
+}
+static void data_reply_free(gpointer data)
+{
+    DataReply *reply = data; if (reply->destroy) reply->destroy(reply->data);
+    g_weak_ref_clear(&reply->owner); g_free(reply->kind); g_free(reply);
+}
+static void data_complete(const gchar *kind, const gchar *text)
+{
+    for (guint i = 0; i < data_replies->len; ++i) {
+        DataReply *reply = g_ptr_array_index(data_replies, i); if (g_strcmp0(reply->kind, kind)) continue;
+        GtkWidget *owner = g_weak_ref_get(&reply->owner); JsonNode *node = parse(text);
+        if (owner && !gtk_widget_in_destruction(owner)) reply->callback(reply->ctx, owner, node, NULL, reply->data);
+        if (owner) g_object_unref(owner);
+        json_node_free(node); g_ptr_array_remove_index(data_replies, i); return;
+    }
+    g_error("Expected pending %s list request", kind);
+}
+static void online_complete(OnlineReply *reply, const gchar *text)
+{
+    g_assert_nonnull(reply->callback); JsonNode *node = parse(text);
+    reply->callback(json_node_get_object(node), NULL, reply->data);
+    json_node_free(node); online_clear(reply);
+}
+static void loaded(JsonArray *items, const gchar *name, gboolean append, gpointer data)
+{
+    Harness *h = data; ++h->calls; h->count = json_array_get_length(items); h->append = append;
+    g_free(h->name); h->name = g_strdup(name); g_free(h->title);
+    h->title = g_strdup(radios_json_string(json_array_get_object_element(items, 0), "title", ""));
+}
+static Harness *open_harness(void)
+{
+    g_assert_null(data_replies); data_replies = g_ptr_array_new_with_free_func(data_reply_free); track_requests = 0;
+    Harness *h = g_new0(Harness, 1); h->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    h->ctx.parent = GTK_WINDOW(h->window); h->owner = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    gtk_container_add(GTK_CONTAINER(h->window), h->owner); gtk_widget_show_all(h->window);
+    radios_player_loader_open(&h->ctx, h->owner, NULL, "Playlist yükle", loaded, h);
+    h->dialog = loader_dialog(); g_assert_nonnull(h->dialog); return h;
+}
+static void close_harness(Harness *h)
+{
+    gtk_widget_destroy(h->window); online_clear(&list_reply); online_clear(&track_reply);
+    g_clear_pointer(&data_replies, g_ptr_array_unref); g_free(h->name); g_free(h->title); g_free(h);
+    while (g_main_context_iteration(NULL, FALSE)) {}
+}
+static GtkTreeSelection *selection(Harness *h, const gchar *name)
+{
+    GtkWidget *table = find(h->dialog, name); g_assert_nonnull(table);
+    return gtk_tree_view_get_selection(g_object_get_data(G_OBJECT(table), "tree-view"));
+}
+static void select_row(Harness *h, const gchar *name, guint index)
+{
+    GtkTreePath *path = gtk_tree_path_new_from_indices((gint)index, -1);
+    gtk_tree_selection_select_path(selection(h, name), path); gtk_tree_path_free(path);
+}
+static void page(Harness *h, const gchar *name)
+{ gtk_stack_set_visible_child_name(GTK_STACK(find(h->dialog, "player-loader-stack")), name); }
+static gboolean can_load(Harness *h)
+{ return gtk_widget_is_sensitive(gtk_dialog_get_widget_for_response(GTK_DIALOG(h->dialog), GTK_RESPONSE_ACCEPT)); }
+static void library_complete(void)
+{
+    data_complete("library", "{\"playlists\":[{\"_id\":\"local-list\",\"name\":\"Local list\",\"tracks\":[{"
+        "\"metadata\":{\"title\":\"Local song\",\"duration_ms\":1000},\"media_id\":\"item\",\"version_id\":\"version\","
+        "\"media_file_id\":\"media\",\"media_sha256\":\"sha\"}]}]}");
+}
+static void saved_complete(void)
+{
+    data_complete("external_playlist", "{\"records\":[{\"_id\":\"saved-list\",\"name\":\"Saved list\",\"config\":{"
+        "\"provider\":\"youtube\",\"items\":[{\"title\":\"Saved song\",\"provider_id\":\"abcdefghijk\"}]}}]}");
+}
+static void account_complete(void)
+{ online_complete(&list_reply, "{\"playlists\":[{\"id\":\"account-list\",\"name\":\"Account list\",\"count\":1}]}"); }
+static void tracks_complete(void)
+{ online_complete(&track_reply, "{\"items\":[{\"title\":\"Account song\",\"provider_id\":\"12345678901\"}]}"); }
+
+static void test_tab_restore(void)
+{
+    Harness *h = open_harness(); library_complete(); select_row(h, "player-loader-library", 0); g_assert_true(can_load(h));
+    page(h, "providers"); g_assert_false(can_load(h)); page(h, "library");
+    g_assert_true(gtk_tree_selection_get_selected(selection(h, "player-loader-library"), NULL, NULL));
+    g_assert_true(can_load(h)); gtk_dialog_response(GTK_DIALOG(h->dialog), 1);
+    g_assert_cmpuint(h->calls, ==, 1); g_assert_cmpuint(h->count, ==, 1); g_assert_true(h->append);
+    g_assert_cmpstr(h->name, ==, "Local list"); g_assert_cmpstr(h->title, ==, "Local song"); close_harness(h);
+}
+static void test_provider_refresh_keeps_selection(void)
+{
+    Harness *h = open_harness(); library_complete(); page(h, "providers"); saved_complete();
+    select_row(h, "player-loader-providers", 0); g_assert_true(can_load(h)); account_complete();
+    g_assert_true(gtk_tree_selection_get_selected(selection(h, "player-loader-providers"), NULL, NULL));
+    g_assert_true(can_load(h)); gtk_dialog_response(GTK_DIALOG(h->dialog), GTK_RESPONSE_ACCEPT);
+    g_assert_cmpuint(h->calls, ==, 1); g_assert_cmpstr(h->title, ==, "Saved song"); close_harness(h);
+}
+static void test_hidden_selection_does_not_restart_request(void)
+{
+    Harness *h = open_harness(); library_complete(); select_row(h, "player-loader-library", 0);
+    page(h, "providers"); saved_complete(); account_complete(); select_row(h, "player-loader-providers", 1);
+    g_assert_cmpuint(track_requests, ==, 1); g_assert_false(can_load(h));
+    gtk_tree_selection_unselect_all(selection(h, "player-loader-library"));
+    g_assert_cmpuint(track_requests, ==, 1); tracks_complete(); g_assert_true(can_load(h));
+    gtk_dialog_response(GTK_DIALOG(h->dialog), GTK_RESPONSE_ACCEPT);
+    g_assert_cmpuint(h->calls, ==, 1); g_assert_cmpstr(h->title, ==, "Account song"); close_harness(h);
+}
+static void test_late_tracks_leave_current_tab_unchanged(void)
+{
+    Harness *h = open_harness(); library_complete(); select_row(h, "player-loader-library", 0);
+    page(h, "providers"); saved_complete(); account_complete(); select_row(h, "player-loader-providers", 1);
+    page(h, "library"); tracks_complete(); g_assert_true(can_load(h));
+    gtk_dialog_response(GTK_DIALOG(h->dialog), GTK_RESPONSE_ACCEPT);
+    g_assert_cmpuint(h->calls, ==, 1); g_assert_cmpstr(h->title, ==, "Local song"); close_harness(h);
+}
+static void test_destroyed_owner_discards_replies(void)
+{
+    Harness *h = open_harness(); page(h, "providers"); gtk_widget_destroy(h->owner);
+    g_assert_null(loader_dialog()); account_complete(); saved_complete(); library_complete();
+    g_assert_cmpuint(h->calls, ==, 0); close_harness(h);
+}
+
+int main(int argc, char **argv)
+{
+    if (!gtk_init_check(&argc, &argv)) return 77;
+    g_test_init(&argc, &argv, NULL);
+    g_test_add_func("/player-loader/tab-restore", test_tab_restore);
+    g_test_add_func("/player-loader/provider-refresh-keeps-selection", test_provider_refresh_keeps_selection);
+    g_test_add_func("/player-loader/hidden-selection-isolation", test_hidden_selection_does_not_restart_request);
+    g_test_add_func("/player-loader/late-tracks-current-tab", test_late_tracks_leave_current_tab_unchanged);
+    g_test_add_func("/player-loader/destroyed-owner", test_destroyed_owner_discards_replies);
+    return g_test_run();
+}

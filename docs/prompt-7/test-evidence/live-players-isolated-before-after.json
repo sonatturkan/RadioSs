@@ -1,0 +1,257 @@
+{
+  "recorded_at_utc": "2026-10-09T01:58:25.786307+00:00",
+  "responsible_agent": "/root/media_audit",
+  "purpose": "Exact captured preimage versus isolated prompt-7 transport patch regression evidence",
+  "environment": {
+    "DISPLAY": ":0",
+    "G_DEBUG": "fatal-warnings"
+  },
+  "test_source": {
+    "path": "tests/test_live_players_ui.c",
+    "sha256": "ea02b4ef0dc8a5299416cb6d938e2957a711b2b65cbd08ae2f1b315ffd06f779"
+  },
+  "artifacts": {
+    "build/prompt-7-validation/isolated/broadcast-before.c": {
+      "sha256": "56f161956760dcf167869bd98ac6fd918f7f52ceda76366b6b27f25d8cdf29b9",
+      "size_bytes": 279794
+    },
+    "build/prompt-7-validation/isolated/broadcast-after.c": {
+      "sha256": "9fe476afe3def356a354a041c342bb2245d072a60a504f22dd9faa176226a8bc",
+      "size_bytes": 283259
+    },
+    "build/prompt-7-validation/isolated/broadcast-before.o": {
+      "sha256": "ded5e8d829fde936f2e5b8c5103010a2fdb526d2b62d67dfdca5af12a4594f53",
+      "size_bytes": 508832
+    },
+    "build/prompt-7-validation/isolated/broadcast-after.o": {
+      "sha256": "f23a110869bb1a9a1005c786ccd4189f8705f0612871024c3e4a7a7a04629405",
+      "size_bytes": 512688
+    },
+    "build/prompt-7-validation/isolated/before/test_live_players_ui": {
+      "sha256": "e4281c1d3969d13196e6d5265aa7ccadca787da83b0bb6fd4bede4b5f365abb8",
+      "size_bytes": 1436888
+    },
+    "build/prompt-7-validation/isolated/after/test_live_players_ui": {
+      "sha256": "9d6f8005124fa4806f862eac1290e4f5dece76db01cc3ab905f129c39edea22d",
+      "size_bytes": 1438056
+    }
+  },
+  "isolated_build_procedure": [
+    "Root strictly compiled captured broadcast-before.c and broadcast-after.c, where after contains only the prompt-7 scoped transport patch transplanted into the same captured preimage.",
+    "For each mode, a private copy of build/libradios_ui.a was made. The matching root object was copied into mode/broadcast.c.o and ar r replaced the broadcast.c.o archive member. The original shared archive was not modified.",
+    "Current test_live_players_ui.c was compiled with strict C11, -Wall -Wextra -Wpedantic -Werror, and linked to the private UI archive plus existing playout/audio/core archives.",
+    "Linker --wrap symbols: radios_media_library_get, radios_media_library_open_for_deck, radios_player_loader_open, radios_audio_ui_get_snapshot, radios_audio_ui_load_media, radios_audio_ui_play, radios_audio_ui_pause, radios_audio_ui_stop."
+  ],
+  "before": {
+    "cases": [
+      {
+        "case": "/live-players/replacement-late-reply",
+        "started_at_utc": "2026-10-09T01:58:19.821556+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/replacement-late-reply"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02S5d5268192a8b24f02036eceda38ae6e8\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/replacement-late-reply - ERROR:tests/test_live_players_ui.c:193:test_replacement_late_reply: assertion failed (loads == 1): (2 == 1)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:193:test_replacement_late_reply: assertion failed (loads == 1): (2 == 1)\n"
+      },
+      {
+        "case": "/live-players/stop-invalidates-lookup",
+        "started_at_utc": "2026-10-09T01:58:20.300562+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/stop-invalidates-lookup"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02Sfbbb610a4113c767a1b89060588beedb\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/stop-invalidates-lookup - ERROR:tests/test_live_players_ui.c:199:test_stop_invalidates_lookup: assertion failed (loads == 0): (1 == 0)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:199:test_stop_invalidates_lookup: assertion failed (loads == 0): (1 == 0)\n"
+      },
+      {
+        "case": "/live-players/stopped-next-loads-current",
+        "started_at_utc": "2026-10-09T01:58:20.753958+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/stopped-next-loads-current"
+        ],
+        "returncode": 0,
+        "passed": true,
+        "stdout": "TAP version 14\n# random seed: R02S9e0db8d6597c85927257a698878a8b7e\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nok 1 /live-players/stopped-next-loads-current\n# slow test /live-players/stopped-next-loads-current executed in 0.64 secs\n# End of live-players tests\n1..1\n",
+        "stderr": ""
+      },
+      {
+        "case": "/live-players/stopped-next-invalidates-old-lookup",
+        "started_at_utc": "2026-10-09T01:58:21.438165+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/stopped-next-invalidates-old-lookup"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02Sde2babca6f160b7543abecf1857795bc\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/stopped-next-invalidates-old-lookup - ERROR:tests/test_live_players_ui.c:216:test_stopped_next_invalidates_old_lookup: assertion failed (loads == 1): (2 == 1)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:216:test_stopped_next_invalidates_old_lookup: assertion failed (loads == 1): (2 == 1)\n"
+      },
+      {
+        "case": "/live-players/current-removal-loads-current",
+        "started_at_utc": "2026-10-09T01:58:22.146119+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/current-removal-loads-current"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02S0e36e5d617e15273f93541b9efb9c7a8\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/current-removal-loads-current - ERROR:tests/test_live_players_ui.c:238:test_removed_current_does_not_resume_old_media: assertion failed (lookups->len == 2): (1 == 2)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:238:test_removed_current_does_not_resume_old_media: assertion failed (lookups->len == 2): (1 == 2)\n"
+      },
+      {
+        "case": "/live-players/pending-lookup-keeps-current-on-old-EOF",
+        "started_at_utc": "2026-10-09T01:58:22.816850+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/pending-lookup-keeps-current-on-old-EOF"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02S90e89574bc5140d2478b59dc81ab1b32\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/pending-lookup-keeps-current-on-old-EOF - ERROR:tests/test_live_players_ui.c:247:test_lookup_pending_does_not_skip_on_old_eof: assertion failed (lookups->len == 1): (3 == 1)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:247:test_lookup_pending_does_not_skip_on_old_eof: assertion failed (lookups->len == 1): (3 == 1)\n"
+      },
+      {
+        "case": "/live-players/failed-lookup-retries-current",
+        "started_at_utc": "2026-10-09T01:58:23.398098+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/failed-lookup-retries-current"
+        ],
+        "returncode": 0,
+        "passed": true,
+        "stdout": "TAP version 14\n# random seed: R02Sf707fbccb8a113724aedd73970f59601\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nok 1 /live-players/failed-lookup-retries-current\n# End of live-players tests\n1..1\n",
+        "stderr": ""
+      },
+      {
+        "case": "/live-players/lookup-version-mismatch-rejected",
+        "started_at_utc": "2026-10-09T01:58:23.871240+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/lookup-version-mismatch-rejected"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02S02121e81cff57fcf974aa1bd0464837f\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/lookup-version-mismatch-rejected - ERROR:tests/test_live_players_ui.c:263:test_lookup_version_mismatch_rejected: assertion failed (loads == 0): (1 == 0)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:263:test_lookup_version_mismatch_rejected: assertion failed (loads == 0): (1 == 0)\n"
+      },
+      {
+        "case": "/live-players/lookup-media-mismatch-rejected",
+        "started_at_utc": "2026-10-09T01:58:24.323859+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/lookup-media-mismatch-rejected"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02Se107bbd95798656286e2a9b2fb45ed64\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/lookup-media-mismatch-rejected - ERROR:tests/test_live_players_ui.c:270:test_lookup_media_mismatch_rejected: assertion failed (loads == 0): (1 == 0)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:270:test_lookup_media_mismatch_rejected: assertion failed (loads == 0): (1 == 0)\n"
+      },
+      {
+        "case": "/live-players/clear-after-stop-retires-lookup",
+        "started_at_utc": "2026-10-09T01:58:24.773698+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/clear-after-stop-retires-lookup"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02Sf0b34aea79263c0ded13c28c81fd0083\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/clear-after-stop-retires-lookup - ERROR:tests/test_live_players_ui.c:279:test_clear_after_stop_rejects_late_lookup: assertion failed (loads == 0): (1 == 0)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:279:test_clear_after_stop_rejects_late_lookup: assertion failed (loads == 0): (1 == 0)\n"
+      },
+      {
+        "case": "/live-players/direct-library-retires-queue-lookup",
+        "started_at_utc": "2026-10-09T01:58:25.445458+00:00",
+        "command": [
+          "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/prompt-7-validation/isolated/before/test_live_players_ui",
+          "-p",
+          "/live-players/direct-library-retires-queue-lookup"
+        ],
+        "returncode": -6,
+        "passed": false,
+        "stdout": "TAP version 14\n# random seed: R02Sfb217b202fc2a86f21ac22230a8067d2\n# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created\n# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’\n# Start of live-players tests\nnot ok /live-players/direct-library-retires-queue-lookup - ERROR:tests/test_live_players_ui.c:288:test_direct_library_selection_retires_queue_lookup: assertion failed (loads == 0): (1 == 0)\nBail out!\n",
+        "stderr": "**\nERROR:tests/test_live_players_ui.c:288:test_direct_library_selection_retires_queue_lookup: assertion failed (loads == 0): (1 == 0)\n"
+      }
+    ],
+    "summary": {
+      "reproduced_failures": 9,
+      "existing_controls_passed": 2
+    }
+  },
+  "after": {
+    "executed_at_utc": "2026-10-09 01:57 UTC; completion clock read 01:57:45 UTC",
+    "command": [
+      "G_DEBUG=fatal-warnings",
+      "build/prompt-7-validation/isolated/after/test_live_players_ui"
+    ],
+    "returncode": 0,
+    "passed_cases": [
+      "/live-players/replacement-late-reply",
+      "/live-players/stop-invalidates-lookup",
+      "/live-players/stopped-next-loads-current",
+      "/live-players/stopped-next-invalidates-old-lookup",
+      "/live-players/current-removal-loads-current",
+      "/live-players/pending-lookup-keeps-current-on-old-EOF",
+      "/live-players/failed-lookup-retries-current",
+      "/live-players/lookup-version-mismatch-rejected",
+      "/live-players/lookup-media-mismatch-rejected",
+      "/live-players/clear-after-stop-retires-lookup",
+      "/live-players/direct-library-retires-queue-lookup"
+    ],
+    "passed_count": 11,
+    "failed_count": 0,
+    "observed_stdout_result": "TAP 1..11, all 11 cases reported ok; the entire suite completed with exit code 0."
+  },
+  "limitations": [
+    "This is an isolated proof of the prompt-7 transport patch against an exact captured preimage, not a claim that the shared current source tree built successfully.",
+    "Concurrent unrelated queue progress/preview API integration changes were still in progress and prevented the full current-source build at the time of this isolated validation.",
+    "Only the broadcast translation unit preimage/after pair is exact source material in this proof. Other translation units are existing build archives and are not claimed to match exact current source revisions.",
+    "The tests exercise actual Broadcast GTK callbacks with controlled library/audio boundary wrappers. They do not claim PCM decoder, backend, hardware or whole-application acceptance."
+  ],
+  "immutable_v11_artifacts": {
+    "build/prompt-7-validation/isolated/test-live-players-v11.c": {
+      "sha256": "ea02b4ef0dc8a5299416cb6d938e2957a711b2b65cbd08ae2f1b315ffd06f779",
+      "size_bytes": 18228
+    },
+    "build/prompt-7-validation/isolated/before/test_live_players_ui-v11": {
+      "sha256": "e4281c1d3969d13196e6d5265aa7ccadca787da83b0bb6fd4bede4b5f365abb8",
+      "size_bytes": 1436888
+    },
+    "build/prompt-7-validation/isolated/after/test_live_players_ui-v11": {
+      "sha256": "9d6f8005124fa4806f862eac1290e4f5dece76db01cc3ab905f129c39edea22d",
+      "size_bytes": 1438056
+    },
+    "build/prompt-7-validation/isolated/broadcast-after-v11.o": {
+      "sha256": "f23a110869bb1a9a1005c786ccd4189f8705f0612871024c3e4a7a7a04629405",
+      "size_bytes": 512688
+    },
+    "build/prompt-7-validation/isolated/broadcast-before-v11.c": {
+      "sha256": "56f161956760dcf167869bd98ac6fd918f7f52ceda76366b6b27f25d8cdf29b9",
+      "size_bytes": 279794
+    },
+    "build/prompt-7-validation/isolated/broadcast-before-v11.o": {
+      "sha256": "ded5e8d829fde936f2e5b8c5103010a2fdb526d2b62d67dfdca5af12a4594f53",
+      "size_bytes": 508832
+    },
+    "build/prompt-7-validation/isolated/broadcast-after-v11.c": {
+      "sha256": "9fe476afe3def356a354a041c342bb2245d072a60a504f22dd9faa176226a8bc",
+      "size_bytes": 283259
+    }
+  },
+  "artifact_preservation_note": "The original unversioned after executable path was temporarily reused for suite v12. The exact v11 test source was reconstructed and matched the recorded SHA. Compiling it with __FILE__ prefix mapping produced a byte-identical v11 after executable with the original recorded SHA; immutable_v11_artifacts now names preserved versions. No shared source or original archive was rolled back."
+}

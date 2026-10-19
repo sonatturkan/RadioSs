@@ -1,0 +1,7 @@
+TAP version 14
+# random seed: R02Sd9ca8993d0bbd599c33d99734e8f3ac0
+# Start of player-loader tests
+not ok /player-loader/tab-restore - ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:170:test_tab_restore: 'can_load(h)' should be TRUE
+Bail out!
+**
+ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_player_loader_ui.c:170:test_tab_restore: 'can_load(h)' should be TRUE

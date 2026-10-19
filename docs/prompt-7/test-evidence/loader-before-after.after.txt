@@ -1,0 +1,10 @@
+TAP version 14
+# random seed: R02S04ab5020ceffd0b5c4c96e723928d025
+1..5
+# Start of player-loader tests
+ok 1 /player-loader/tab-restore
+ok 2 /player-loader/provider-refresh-keeps-selection
+ok 3 /player-loader/hidden-selection-isolation
+ok 4 /player-loader/late-tracks-current-tab
+ok 5 /player-loader/destroyed-owner
+# End of player-loader tests

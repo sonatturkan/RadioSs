@@ -1,0 +1,5 @@
+=== 14.pdf / Sayfa 1 ===
+Apple Music ve Spotify kısmının ve ilgili o kısmın düzeltilmesi.
+ Şema 1.
+Sekmede (Şema 1) sadece “Giriş yap” olsun, tamam mı? Spotify’da, Apple’da vs. Geri kalan her
+kısmı kaldır; gereksiz.

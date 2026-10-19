@@ -1,0 +1,478 @@
+<section class="task-view settings-view" id="settings-view" aria-labelledby="settings-title" data-settings hidden>
+  <header class="settings-heading">
+    <h2 id="settings-title" tabindex="-1">Ayarlar</h2>
+    <div class="settings-heading-actions">
+      <span class="settings-indicator" data-settings-indicator hidden></span>
+      <button type="button" class="settings-lock" data-settings-lock aria-pressed="false">Düzenlemeyi aç</button>
+      <button type="button" data-settings-close>Kapat</button>
+    </div>
+  </header>
+  <div class="settings-layout">
+    <nav class="settings-nav" aria-label="Ayar bölümleri" data-settings-nav>
+      <input class="settings-search" type="search" placeholder="Ara" aria-label="Ayarlarda ara" autocomplete="off" data-settings-search>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-monitoring">Gözetim</p><ul aria-labelledby="settings-nav-monitoring">
+        <li><button type="button" data-settings-target="health" aria-controls="settings-health" data-keywords="sağlık motor zamanlayıcı oynatıcı kodlayıcı encoder logger veritabanı disk ağ saat sertifika dağıtım yedek tanı">Sistem sağlığı</button></li>
+        <li><button type="button" data-settings-target="inbox" aria-controls="settings-inbox" data-keywords="arıza hata bildirim yönetici operatör">Arıza bildirimleri<span class="settings-count" data-settings-inbox-count hidden></span></button></li>
+        <li><button type="button" data-settings-target="alarms" aria-controls="settings-alarms" data-keywords="alarm yönlendirme nöbet yükseltme tatbikat devir">Alarm ve nöbet</button></li>
+        <li><button type="button" data-settings-target="commands" aria-controls="settings-commands" data-keywords="uzak komut geçerlilik tekrar revizyon">Uzak komutlar</button></li>
+        <li><button type="button" data-settings-target="performance" aria-controls="settings-performance" data-keywords="performans gecikme bütçe kapasite p95 p99">Performans ve kapasite</button></li>
+      </ul></div>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-continuity">Süreklilik</p><ul aria-labelledby="settings-nav-continuity">
+        <li><button type="button" data-settings-target="backup" aria-controls="settings-backup" data-keywords="yedek geri yükleme rpo rto kurtarma test">Yedekleme ve geri yükleme</button></li>
+        <li><button type="button" data-settings-target="distribution" aria-controls="settings-distribution" data-keywords="uç dağıtım revizyon heartbeat devralma failover sahip çevrimdışı">Uç dağıtımı ve devralma</button></li>
+        <li><button type="button" data-settings-target="updates" aria-controls="settings-updates" data-keywords="sürüm güncelleme yükseltme göç geri dönüş şema">Sürüm ve güncelleme</button></li>
+      </ul></div>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-hardware">Ses ve donanım</p><ul aria-labelledby="settings-nav-hardware">
+        <li><button type="button" data-settings-target="audio" aria-controls="settings-audio" data-keywords="ses çıkış cue kulaklık geri dönüş sürücü tampon bölgesel akış encoder mount rds">Ses çıkışları ve akışlar</button></li>
+        <li><button type="button" data-settings-target="controls" aria-controls="settings-controls" data-keywords="midi gpio klavye kısayol eşleme fader denetleyici">MIDI, GPIO ve kısayollar</button></li>
+        <li><button type="button" data-settings-target="time" aria-controls="settings-time" data-keywords="saat zaman dilimi ntp sapma">Saat ve zaman</button></li>
+      </ul></div>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-security">Güvenlik</p><ul aria-labelledby="settings-nav-security">
+        <li><button type="button" data-settings-target="service" aria-controls="settings-service" data-keywords="servis api anahtar token openapi bağlantı">Servis ve anahtarlar</button></li>
+        <li><button type="button" data-settings-target="support" aria-controls="settings-support" data-keywords="destek oturum uzaktan erişim prosedür">Destek oturumu</button></li>
+        <li><button type="button" data-settings-target="audit" aria-controls="settings-audit" data-keywords="denetim geçmiş değişiklik kayıt dışa aktar">Denetim geçmişi</button></li>
+        <li><button type="button" data-settings-target="retention" aria-controls="settings-retention" data-keywords="saklama gizlilik kvkk silme arşiv tarayıcı veri">Saklama ve gizlilik</button></li>
+      </ul></div>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-workspace">Çalışma alanı</p><ul aria-labelledby="settings-nav-workspace">
+        <li><button type="button" data-settings-target="appearance" aria-controls="settings-appearance" data-keywords="görünüm yazı boyutu profil düzen paket">Görünüm ve düzen</button></li>
+        <li><button type="button" data-settings-target="integrations" aria-controls="settings-integrations" data-keywords="sosyal medya hava sanatçı kapak dinleyici mesaj">Entegrasyonlar</button></li>
+        <li><button type="button" data-settings-target="training" aria-controls="settings-training" data-keywords="eğitim deneme öğrenci">Eğitim modu</button></li>
+      </ul></div>
+      <div class="settings-nav-group"><p class="settings-nav-title" id="settings-nav-operation">İşletim</p><ul aria-labelledby="settings-nav-operation">
+        <li><button type="button" data-settings-target="license" aria-controls="settings-license" data-keywords="lisans destek sözleşme sorumluluk">Lisans ve destek</button></li>
+        <li><button type="button" data-settings-target="revisions" aria-controls="settings-revisions" data-keywords="sürüm revizyon geri al varsayılan">Yapılandırma sürümleri</button></li>
+      </ul></div>
+    </nav>
+
+    <div class="settings-content">
+      <p class="settings-status" role="status" data-settings-status></p>
+
+      <section class="settings-section" id="settings-health" aria-labelledby="settings-health-title" data-settings-section="health" hidden>
+        <header class="settings-section-heading"><h3 id="settings-health-title">Sistem sağlığı</h3><div class="settings-actions"><button type="button" data-settings-diagnostics>Tanı paketini indir</button></div></header>
+        <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th scope="col">Gözlem</th><th scope="col">Ölçüm noktası</th><th scope="col">Durum</th><th scope="col">Son gözlem</th><th scope="col">Eşik</th></tr></thead><tbody data-settings-health-rows></tbody></table></div>
+        <form class="settings-form" data-settings-form="health" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Eşikler</legend>
+          <div class="settings-fields">
+            <div><label for="settings-disk-warn">Disk uyarısı · %</label><input id="settings-disk-warn" name="diskWarn" type="number" min="50" max="98" step="1" required data-unit="%"></div>
+            <div><label for="settings-disk-critical">Disk kritik · %</label><input id="settings-disk-critical" name="diskCritical" type="number" min="55" max="99" step="1" required data-unit="%"></div>
+            <div><label for="settings-clock-drift">Saat sapması · ms</label><input id="settings-clock-drift" name="clockDriftMs" type="number" min="10" max="5000" step="1" required data-unit="ms"></div>
+            <div><label for="settings-cert-days">Sertifika uyarısı · gün</label><input id="settings-cert-days" name="certDays" type="number" min="1" max="180" step="1" required data-unit="gün"></div>
+            <div><label for="settings-distribution-delay">Dağıtım gecikmesi · dk</label><input id="settings-distribution-delay" name="distributionDelayMin" type="number" min="1" max="1440" step="1" required data-unit="dk"></div>
+            <div><label for="settings-heartbeat">Heartbeat zaman aşımı · sn</label><input id="settings-heartbeat" name="heartbeatSec" type="number" min="5" max="600" step="1" required data-unit="sn"></div>
+            <div><label for="settings-logger-gap">Yayın kaydı boşluğu · dk</label><input id="settings-logger-gap" name="loggerGapMin" type="number" min="1" max="240" step="1" required data-unit="dk"></div>
+          </div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-inbox" aria-labelledby="settings-inbox-title" data-settings-section="inbox" hidden>
+        <header class="settings-section-heading"><h3 id="settings-inbox-title">Arıza bildirimleri</h3><div class="settings-actions"><label class="settings-inline-label" for="settings-inbox-filter">Durum</label><select id="settings-inbox-filter" data-settings-inbox-filter><option value="active">Açık ve üstlenilen</option><option value="open">Açık</option><option value="claimed">Üstlenildi</option><option value="resolved">Çözüldü</option><option value="all">Tümü</option></select><button type="button" data-settings-inbox-new aria-haspopup="dialog" aria-controls="settings-inbox-dialog">+ Bildirim</button></div></header>
+        <div class="settings-list" data-settings-inbox-list></div>
+      </section>
+
+      <section class="settings-section" id="settings-alarms" aria-labelledby="settings-alarms-title" data-settings-section="alarms" hidden>
+        <header class="settings-section-heading"><h3 id="settings-alarms-title">Alarm ve nöbet</h3></header>
+        <form class="settings-form" data-settings-form="alarms" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Alarm yönlendirme</legend>
+          <div class="settings-table-wrap"><table class="settings-table settings-table--form"><thead><tr><th scope="col">Alarm</th><th scope="col">İlk alıcı</th><th scope="col">Kanal</th><th scope="col">Yükseltme · dk</th><th scope="col">Yükseltilecek</th></tr></thead><tbody data-settings-alarm-rows></tbody></table></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Nöbet listesi</legend>
+          <form class="settings-inline-form" data-settings-oncall-form>
+            <div><label for="settings-oncall-person">Kişi</label><select id="settings-oncall-person" name="person" required></select></div>
+            <div><label for="settings-oncall-channel">Kanal</label><select id="settings-oncall-channel" name="channel"><option value="screen">Ekran</option><option value="email">E-posta</option><option value="sms">SMS</option><option value="webhook">Webhook</option></select></div>
+            <button type="submit">Ekle</button>
+          </form>
+          <ol class="settings-list settings-list--ordered" data-settings-collection-list="onCall"></ol>
+        </fieldset>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Arıza tatbikatları</legend>
+          <form class="settings-inline-form" data-settings-record-form="drills">
+            <div><label for="settings-drill-date">Tarih</label><input id="settings-drill-date" name="date" type="date" required></div>
+            <div><label for="settings-drill-scenario">Senaryo</label><select id="settings-drill-scenario" name="scenario"><option value="silence">Ses kesintisi</option><option value="database">Veritabanı erişimi</option><option value="network">Merkez bağlantısı</option><option value="disk">Disk doluluğu</option><option value="standby">Yedek bilgisayara geçiş</option></select></div>
+            <div><label for="settings-drill-responsible">Sorumlu</label><input id="settings-drill-responsible" name="responsible" maxlength="100" required list="settings-people-names" autocomplete="off"></div>
+            <div><label for="settings-drill-handover">Devralan</label><input id="settings-drill-handover" name="handover" maxlength="100" list="settings-people-names" autocomplete="off"></div>
+            <div><label for="settings-drill-result">Sonuç</label><select id="settings-drill-result" name="result"><option value="passed">Geçti</option><option value="failed">Kaldı</option><option value="blocked">Engellendi</option></select></div>
+            <div class="settings-inline-wide"><label for="settings-drill-risk">Kalan risk</label><input id="settings-drill-risk" name="risk" maxlength="300" autocomplete="off"></div>
+            <button type="submit">Kaydet</button>
+          </form>
+          <div class="settings-list" data-settings-record-list="drills"></div>
+        </fieldset>
+        <datalist id="settings-people-names"></datalist>
+      </section>
+
+      <section class="settings-section" id="settings-commands" aria-labelledby="settings-commands-title" data-settings-section="commands" hidden>
+        <header class="settings-section-heading"><h3 id="settings-commands-title">Uzak komutlar</h3></header>
+        <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th scope="col">Komut</th><th scope="col">Kaynak</th><th scope="col">Hedef</th><th scope="col">Revizyon</th><th scope="col">Geçerlilik</th><th scope="col">Durum</th><th scope="col">Zaman</th></tr></thead><tbody><tr><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div>
+        <form class="settings-form" data-settings-form="commands" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Komut politikası</legend>
+          <div class="settings-fields">
+            <div><label for="settings-command-validity">Zamana duyarlı komut geçerliliği · sn</label><input id="settings-command-validity" name="validitySec" type="number" min="1" max="300" step="1" required data-unit="sn"></div>
+            <div><label for="settings-command-dedupe">Tekrar denetimi penceresi · sn</label><input id="settings-command-dedupe" name="dedupeSec" type="number" min="10" max="3600" step="1" required data-unit="sn"></div>
+          </div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-performance" aria-labelledby="settings-performance-title" data-settings-section="performance" hidden>
+        <header class="settings-section-heading"><h3 id="settings-performance-title">Performans ve kapasite</h3></header>
+        <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th scope="col">Ölçüm</th><th scope="col">Örnek</th><th scope="col">p95</th><th scope="col">p99</th><th scope="col">En kötü</th><th scope="col">Bütçe · p95</th></tr></thead><tbody data-settings-performance-rows></tbody></table></div>
+        <form class="settings-form" data-settings-form="performance" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Bütçeler ve eşikler</legend>
+          <div class="settings-fields">
+            <div><label for="settings-budget-search">Arama · ms</label><input id="settings-budget-search" name="search" type="number" min="10" max="10000" step="1" required data-unit="ms" data-budget></div>
+            <div><label for="settings-budget-command">Komut kabulü · ms</label><input id="settings-budget-command" name="commandAck" type="number" min="10" max="10000" step="1" required data-unit="ms" data-budget></div>
+            <div><label for="settings-budget-trigger">Tetikten sese · ms</label><input id="settings-budget-trigger" name="triggerToAudio" type="number" min="5" max="2000" step="1" required data-unit="ms" data-budget></div>
+            <div><label for="settings-budget-transition">Geçiş sapması · ms</label><input id="settings-budget-transition" name="transition" type="number" min="1" max="1000" step="1" required data-unit="ms" data-budget></div>
+            <div><label for="settings-growth">Veri büyümesi alarmı · %/gün</label><input id="settings-growth" name="growthPct" type="number" min="1" max="500" step="1" required data-unit="%/gün"></div>
+            <div><label for="settings-background-cpu">Arka plan iş payı · %</label><input id="settings-background-cpu" name="backgroundCpu" type="number" min="5" max="90" step="1" required data-unit="%"></div>
+          </div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-backup" aria-labelledby="settings-backup-title" data-settings-section="backup" hidden>
+        <header class="settings-section-heading"><h3 id="settings-backup-title">Yedekleme ve geri yükleme</h3><div class="settings-actions"><button type="button" disabled>Yedek envanterini denetle</button><button type="button" disabled>Yedekten geri yükle</button><button type="button" disabled>Yeni istasyon olarak kur</button></div></header>
+        <dl class="settings-facts"><div><dt>Son yedek</dt><dd>—</dd></div><div><dt>Son başarılı geri yükleme testi</dt><dd data-settings-last-restore>—</dd></div><div><dt>Tam toparlanma</dt><dd data-settings-last-recovery>—</dd></div><div><dt>Kayıp veri aralığı</dt><dd data-settings-last-loss>—</dd></div></dl>
+        <form class="settings-form" data-settings-form="backup" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Kapsam ve takvim</legend>
+          <div class="settings-checks" data-settings-backup-components></div>
+          <label class="settings-check"><input type="checkbox" name="secretsSeparate"> Sırlar, sertifikalar ve lisans dosyaları ayrı kasada</label>
+          <div class="settings-fields">
+            <div><label for="settings-backup-full">Tam yedek</label><select id="settings-backup-full" name="full"><option value="daily">Günlük</option><option value="weekly">Haftalık</option></select></div>
+            <div><label for="settings-backup-incremental">Artımlı / WAL</label><select id="settings-backup-incremental" name="incremental"><option value="continuous">Sürekli</option><option value="hourly">Saatlik</option><option value="daily">Günlük</option></select></div>
+            <div><label for="settings-backup-keep">Saklanan yedek</label><input id="settings-backup-keep" name="keep" type="number" min="1" max="365" step="1" required></div>
+            <div><label for="settings-backup-target">Hedef</label><select id="settings-backup-target" name="target"><option value="local">Yerel disk</option><option value="network">Ağ paylaşımı</option><option value="cloud">Bulut</option><option value="removable">Çıkarılabilir disk</option></select></div>
+          </div>
+          <label class="settings-check"><input type="checkbox" name="offsite"> Bir kopya farklı konumda</label>
+          <div class="settings-table-wrap"><table class="settings-table settings-table--form settings-table--compact"><thead><tr><th scope="col">Bileşen</th><th scope="col">RPO · dk</th><th scope="col">RTO · dk</th></tr></thead><tbody data-settings-objective-rows></tbody></table></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Geri yükleme testleri</legend>
+          <form class="settings-inline-form" data-settings-record-form="restoreTests">
+            <div><label for="settings-restore-date">Tarih</label><input id="settings-restore-date" name="date" type="date" required></div>
+            <div><label for="settings-restore-environment">Ortam</label><select id="settings-restore-environment" name="environment"><option value="clean">Temiz sanal makine</option><option value="spare">Yedek bilgisayar</option><option value="staging">Prova ortamı</option></select></div>
+            <div><label for="settings-restore-detect">Algılama · dk</label><input id="settings-restore-detect" name="detectMin" type="number" min="0" max="10080" step="1" required></div>
+            <div><label for="settings-restore-decision">Karar · dk</label><input id="settings-restore-decision" name="decisionMin" type="number" min="0" max="10080" step="1" required></div>
+            <div><label for="settings-restore-takeover">Devralma · dk</label><input id="settings-restore-takeover" name="takeoverMin" type="number" min="0" max="10080" step="1" required></div>
+            <div><label for="settings-restore-recovery">Tam toparlanma · dk</label><input id="settings-restore-recovery" name="recoveryMin" type="number" min="0" max="10080" step="1" required></div>
+            <div><label for="settings-restore-loss">Kayıp veri · dk</label><input id="settings-restore-loss" name="dataLossMin" type="number" min="0" max="10080" step="1" required></div>
+            <div><label for="settings-restore-result">Sonuç</label><select id="settings-restore-result" name="result"><option value="passed">Geçti</option><option value="failed">Kaldı</option><option value="blocked">Engellendi</option></select></div>
+            <fieldset class="settings-inline-checks"><legend>Denetlenen</legend><label><input type="checkbox" name="check.media"> Ses</label><label><input type="checkbox" name="check.plans"> Plan</label><label><input type="checkbox" name="check.traffic"> Reklam</label><label><input type="checkbox" name="check.outputs"> Çıkış</label><label><input type="checkbox" name="check.permissions"> Yetkiler</label></fieldset>
+            <button type="submit">Kaydet</button>
+          </form>
+          <div class="settings-list" data-settings-record-list="restoreTests"></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-distribution" aria-labelledby="settings-distribution-title" data-settings-section="distribution" hidden>
+        <header class="settings-section-heading"><h3 id="settings-distribution-title">Uç dağıtımı ve devralma</h3><div class="settings-actions"><button type="button" data-settings-open-profile="emergency">Acil devralma</button></div></header>
+        <p class="settings-alert" data-settings-distribution-alert hidden></p>
+        <dl class="settings-facts"><div><dt>Aktif kontrol sahibi</dt><dd>—</dd></div><div><dt>Dönem</dt><dd>—</dd></div></dl>
+        <div class="settings-table-wrap"><table class="settings-table"><thead><tr><th scope="col">Sunucu bilgisayar</th><th scope="col">Görev</th><th scope="col">İstasyon</th><th scope="col">Kabul edilen revizyon</th><th scope="col">Medya SHA</th><th scope="col">Son heartbeat</th><th scope="col">Çevrimdışı kapsam</th></tr></thead><tbody data-settings-distribution-rows></tbody></table></div>
+        <form class="settings-form" data-settings-form="distribution" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Devralma politikası</legend>
+          <div class="settings-fields">
+            <div><label for="settings-takeover">Devralma</label><select id="settings-takeover" name="takeover" data-critical><option value="manual">Yalnız elle</option><option value="confirmed">Onaylı otomatik</option><option value="automatic">Otomatik</option></select></div>
+            <div><label for="settings-distribution-heartbeat">Heartbeat zaman aşımı · sn</label><input id="settings-distribution-heartbeat" name="heartbeatSec" type="number" min="5" max="600" step="1" required data-unit="sn"></div>
+            <div><label for="settings-offline-days">Çevrimdışı izin · gün</label><input id="settings-offline-days" name="offlineDays" type="number" min="0" max="14" step="1" required data-unit="gün"></div>
+            <div><label for="settings-media-verify">Medya doğrulama</label><select id="settings-media-verify" name="mediaVerify"><option value="delivery">Her teslimde</option><option value="daily">Günlük</option><option value="weekly">Haftalık</option></select></div>
+          </div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-updates" aria-labelledby="settings-updates-title" data-settings-section="updates" hidden>
+        <header class="settings-section-heading"><h3 id="settings-updates-title">Sürüm ve güncelleme</h3></header>
+        <dl class="settings-facts"><div><dt>Arayüz</dt><dd>2026.10</dd></div><div><dt>Arka uç</dt><dd>—</dd></div><div><dt>Veri şeması</dt><dd>—</dd></div><div><dt>Kontrol listesi</dt><dd data-settings-update-progress>0 / 5</dd></div></dl>
+        <form class="settings-form" data-settings-form="updates" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Yükseltme kontrol listesi</legend>
+          <div class="settings-checks">
+            <label class="settings-check"><input type="checkbox" name="check.backup"> Doğrulanmış ön yedek</label>
+            <label class="settings-check"><input type="checkbox" name="check.rehearsal"> Ayrı ortamda prova</label>
+            <label class="settings-check"><input type="checkbox" name="check.tasks"> Arama, plan, reklam, API ve ses yönlendirme sınandı</label>
+            <label class="settings-check"><input type="checkbox" name="check.rollback"> Geri dönüş yolu denendi</label>
+            <label class="settings-check"><input type="checkbox" name="check.dataloss"> Veri kaybı aralığı ölçüldü</label>
+          </div>
+          <label for="settings-rollback-plan">Geri dönüş planı</label><textarea id="settings-rollback-plan" name="rollbackPlan" rows="4" maxlength="2000"></textarea>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Göç provaları</legend>
+          <form class="settings-inline-form" data-settings-record-form="migrations">
+            <div><label for="settings-migration-date">Tarih</label><input id="settings-migration-date" name="date" type="date" required></div>
+            <div><label for="settings-migration-source">Kaynak sistem</label><select id="settings-migration-source" name="source"><option value="mairlist">mAirList 3.1 CSV</option><option value="radioboss">RadioBOSS M3U8</option><option value="libretime">LibreTime</option><option value="rekordbox">Rekordbox XML</option><option value="other">Diğer</option></select></div>
+            <div><label for="settings-migration-moved">Taşınan kayıt</label><input id="settings-migration-moved" name="moved" type="number" min="0" max="10000000" step="1" required></div>
+            <div><label for="settings-migration-identity">Kimlik eşleşmesi</label><select id="settings-migration-identity" name="identity"><option value="full">Tam</option><option value="partial">Kısmi</option><option value="failed">Eşleşmedi</option></select></div>
+            <div><label for="settings-migration-result">Sonuç</label><select id="settings-migration-result" name="result"><option value="passed">Geçti</option><option value="failed">Kaldı</option><option value="blocked">Engellendi</option></select></div>
+            <div class="settings-inline-wide"><label for="settings-migration-lost">Taşınamayan alanlar</label><input id="settings-migration-lost" name="lost" maxlength="500" autocomplete="off"></div>
+            <label class="settings-check"><input type="checkbox" name="copy" required> Kopya veri üzerinde</label>
+            <button type="submit">Kaydet</button>
+          </form>
+          <div class="settings-list" data-settings-record-list="migrations"></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-audio" aria-labelledby="settings-audio-title" data-settings-section="audio" hidden>
+        <header class="settings-section-heading"><h3 id="settings-audio-title">Ses çıkışları ve akışlar</h3><div class="settings-actions"><button type="button" disabled>Çıkışları test et</button></div></header>
+        <form class="settings-form" data-settings-form="audio" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Çıkışlar</legend>
+          <div class="settings-outputs" data-settings-output-blocks></div>
+          <fieldset class="settings-subfieldset"><legend>Şimdi çalıyor ve RDS</legend>
+            <div class="settings-fields">
+              <div><label for="settings-rds-host">RDS kodlayıcı</label><input id="settings-rds-host" name="rdsHost" maxlength="200" placeholder="rds.istasyon.local:4001" autocomplete="off"></div>
+              <div><label for="settings-stream-delay">Akış gecikmesi · sn</label><input id="settings-stream-delay" name="streamDelaySec" type="number" min="0" max="120" step="1" required data-unit="sn"></div>
+              <div><label for="settings-talk-text">Konuşma sırasında</label><select id="settings-talk-text" name="talkText"><option value="station">İstasyon adı</option><option value="programme">Program adı</option></select></div>
+            </div>
+          </fieldset>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Bölgesel çıkışlar</legend>
+          <div class="settings-block-actions"><button type="button" data-settings-collection-new="regions" aria-haspopup="dialog" aria-controls="settings-regions-dialog">+ Bölgesel çıkış</button></div>
+          <div class="settings-list" data-settings-collection-list="regions"></div>
+        </fieldset>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Yayın akışları</legend>
+          <div class="settings-block-actions"><button type="button" data-settings-collection-new="streams" aria-haspopup="dialog" aria-controls="settings-streams-dialog">+ Akış</button></div>
+          <div class="settings-list" data-settings-collection-list="streams"></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-controls" aria-labelledby="settings-controls-title" data-settings-section="controls" hidden>
+        <header class="settings-section-heading"><h3 id="settings-controls-title">MIDI, GPIO ve kısayollar</h3><div class="settings-actions"><button type="button" data-settings-midi-scan>Cihazları tara</button><button type="button" disabled>Denetleyiciyi doğrula</button></div></header>
+        <p class="settings-note" data-settings-midi-message hidden></p>
+        <div class="settings-list" data-settings-midi-devices></div>
+        <form class="settings-form" data-settings-form="controls" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Kontrol politikası</legend>
+          <div class="settings-fields">
+            <div><label for="settings-control-profile">Etkin profil</label><select id="settings-control-profile" name="profile"><option value="none">Denetleyici yok</option><option value="keyboard">Klavye</option><option value="midi">MIDI denetleyici</option></select></div>
+            <div><label for="settings-fader">Fader devralma</label><select id="settings-fader" name="fader" data-critical><option value="pickup">Değere ulaşınca devral</option><option value="motor">Motorlu eşitleme</option><option value="direct">Anında uygula</option></select></div>
+            <div><label for="settings-stop-all">Tümünü durdur kapsamı</label><select id="settings-stop-all" name="stopAll" data-critical><option value="cartwall">Yalnız cartwall</option><option value="playout">Bütün oynatıcılar</option><option value="studio">Stüdyo ve dış kaynaklar</option></select></div>
+          </div>
+          <div class="settings-priority"><p class="settings-label" id="settings-priority-label">Kaynak önceliği</p><ol aria-labelledby="settings-priority-label" data-settings-priority-list></ol><input type="hidden" name="priority"></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Eşlemeler</legend>
+          <div class="settings-block-actions"><button type="button" data-settings-collection-new="mappings" aria-haspopup="dialog" aria-controls="settings-mappings-dialog">+ Eşleme</button><button type="button" data-settings-controls-export>Profili dışa aktar</button><label class="settings-file-button">Profili içe aktar<input type="file" accept="application/json,.json" data-settings-controls-import></label></div>
+          <div class="settings-list" data-settings-collection-list="mappings"></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-time" aria-labelledby="settings-time-title" data-settings-section="time" hidden>
+        <header class="settings-section-heading"><h3 id="settings-time-title">Saat ve zaman</h3></header>
+        <dl class="settings-facts"><div><dt>İstasyon saati</dt><dd data-settings-station-clock>—</dd></div><div><dt>Bu bilgisayar</dt><dd data-settings-local-zone>—</dd></div><div><dt>Saat sapması</dt><dd>—</dd></div></dl>
+        <form class="settings-form" data-settings-form="time" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Zaman kaynağı</legend>
+          <div class="settings-fields">
+            <div><label for="settings-timezone">İstasyon saat dilimi</label><select id="settings-timezone" name="timezone" data-critical></select></div>
+            <div><label for="settings-max-drift">En büyük sapma · ms</label><input id="settings-max-drift" name="maxDriftMs" type="number" min="10" max="5000" step="1" required data-unit="ms"></div>
+          </div>
+          <label for="settings-ntp">NTP sunucuları</label><textarea id="settings-ntp" name="ntp" rows="3" maxlength="500" spellcheck="false"></textarea>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-service" aria-labelledby="settings-service-title" data-settings-section="service" hidden>
+        <header class="settings-section-heading"><h3 id="settings-service-title">Servis ve anahtarlar</h3><div class="settings-actions"><button type="button" disabled>Bağlantıyı test et</button><button type="button" disabled>Geri dönüş testi</button></div></header>
+        <form class="settings-form" data-settings-form="service" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Bu arayüzün servis bağlantısı</legend>
+          <div class="settings-fields">
+            <div><label for="settings-endpoint">Servis adresi</label><input id="settings-endpoint" name="endpoint" type="url" maxlength="500" placeholder="https://radios.istasyon.local" autocomplete="off"></div>
+            <div><label for="settings-api-secret">API anahtarı</label><input id="settings-api-secret" name="secret" type="password" maxlength="500" autocomplete="off"></div>
+          </div>
+          <label class="settings-check"><input type="checkbox" name="requestBackup"> Yedek bağlantıyı denetle</label>
+          <dl class="settings-facts settings-facts--inline"><div><dt>OpenAPI</dt><dd data-settings-endpoint-link="openapi">—</dd></div><div><dt>Yetenekler</dt><dd data-settings-endpoint-link="capabilities">—</dd></div><div><dt>Sağlık</dt><dd data-settings-endpoint-link="health">—</dd></div></dl>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Erişim anahtarları</legend>
+          <div class="settings-block-actions"><button type="button" data-settings-collection-new="tokens" aria-haspopup="dialog" aria-controls="settings-tokens-dialog">+ Anahtar</button></div>
+          <div class="settings-list" data-settings-collection-list="tokens"></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-support" aria-labelledby="settings-support-title" data-settings-section="support" hidden>
+        <header class="settings-section-heading"><h3 id="settings-support-title">Destek oturumu</h3></header>
+        <div class="settings-support-active" data-settings-support-active hidden><p data-settings-support-text></p><button type="button" class="settings-danger" data-settings-support-end>Oturumu sonlandır</button></div>
+        <fieldset class="settings-lockable" data-settings-lockable data-settings-support-start><legend>Yeni oturum</legend>
+          <form class="settings-inline-form" data-settings-support-form>
+            <div><label for="settings-support-provider">Destek veren</label><input id="settings-support-provider" name="provider" maxlength="100" required autocomplete="off"></div>
+            <div><label for="settings-support-scope">Kapsam</label><select id="settings-support-scope" name="scope"><option value="monitor">İzleme</option><option value="diagnostics">Teşhis ve kayıtlar</option><option value="configuration">Yapılandırma</option></select></div>
+            <div><label for="settings-support-minutes">Süre</label><select id="settings-support-minutes" name="minutes"><option value="15">15 dk</option><option value="30" selected>30 dk</option><option value="60">60 dk</option><option value="120">120 dk</option></select></div>
+            <div><label for="settings-support-reason">Arıza no</label><input id="settings-support-reason" name="reason" maxlength="100" autocomplete="off"></div>
+            <button type="submit">Başlat</button>
+          </form>
+        </fieldset>
+        <div class="settings-block"><h4 class="settings-block-title">Geçmiş</h4><div class="settings-list" data-settings-record-list="supportHistory"></div></div>
+        <form class="settings-form" data-settings-form="support" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Acil erişim prosedürü</legend>
+          <textarea name="procedure" rows="4" maxlength="2000" aria-label="Acil erişim prosedürü"></textarea>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-audit" aria-labelledby="settings-audit-title" data-settings-section="audit" hidden>
+        <header class="settings-section-heading"><h3 id="settings-audit-title">Denetim geçmişi</h3><div class="settings-actions"><button type="button" data-settings-audit-export="json">JSON indir</button><button type="button" data-settings-audit-export="csv">CSV indir</button></div></header>
+        <div class="settings-filters">
+          <div><label for="settings-audit-source">Kaynak</label><select id="settings-audit-source" data-settings-audit-filter="source"><option value="">Tümü</option><option value="settings">Ayarlar</option><option value="technical">Teknik yönetim</option></select></div>
+          <div><label for="settings-audit-result">Sonuç</label><select id="settings-audit-result" data-settings-audit-filter="result"><option value="">Tümü</option><option value="applied">Uygulandı</option><option value="rejected">Reddedildi</option><option value="reverted">Geri alındı</option></select></div>
+          <div><label for="settings-audit-text">Ara</label><input id="settings-audit-text" type="search" autocomplete="off" data-settings-audit-filter="text"></div>
+        </div>
+        <div class="settings-table-wrap settings-table-wrap--tall"><table class="settings-table"><thead><tr><th scope="col">Zaman</th><th scope="col">Kim</th><th scope="col">Bölüm</th><th scope="col">Hedef</th><th scope="col">Önceki</th><th scope="col">Yeni</th><th scope="col">Sonuç</th></tr></thead><tbody data-settings-audit-rows></tbody></table></div>
+      </section>
+
+      <section class="settings-section" id="settings-retention" aria-labelledby="settings-retention-title" data-settings-section="retention" hidden>
+        <header class="settings-section-heading"><h3 id="settings-retention-title">Saklama ve gizlilik</h3></header>
+        <form class="settings-form" data-settings-form="retention" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Saklama politikası</legend>
+          <div class="settings-table-wrap"><table class="settings-table settings-table--form"><thead><tr><th scope="col">Kayıt türü</th><th scope="col">Erişim</th><th scope="col">Saklama · gün</th><th scope="col">Süre sonunda</th></tr></thead><tbody data-settings-retention-rows></tbody></table></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+        <fieldset class="settings-lockable" data-settings-lockable><legend>Bu tarayıcıdaki veriler</legend>
+          <div class="settings-table-wrap"><table class="settings-table settings-table--compact"><thead><tr><th scope="col"><span class="task-visually-hidden">Seç</span></th><th scope="col">Veri</th><th scope="col">Boyut</th></tr></thead><tbody data-settings-local-rows></tbody></table></div>
+          <div class="settings-block-actions"><button type="button" class="settings-danger" data-settings-local-clear>Seçilenleri sil</button><button type="button" data-settings-reload hidden>Sayfayı yenile</button></div>
+        </fieldset>
+      </section>
+
+      <section class="settings-section" id="settings-appearance" aria-labelledby="settings-appearance-title" data-settings-section="appearance" hidden>
+        <header class="settings-section-heading"><h3 id="settings-appearance-title">Görünüm ve düzen</h3></header>
+        <form class="settings-form settings-block" data-technical-form>
+          <div class="settings-fields">
+            <div><label for="task-text-size">Yazı boyutu</label><select id="task-text-size" name="textSize"><option value="compact">Kompakt</option><option value="normal" selected>Standart</option><option value="large">Büyük</option></select></div>
+            <div><label for="task-default-profile">Başlangıç profili</label><select id="task-default-profile" name="defaultProfile"><option value="last" selected>Son kullanılan</option><option value="broadcast">Yayın</option><option value="playlist">Playlist</option><option value="automation">Otomasyon</option><option value="dj">DJ</option><option value="emergency">Acil</option><option value="advert">Reklam</option><option value="technical">Teknik yönetim</option></select></div>
+          </div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button><button type="button" data-task-reset>Güvenli başlangıca dön</button></div>
+          <p class="settings-feedback" role="status" data-technical-status></p>
+        </form>
+        <div class="settings-block"><h4 class="settings-block-title">Görünüm paketi</h4>
+          <div class="settings-block-actions"><button type="button" data-settings-layout-export>Dışa aktar</button><label class="settings-file-button">İçe aktar<input type="file" accept="application/json,.json" data-settings-layout-import></label><button type="button" class="settings-primary" data-settings-layout-apply disabled>Uygula</button></div>
+          <ul class="settings-report" data-settings-layout-report></ul>
+        </div>
+      </section>
+
+      <section class="settings-section" id="settings-integrations" aria-labelledby="settings-integrations-title" data-settings-section="integrations" hidden>
+        <header class="settings-section-heading"><h3 id="settings-integrations-title">Entegrasyonlar</h3></header>
+        <form class="settings-form" data-settings-form="integrations" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Bilgi kaynakları</legend>
+          <div class="settings-table-wrap"><table class="settings-table settings-table--form"><thead><tr><th scope="col">Kaynak</th><th scope="col">Etkin</th><th scope="col">Yayın</th><th scope="col">DJ</th><th scope="col">Hesap / adres</th></tr></thead><tbody data-settings-integration-rows></tbody></table></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-training" aria-labelledby="settings-training-title" data-settings-section="training" hidden>
+        <header class="settings-section-heading"><h3 id="settings-training-title">Eğitim modu</h3></header>
+        <form class="settings-form" data-settings-form="training" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Eğitim</legend>
+          <label class="settings-check"><input type="checkbox" name="enabled"> Eğitim modu açık</label>
+          <div class="settings-fields"><div><label for="settings-training-output">Ses çıkışı</label><select id="settings-training-output" name="output"><option value="cue">CUE / kulaklık</option><option value="training">Eğitim çıkışı</option></select></div></div>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-license" aria-labelledby="settings-license-title" data-settings-section="license" hidden>
+        <header class="settings-section-heading"><h3 id="settings-license-title">Lisans ve destek</h3></header>
+        <dl class="settings-facts"><div><dt>Lisans durumu</dt><dd>—</dd></div><div><dt>Kayıtlı makine</dt><dd>—</dd></div></dl>
+        <form class="settings-form" data-settings-form="license" novalidate><fieldset class="settings-lockable" data-settings-lockable><legend>Sözleşme</legend>
+          <div class="settings-fields">
+            <div><label for="settings-license-type">Lisans türü</label><input id="settings-license-type" name="type" maxlength="100" autocomplete="off"></div>
+            <div><label for="settings-license-provider">Destek sağlayıcı</label><input id="settings-license-provider" name="provider" maxlength="100" autocomplete="off"></div>
+            <div><label for="settings-license-hours">Destek saatleri</label><input id="settings-license-hours" name="hours" maxlength="100" autocomplete="off"></div>
+            <div><label for="settings-license-contact">Alternatif iletişim</label><input id="settings-license-contact" name="contact" maxlength="200" autocomplete="off"></div>
+          </div>
+          <label for="settings-license-transfer">Lisans taşıma adımları</label><textarea id="settings-license-transfer" name="transfer" rows="3" maxlength="2000"></textarea>
+          <label for="settings-license-emergency">Acil kullanım</label><textarea id="settings-license-emergency" name="emergency" rows="3" maxlength="2000"></textarea>
+          <label for="settings-license-responsibilities">Bileşen sorumlulukları</label><textarea id="settings-license-responsibilities" name="responsibilities" rows="3" maxlength="2000"></textarea>
+          <div class="settings-form-actions"><button type="submit" class="settings-primary">Kaydet</button></div>
+        </fieldset></form>
+      </section>
+
+      <section class="settings-section" id="settings-revisions" aria-labelledby="settings-revisions-title" data-settings-section="revisions" hidden>
+        <header class="settings-section-heading"><h3 id="settings-revisions-title">Yapılandırma sürümleri</h3></header>
+        <fieldset class="settings-lockable settings-lockable--plain" data-settings-lockable><legend class="task-visually-hidden">Sürümler</legend>
+          <div class="settings-block-actions"><button type="button" data-settings-defaults>Varsayılanlara dön</button></div>
+          <div class="settings-list" data-settings-revision-list></div>
+        </fieldset>
+      </section>
+    </div>
+  </div>
+
+  <dialog class="settings-dialog" id="settings-review-dialog" aria-labelledby="settings-review-title">
+    <form class="settings-form" data-settings-review-form>
+      <header class="settings-dialog-heading"><h2 id="settings-review-title">Değişiklikleri onayla</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <p class="settings-review-section" data-settings-review-section></p>
+      <ul class="settings-review-list" data-settings-review-list></ul>
+      <ul class="settings-review-warnings" data-settings-review-warnings></ul>
+      <label class="settings-check" data-settings-review-ack hidden><input type="checkbox" name="ack"> Etkisini anladım</label>
+      <div data-settings-review-reason hidden><label for="settings-review-reason">Gerekçe</label><textarea id="settings-review-reason" name="reason" rows="2" maxlength="300"></textarea></div>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Uygula</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-confirm-dialog" aria-labelledby="settings-confirm-title">
+    <form class="settings-form" data-settings-confirm-form>
+      <header class="settings-dialog-heading"><h2 id="settings-confirm-title" data-settings-confirm-title>Onayla</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <p class="settings-confirm-text" data-settings-confirm-text></p>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-danger" data-settings-confirm-button>Sil</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-inbox-dialog" aria-labelledby="settings-inbox-dialog-title">
+    <form class="settings-form" data-settings-inbox-form>
+      <header class="settings-dialog-heading"><h2 id="settings-inbox-dialog-title">Bildirim</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <label for="settings-inbox-note">Sorun / gözlem</label><textarea id="settings-inbox-note" name="note" rows="4" maxlength="1500" required></textarea>
+      <div class="settings-fields">
+        <div><label for="settings-inbox-status">Durum</label><select id="settings-inbox-status" name="status"><option value="open">Açık</option><option value="claimed">Üstlenildi</option><option value="resolved">Çözüldü</option></select></div>
+        <div><label for="settings-inbox-assignee">Atanan</label><select id="settings-inbox-assignee" name="assignee"></select></div>
+      </div>
+      <div data-settings-resolution-field hidden><label for="settings-inbox-resolution">Çözüm</label><textarea id="settings-inbox-resolution" name="resolution" rows="3" maxlength="1000"></textarea></div>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-regions-dialog" aria-labelledby="settings-regions-dialog-title">
+    <form class="settings-form" data-settings-collection-form="regions">
+      <header class="settings-dialog-heading"><h2 id="settings-regions-dialog-title">Bölgesel çıkış</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="settings-fields">
+        <div><label for="settings-region-name">Ad</label><input id="settings-region-name" name="name" maxlength="80" required autocomplete="off"></div>
+        <div><label for="settings-region-code">Bölge kodu</label><input id="settings-region-code" name="code" maxlength="20" required pattern="[A-Za-z0-9_\-]+" autocomplete="off"></div>
+        <div><label for="settings-region-source">Kuşak kaynağı</label><select id="settings-region-source" name="source"><option value="regional">Bölgesel liste</option><option value="network">Ana yayın</option></select></div>
+        <div><label for="settings-region-back">Ana yayına dönüş</label><select id="settings-region-back" name="back"><option value="break-end">Kuşak sonunda</option><option value="target-time">Hedef saatte</option><option value="operator">Operatör onayıyla</option></select></div>
+      </div>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-streams-dialog" aria-labelledby="settings-streams-dialog-title">
+    <form class="settings-form" data-settings-collection-form="streams">
+      <header class="settings-dialog-heading"><h2 id="settings-streams-dialog-title">Yayın akışı</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="settings-fields">
+        <div><label for="settings-stream-name">Ad</label><input id="settings-stream-name" name="name" maxlength="80" required autocomplete="off"></div>
+        <div><label for="settings-stream-protocol">Protokol</label><select id="settings-stream-protocol" name="protocol"><option value="icecast">Icecast</option><option value="shoutcast">SHOUTcast</option><option value="hls">HLS</option><option value="srt">SRT</option></select></div>
+        <div class="settings-field-wide"><label for="settings-stream-server">Sunucu adresi</label><input id="settings-stream-server" name="server" type="url" maxlength="500" required placeholder="https://yayin.istasyon.com" autocomplete="off"></div>
+        <div><label for="settings-stream-mount">Bağlama noktası</label><input id="settings-stream-mount" name="mount" maxlength="120" placeholder="/live" autocomplete="off"></div>
+        <div><label for="settings-stream-codec">Kodek</label><select id="settings-stream-codec" name="codec"><option value="aac">AAC</option><option value="mp3">MP3</option><option value="opus">Opus</option><option value="flac">FLAC</option></select></div>
+        <div><label for="settings-stream-bitrate">Bit hızı · kbps</label><input id="settings-stream-bitrate" name="bitrate" type="number" min="16" max="512" step="1" required></div>
+        <div><label for="settings-stream-source">Kaynak çıkış</label><select id="settings-stream-source" name="source"></select></div>
+      </div>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-mappings-dialog" aria-labelledby="settings-mappings-dialog-title">
+    <form class="settings-form" data-settings-collection-form="mappings">
+      <header class="settings-dialog-heading"><h2 id="settings-mappings-dialog-title">Eşleme</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="settings-fields">
+        <div><label for="settings-mapping-source">Kaynak</label><select id="settings-mapping-source" name="source"><option value="midi">MIDI</option><option value="gpio">GPIO</option><option value="keyboard">Klavye</option></select></div>
+        <div class="settings-field-wide"><label for="settings-mapping-control">Kontrol</label><div class="settings-learn"><input id="settings-mapping-control" name="control" maxlength="80" required autocomplete="off"><button type="button" data-settings-learn>Öğren</button></div><output class="settings-learn-status" for="settings-mapping-control" data-settings-learn-status></output></div>
+        <div><label for="settings-mapping-bank">Bank / sayfa</label><input id="settings-mapping-bank" name="bank" type="number" min="1" max="16" step="1" required></div>
+        <div><label for="settings-mapping-action">İşlev</label><select id="settings-mapping-action" name="action"><option value="start">Başlat</option><option value="stop">Durdur</option><option value="cart">Cart çal</option><option value="fader">Fader seviyesi</option><option value="cue">CUE aç / kapat</option><option value="next">Sonraki öğe</option><option value="stopAll">Tümünü durdur</option></select></div>
+        <div><label for="settings-mapping-target">Hedef</label><select id="settings-mapping-target" name="target"><option value="player-1">Oynatıcı 1</option><option value="player-2">Oynatıcı 2</option><option value="player-3">Oynatıcı 3</option><option value="player-4">Oynatıcı 4</option><option value="jingles">Jingle bankası</option><option value="adverts">Reklam bankası</option><option value="programme">Program çıkışı</option></select></div>
+        <div><label for="settings-mapping-behaviour">Davranış</label><select id="settings-mapping-behaviour" name="behaviour"><option value="once">Tek seferlik</option><option value="hold">Basılı tut</option><option value="toggle">Aç / kapat</option><option value="restart">Yeniden başlat</option><option value="loop">Döngü</option></select></div>
+        <div><label for="settings-mapping-retrigger">Yeniden basış</label><select id="settings-mapping-retrigger" name="retrigger"><option value="ignore">Yok say</option><option value="restart">Başa dön</option><option value="stop">Durdur</option></select></div>
+      </div>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="settings-dialog" id="settings-tokens-dialog" aria-labelledby="settings-tokens-dialog-title">
+    <form class="settings-form" data-settings-collection-form="tokens">
+      <header class="settings-dialog-heading"><h2 id="settings-tokens-dialog-title">Erişim anahtarı</h2><button type="button" data-settings-dialog-close aria-label="Kapat">×</button></header>
+      <input type="hidden" name="id">
+      <div class="settings-fields">
+        <div><label for="settings-token-name">Ad</label><input id="settings-token-name" name="name" maxlength="80" required autocomplete="off"></div>
+        <div><label for="settings-token-kind">Tür</label><select id="settings-token-kind" name="kind"><option value="user">Kullanıcı</option><option value="endpoint">Uç</option><option value="monitor">Monitör</option><option value="site">İstasyon sitesi</option></select></div>
+        <div><label for="settings-token-owner">Sahip</label><select id="settings-token-owner" name="owner" required></select></div>
+        <div><label for="settings-token-station">İstasyon</label><input id="settings-token-station" name="station" maxlength="100" list="settings-station-names" autocomplete="off"></div>
+        <div><label for="settings-token-expires">Bitiş</label><input id="settings-token-expires" name="expires" type="date" required></div>
+      </div>
+      <fieldset class="settings-inline-checks"><legend>Yetkiler</legend><label><input type="checkbox" name="scope.monitor"> İzleme</label><label><input type="checkbox" name="scope.control"> Yayın kontrolü</label><label><input type="checkbox" name="scope.plan"> Plan</label><label><input type="checkbox" name="scope.traffic"> Reklam</label><label><input type="checkbox" name="scope.upload"> Reklam yükleme</label><label><input type="checkbox" name="scope.admin"> Yönetim</label></fieldset>
+      <datalist id="settings-station-names"></datalist>
+      <div class="settings-dialog-actions"><button type="button" data-settings-dialog-close>Vazgeç</button><button type="submit" class="settings-primary">Kaydet</button></div>
+    </form>
+  </dialog>
+</section>

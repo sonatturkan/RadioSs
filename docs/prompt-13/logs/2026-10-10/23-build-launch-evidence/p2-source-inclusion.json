@@ -1,0 +1,49 @@
+{
+  "agent": "/root/build_launch_coordination",
+  "verified_utc": "2026-10-10T23:34:31.898791+00:00",
+  "user_override": "No AGENT.md append/update/recovery writes from this point; own P13 records and direct agent messages only",
+  "source_inclusion": {
+    "src/ui/automation_calendar.c": {
+      "expected": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017",
+      "candidate_source_before": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017",
+      "candidate_source_after": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017",
+      "actual_current": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017"
+    },
+    "src/ui/automation.c": {
+      "expected": "5afd4ac45f0493572d3bbb3cd47fdb3ccd97fd6d775755312c96329394b9d06b",
+      "candidate_source_before": "5afd4ac45f0493572d3bbb3cd47fdb3ccd97fd6d775755312c96329394b9d06b",
+      "candidate_source_after": "5afd4ac45f0493572d3bbb3cd47fdb3ccd97fd6d775755312c96329394b9d06b",
+      "actual_current": "5afd4ac45f0493572d3bbb3cd47fdb3ccd97fd6d775755312c96329394b9d06b"
+    },
+    "design/reference/tasarrım/automation-calendar.css": {
+      "expected": "fe2883e55c66d15c5d4ff0796242bbebc364c33289e87935015893b30d93bc9e",
+      "candidate_source_before": "fe2883e55c66d15c5d4ff0796242bbebc364c33289e87935015893b30d93bc9e",
+      "candidate_source_after": "fe2883e55c66d15c5d4ff0796242bbebc364c33289e87935015893b30d93bc9e",
+      "actual_current": "fe2883e55c66d15c5d4ff0796242bbebc364c33289e87935015893b30d93bc9e"
+    },
+    "design/reference/tasarrım/index.html": {
+      "expected": "3adb1070e7fcbaca467956e58cff69a2ec9eca2136b1be580a34869f9c06aa75",
+      "candidate_source_before": "3adb1070e7fcbaca467956e58cff69a2ec9eca2136b1be580a34869f9c06aa75",
+      "candidate_source_after": "3adb1070e7fcbaca467956e58cff69a2ec9eca2136b1be580a34869f9c06aa75",
+      "actual_current": "3adb1070e7fcbaca467956e58cff69a2ec9eca2136b1be580a34869f9c06aa75"
+    }
+  },
+  "acceptance_receipt": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-20261010T232149Z/acceptance-20261010T233151Z/validation.json",
+  "acceptance_sha256": "b3e38f453dd403abe8d2e87ef13c32edda356f6698c426d2d29547ee02e060e4",
+  "source_before_after_equal": true,
+  "source_inputs": 431,
+  "install_receipt": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-delivery-20261010/install-receipt.json",
+  "install_receipt_sha256": "a9a9e0b69aa3b95b662b8a10a2fc3e10ffdd6b2c93fda182448d8d3f93e2782c",
+  "install_actual_utc": "2026-10-10T23:32:33.386276+00:00",
+  "installed_sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+  "candidate_sha256": "5cec467b6a539af8c32f8ac9ae67a82e89cc10035262341db759e244ca666ea3",
+  "backup_sha256": "7bef76d1b552596b3ce0db9b5cfc48fc2462847c8a7a170412aa4642af13c8c4",
+  "installed_mode": "0o755",
+  "launch_receipt": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/direct-provider-delivery-20261010/launch-receipt.json",
+  "launch_receipt_sha256": "1bc8699cb4e8b479c6d58a9d04cf5fdd0ec2648d8369636827bbae792b99c535",
+  "launch_reported_passed": true,
+  "launch_independent_gui_acceptance": false,
+  "launch_limit": "Reported XID0x600aec1767x1040 may be system overlay; receipt process list only P7 private candidate, so intended default RadioS/automation mapped body not verified",
+  "implementation_doc_sha256": "d35e16e834b2c6c3374cdf73423f11cb6e820f201fbebeb61d792bb216f883ca",
+  "product_source_test_process_binary_written_by_coordinator": false
+}

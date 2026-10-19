@@ -1,0 +1,29 @@
+{
+  "scope": "Only PROMPT-2 production16source/header/CSS/integration points; broader source-tree playlist drift retains original limitation",
+  "writer": "prompt5/root",
+  "installed_utc": "2026-10-09T02:35:19.391782+00:00",
+  "installed_actual_sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+  "installed_receipt_sha256": "2ecfd305fa0d7cb22964b7d979c8e6b9f7d0e10b4112c4dfa0ab018cbda51e6a",
+  "release_source_manifest_sha256": "a089e8f8dfc89746554c40dcabbfa7fc40dee6382af9ddc2f30ae4451fb4fcc1",
+  "matched_validated_p2_sources": {
+    "src/ui/header_status.c": "4926015b89aa422503cf01de924c04169a5336fcb3e0ce954d283e9c81900cc7",
+    "include/radios/header_status.h": "2ad4ea76144a29dba8da6e19d5b2c0818c709f2cc8455d1eb31e08381cec378d",
+    "assets/themes/header-status.css": "7f2e0557d2c20e69008a60c9f92cafdac9d407aa617a612eeb781f6420ad51b3",
+    "src/core/ui_preferences.c": "e4be04d2c14b2bc84c9ec13de44d9f4b1e326a9e301b5c84326462dd72069582",
+    "include/radios/ui_preferences.h": "775db72aa3695706bce122635df928bc2c17237e2d94c1cf4c82101cac90d66b",
+    "src/playout/planner.c": "2f84ecd6e2e823730c1b5bfabdb5663504f25e0d825449c28d52261357acba35",
+    "src/ui/playout_ui.c": "1064c2bd906e53871b8cc422f543845cec3b579df44761e8591da4ef46a55f28",
+    "include/radios/playout_ui.h": "ea981fbe8494603f33cbc6284b37f13a050b2e533e1c490c7013b062c4f402d5",
+    "src/ui/broadcast.c": "658917509c2c95845e8ab48acdec889b11470ca97d7ad77c311d27dce19dfcc8",
+    "src/ui/broadcast_online.c": "89a4e6a6bd90ca7f834e57f4f52be7cd02f0817bf8ac356f04cfbbed1500ae60",
+    "include/radios/broadcast_header.h": "88ea073d0d00aa5503459854c563b2f1f0ca509d56453a1e802dfa614eeadc28",
+    "src/ui/header.c": "651bba34774003f115eafcce4dde1faece201c029333e00ec410ba672603ed03",
+    "src/ui/preferences.c": "c264c91fd94bc28d0680b4506b30c725348cdc67c61f2e303d5eafb3cc6595b9",
+    "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+    "cmake/Pdf2HeaderStatus.cmake": "2c3781e02306739bc254031f7c639cfea005792088d36d8b5d39f6f05f9b42ba",
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863"
+  },
+  "mismatch": {},
+  "installed_equals_candidate_and_receipt": true,
+  "root2_default_file_mutation": false
+}

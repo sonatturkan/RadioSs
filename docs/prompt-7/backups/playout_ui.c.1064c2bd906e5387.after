@@ -1,0 +1,912 @@
+#include "radios/playout_ui.h"
+#include "radios/header_navigation.h"
+#include "radios/playout.h"
+#include "radios/audio_ui.h"
+#include "radios/advert_ui.h"
+#include "radios/broadcast_ui.h"
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct RadioSPlayoutController {
+    gint references;
+    RadioSViewContext *ctx;
+    gint player_deck;
+    RadioSAudioEngine *engine;
+    RadioSPlayoutPlan *plan;
+    RadioSPlayoutPlan *pending_plan;
+    RadioSPlayoutHistory *history;
+    RadioSDocument *history_document;
+    GWeakRef owner;
+    gulong owner_handler;
+    guint timer;
+    guint64 intent;
+    GHashTable *observed;
+    JsonNode *automation_config;
+    RadioSPlayoutSnapshot snapshot;
+    gboolean closed, preparing, automatic, history_loaded, failed, prefetching;
+    gchar extension_error[256];
+};
+struct RadioSPlayoutResume {
+    RadioSPlayoutPlan *plan;
+    JsonNode *automation_config;
+    gboolean automatic, paused;
+};
+typedef struct {
+    RadioSPlayoutController *playout;
+    guint64 intent;
+    gboolean preview, automatic, append;
+    guint64 epoch;
+    gboolean player_autodj;
+    guint pair[2];
+    guint64 pair_generation[2];
+    JsonNode *config;
+    RadioSPlayoutRequest request;
+    RadioSPlayoutHistory *history;
+    RadioSDataCallback callback;
+    gpointer user;
+    GDestroyNotify destroy;
+} Preparation;
+
+static gboolean prepare_start(RadioSViewContext *, GtkWidget *, const gchar *, const gchar *, JsonArray *, JsonObject *,
+    guint, guint, gdouble, gint64, gboolean, RadioSDataCallback, gpointer, GDestroyNotify, GError **);
+static gboolean prepare_extension(RadioSPlayoutController *, const RadioSAudioRunSnapshot *, GError **);
+static gboolean install_plan(RadioSPlayoutController *, RadioSPlayoutPlan *, GError **);
+static void capture_history(RadioSPlayoutController *);
+static void extension_clear(RadioSPlayoutController *p)
+{
+    p->prefetching = FALSE; p->extension_error[0] = 0;
+    radios_playout_plan_free(p->pending_plan); p->pending_plan = NULL;
+}
+static RadioSPlayoutController *ref(RadioSPlayoutController *p)
+{ if (p) g_atomic_int_inc(&p->references); return p; }
+static void notice(RadioSPlayoutController *p, const gchar *message)
+{ if (!p->closed && p->ctx->notify) p->ctx->notify(p->ctx->notify_data, message); }
+static gboolean invalid(GError **error, const gchar *message)
+{ g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, message); return FALSE; }
+static RadioSPlayoutController *controller(RadioSViewContext *ctx)
+{ return ctx && ctx->playout && !ctx->playout->closed ? ctx->playout : NULL; }
+static void checkpoint_broadcast(RadioSPlayoutController *p)
+{ if (p->player_deck < 0) radios_broadcast_ui_checkpoint(p->ctx); }
+static void checkpoint_advert(RadioSPlayoutController *p)
+{ if (p->player_deck < 0) radios_advert_ui_checkpoint(p->ctx); }
+static gboolean runner_command(RadioSPlayoutController *p, RadioSAudioPlayerRunCommand command, GError **error)
+{
+    if (p->player_deck >= 0) return radios_audio_engine_player_runner_action(p->engine,(guint)p->player_deck,command,error);
+    switch (command) {
+    case RADIOS_AUDIO_PLAYER_RUN_START: return radios_audio_engine_runner_start(p->engine,error);
+    case RADIOS_AUDIO_PLAYER_RUN_PAUSE: return radios_audio_engine_runner_pause(p->engine,error);
+    case RADIOS_AUDIO_PLAYER_RUN_RESUME: return radios_audio_engine_runner_resume(p->engine,error);
+    case RADIOS_AUDIO_PLAYER_RUN_STOP: return radios_audio_engine_runner_stop(p->engine,error);
+    case RADIOS_AUDIO_PLAYER_RUN_NEXT: return radios_audio_engine_runner_next(p->engine,error);
+    case RADIOS_AUDIO_PLAYER_RUN_PREVIOUS: return radios_audio_engine_runner_previous(p->engine,error);
+    }
+    return invalid(error,"Geçersiz oynatıcı sıra komutu.");
+}
+static void runner_snapshot(RadioSPlayoutController *p, RadioSAudioRunSnapshot *snapshot)
+{
+    if (p->player_deck >= 0) radios_audio_engine_player_runner_snapshot(p->engine,(guint)p->player_deck,snapshot);
+    else radios_audio_engine_runner_snapshot(p->engine,snapshot);
+}
+static guint runner_receipts(RadioSPlayoutController *p, RadioSAudioRunReceipt *out, guint capacity)
+{
+    return p->player_deck >= 0 ? radios_audio_engine_player_runner_receipts(p->engine,(guint)p->player_deck,out,capacity) :
+        radios_audio_engine_runner_receipts(p->engine,out,capacity);
+}
+static JsonNode *clone(JsonNode *source)
+{
+    gchar *text = json_to_string(source, FALSE); JsonParser *parser = json_parser_new();
+    json_parser_load_from_data(parser, text, -1, NULL); JsonNode *result = json_node_copy(json_parser_get_root(parser));
+    g_object_unref(parser); g_free(text); return result;
+}
+static JsonNode *clone_object(JsonObject *source)
+{ JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_set_object(node, source); JsonNode *result = clone(node); json_node_free(node); return result; }
+static void owner_clear(RadioSPlayoutController *p)
+{
+    GtkWidget *owner = g_weak_ref_get(&p->owner); gulong handler = p->owner_handler; p->owner_handler = 0;
+    if (owner && handler && g_signal_handler_is_connected(owner, handler)) g_signal_handler_disconnect(owner, handler);
+    g_clear_object(&owner); g_weak_ref_set(&p->owner, NULL);
+}
+static void owner_destroyed(GtkWidget *owner, gpointer value)
+{
+    (void)owner; RadioSPlayoutController *p = value;
+    if (p->closed) return;
+    runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, NULL); checkpoint_broadcast(p); checkpoint_advert(p); capture_history(p); extension_clear(p);
+    ++p->intent; p->preparing = p->automatic = p->failed = FALSE; p->owner_handler = 0;
+    p->snapshot = (RadioSPlayoutSnapshot){.state = RADIOS_PLAYOUT_IDLE, .deck = -1, .next_deck = -1};
+    g_weak_ref_set(&p->owner, NULL);
+}
+static void history_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer value)
+{
+    (void)ctx; (void)owner; RadioSPlayoutController *p = value;
+    if (p->closed || p->history_loaded) return;
+    radios_playout_history_import(p->history, json_object_get_array_member(config, "entries"));
+    radios_playout_history_set_rotation(p->history, json_object_has_member(config, "rotation") ? json_object_get_object_member(config, "rotation") : NULL);
+    p->history_loaded = TRUE;
+}
+static void preparation_free(gpointer value)
+{
+    Preparation *job = value;
+    if (job->destroy) job->destroy(job->user);
+    if (job->config) json_node_free(job->config);
+    radios_playout_history_free(job->history); radios_playout_ui_unref(job->playout); g_free(job);
+}
+static RadioSPlayoutState map_state(RadioSAudioRunState state)
+{
+    switch (state) {
+    case RADIOS_AUDIO_RUN_IDLE: return RADIOS_PLAYOUT_IDLE;
+    case RADIOS_AUDIO_RUN_PREROLL: return RADIOS_PLAYOUT_PREPARING;
+    case RADIOS_AUDIO_RUN_SCHEDULED: return RADIOS_PLAYOUT_SCHEDULED;
+    case RADIOS_AUDIO_RUN_PLAYING: return RADIOS_PLAYOUT_PLAYING;
+    case RADIOS_AUDIO_RUN_OVERLAP: return RADIOS_PLAYOUT_OVERLAP;
+    case RADIOS_AUDIO_RUN_PAUSED: return RADIOS_PLAYOUT_PAUSED;
+    case RADIOS_AUDIO_RUN_WAITING_MEDIA: return RADIOS_PLAYOUT_WAITING;
+    case RADIOS_AUDIO_RUN_MANUAL_WAIT: return RADIOS_PLAYOUT_MANUAL_WAIT;
+    case RADIOS_AUDIO_RUN_FINISHED: return RADIOS_PLAYOUT_FINISHED;
+    case RADIOS_AUDIO_RUN_ERROR: return RADIOS_PLAYOUT_ERROR;
+    }
+    return RADIOS_PLAYOUT_ERROR;
+}
+static gboolean observe(RadioSPlayoutController *p, const RadioSAudioRunReceipt *receipt)
+{
+    if (!p->plan || receipt->index >= p->plan->entries->len) return FALSE;
+    RadioSPlayoutEntry *e = g_ptr_array_index(p->plan->entries, receipt->index);
+    if (receipt->position_frames <= e->run.media.cue_in_frame) return FALSE;
+    gchar key[64]; g_snprintf(key, sizeof key, "%" G_GUINT64_FORMAT ":%" G_GUINT64_FORMAT, receipt->epoch, receipt->occurrence);
+    if (g_hash_table_contains(p->observed, key)) return FALSE;
+    g_hash_table_add(p->observed, g_strdup(key));
+    g_snprintf(key, sizeof key, "entry:%" G_GUINT64_FORMAT ":%u", receipt->epoch, receipt->index);
+    g_hash_table_add(p->observed, g_strdup(key));
+    radios_playout_history_observe(p->history, e->run.media.media_id, e->run.media.version_id, e->artist, e->album,
+        receipt->first_utc_us, receipt->position_frames - e->run.media.cue_in_frame);
+    if (e->rotation_after) radios_playout_history_set_rotation(p->history, e->rotation_after);
+    p->history_loaded = TRUE;
+    return TRUE;
+}
+static gint receipt_compare(gconstpointer a, gconstpointer b)
+{
+    const RadioSAudioRunReceipt *left = a, *right = b;
+    if (left->first_utc_us != right->first_utc_us) return left->first_utc_us < right->first_utc_us ? -1 : 1;
+    return left->occurrence < right->occurrence ? -1 : left->occurrence != right->occurrence;
+}
+static void capture_history(RadioSPlayoutController *p)
+{
+    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
+    guint count = runner_receipts(p, receipts, G_N_ELEMENTS(receipts));
+    qsort(receipts, count, sizeof receipts[0], receipt_compare);
+    gboolean changed = FALSE;
+    for (guint i = 0; i < count; ++i) changed |= observe(p, &receipts[i]);
+    if (!changed) return;
+    if (p->history_document && radios_data_document_ready(p->history_document)) {
+        JsonNode *body = radios_playout_history_json(p->history);
+        radios_data_document_dirty(p->history_document, TRUE);
+        if (!radios_data_document_save(p->history_document, body)) notice(p, "Yerel çalma geçmişi kaydedilemedi; tekrar koruması bu oturumda korunuyor.");
+        json_node_free(body);
+    }
+}
+static gboolean poll(gpointer value)
+{
+    RadioSPlayoutController *p = value;
+    if (p->closed) return G_SOURCE_REMOVE;
+    if (p->preparing || p->failed) return G_SOURCE_CONTINUE;
+    RadioSAudioRunSnapshot actual; runner_snapshot(p, &actual);
+    capture_history(p);
+    p->snapshot.state = map_state(actual.state); p->snapshot.index = actual.index;
+    p->snapshot.total = actual.count; p->snapshot.deck = actual.deck_current;
+    p->snapshot.next_deck = actual.deck_next;
+    p->snapshot.position_ms = actual.actual_current_frame / 48;
+    g_strlcpy(p->snapshot.entry_id, actual.entry_id, sizeof p->snapshot.entry_id);
+    p->snapshot.next_entry_id[0] = '\0'; p->snapshot.cue_in_ms = 0;
+    g_strlcpy(p->snapshot.error, actual.error, sizeof p->snapshot.error);
+    if (p->plan && actual.index < p->plan->entries->len) {
+        RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, actual.index);
+        p->snapshot.duration_ms = entry->run.media.cue_out_frame / 48;
+        p->snapshot.cue_in_ms = entry->run.media.cue_in_frame / 48;
+        guint next_index = actual.deck_next >= 0 ? actual.next_index : actual.index + 1;
+        if (next_index < p->plan->entries->len) {
+            RadioSPlayoutEntry *next = g_ptr_array_index(p->plan->entries, next_index);
+            g_strlcpy(p->snapshot.next_entry_id, next->run.entry_id, sizeof p->snapshot.next_entry_id);
+        }
+        p->snapshot.transition = entry->run.mode;
+        p->snapshot.overlap_ms = entry->run.overlap_frames / 48;
+        p->snapshot.start_utc_us = p->plan->options.start_utc_us;
+        g_strlcpy(p->snapshot.title, entry->title, sizeof p->snapshot.title);
+        const gchar *invalid_utf8 = NULL;
+        if (!g_utf8_validate(p->snapshot.title, -1, &invalid_utf8)) p->snapshot.title[invalid_utf8 - p->snapshot.title] = '\0';
+        if (actual.deck_current >= 0) radios_audio_ui_runner_duration(p->ctx, (guint)actual.deck_current, entry->run.duration_frames / 48);
+        if (actual.deck_next >= 0 && actual.next_index < p->plan->entries->len) {
+            RadioSPlayoutEntry *next = g_ptr_array_index(p->plan->entries, actual.next_index);
+            radios_audio_ui_runner_duration(p->ctx, (guint)actual.deck_next, next->run.duration_frames / 48);
+        }
+    }
+    /* A durable advert handover owns the next queue boundary. Keep observing
+     * the old PCM/history, but do not replace it with a rotation continuation. */
+    if (actual.handover_pending || radios_advert_ui_pending(p->ctx) || radios_broadcast_ui_emergency_pending(p->ctx)) return G_SOURCE_CONTINUE;
+    if (p->automatic && actual.state == RADIOS_AUDIO_RUN_FINISHED && p->pending_plan) {
+        RadioSPlayoutPlan *ready = p->pending_plan; p->pending_plan = NULL;
+        GError *error = NULL;
+        runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, NULL);
+        if (!install_plan(p, ready, &error)) {
+            radios_playout_plan_free(ready); p->automatic = FALSE; p->failed = TRUE; p->snapshot.state = RADIOS_PLAYOUT_ERROR;
+            g_strlcpy(p->snapshot.error, error ? error->message : "Rotasyon devam ettirilemedi.", sizeof p->snapshot.error);
+            notice(p, p->snapshot.error);
+        }
+        g_clear_error(&error);
+        return G_SOURCE_CONTINUE;
+    }
+    if (p->automatic && actual.state == RADIOS_AUDIO_RUN_FINISHED && p->extension_error[0]) {
+        p->automatic = FALSE; p->failed = TRUE; p->snapshot.state = RADIOS_PLAYOUT_ERROR;
+        g_strlcpy(p->snapshot.error, p->extension_error, sizeof p->snapshot.error); notice(p, p->snapshot.error);
+    } else if (p->automatic && p->automation_config && p->plan && !p->prefetching && !p->pending_plan && !p->extension_error[0] &&
+        (actual.state == RADIOS_AUDIO_RUN_PLAYING || actual.state == RADIOS_AUDIO_RUN_OVERLAP || actual.state == RADIOS_AUDIO_RUN_FINISHED) &&
+        actual.count - MIN(actual.count, actual.index) <= MAX(3u, MIN(100u, p->plan->music_count / 2))) {
+        GError *error = NULL;
+        if (!prepare_extension(p, &actual, &error)) {
+            g_strlcpy(p->extension_error, error ? error->message : "Sonraki rotasyon hazırlanamadı.", sizeof p->extension_error); notice(p, p->extension_error);
+        }
+        g_clear_error(&error);
+    }
+    return G_SOURCE_CONTINUE;
+}
+static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
+{
+    if (plan->player_autodj) {
+        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+        for (guint index = 0; index < 2; ++index) {
+            guint deck = plan->options.deck_pool[index]; gboolean mapped = FALSE;
+            for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
+            gchar *key = g_strdup_printf("radios-deck-owner-%u", deck); GtkWidget *card = g_object_get_data(G_OBJECT(p->ctx->parent), key); g_free(key);
+            RadioSAudioRunSnapshot private; radios_audio_engine_player_runner_snapshot(p->engine, deck, &private);
+            if (!card || private.owned[deck] || !mapped || !audio.decks[deck].main_routed || audio.decks[deck].state == RADIOS_AUDIO_LOADING ||
+                audio.decks[deck].state == RADIOS_AUDIO_ERROR || (index && audio.decks[deck].state == RADIOS_AUDIO_PLAYING))
+                return invalid(error, "AutoDJ hedefi boş veya durdurulmuş ve MAIN'e atanmış olmalı; başka oynatıcı sırasının sesi korunuyor.");
+        }
+        guint source = plan->options.deck_pool[0]; RadioSPlayoutEntry *first = g_ptr_array_index(plan->entries, 0);
+        gboolean matches = g_str_equal(audio.decks[source].media_id, first->run.media.media_id) && g_str_equal(audio.decks[source].version_id, first->run.media.version_id);
+        if (audio.decks[source].state == RADIOS_AUDIO_PLAYING && !matches) return invalid(error, "Çalan kaynak seçilen AutoDJ listesinden farklı; önce durdurun.");
+        if (matches && fabs(audio.decks[source].tempo_ratio - first->run.tempo_ratio) > 0.000001)
+            return invalid(error, "AutoDJ kaynağında önce manuel SYNC'i kapatın; mevcut tempo ve ses korunuyor.");
+        if (matches && audio.decks[source].cursor_frames > first->run.media.cue_in_frame) first->run.media.cue_in_frame = audio.decks[source].cursor_frames;
+        if (first->run.media.cue_in_frame >= first->run.media.cue_out_frame ||
+            first->run.overlap_frames * first->run.tempo_ratio >= first->run.media.cue_out_frame - first->run.media.cue_in_frame)
+            return invalid(error, "Çalan parçanın kalan süresi AutoDJ geçişi için çok kısa.");
+        return TRUE;
+    }
+    if (p->player_deck >= 0) {
+        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine,&audio); guint deck = (guint)p->player_deck;
+        gboolean mapped = FALSE;
+        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
+        if (!mapped || !audio.decks[deck].main_routed || audio.decks[deck].state != RADIOS_AUDIO_EMPTY)
+            return invalid(error,"Seçili oynatıcı boş ve MAIN'e atanmış olmalı; başka oynatıcıya geçilmedi.");
+        for (guint index = 0; index < plan->entries->len; ++index) {
+            RadioSPlayoutEntry *entry = g_ptr_array_index(plan->entries,index);
+            if (entry->run.mode == RADIOS_AUDIO_RUN_CROSSFADE && entry->run.overlap_frames)
+                return invalid(error,"Tek oynatıcı sırası bindirme yapamaz; Parça sonu, Cue veya Manuel geçiş seçin.");
+            entry->run.overlap_frames = 0; entry->run.preferred_deck = (gint)deck;
+        }
+        plan->options.pool_count = 1; plan->options.deck_pool[0] = deck; return TRUE;
+    }
+    if (plan->automation) return TRUE;
+    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+    plan->options.pool_count = 0;
+    for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS && plan->options.pool_count < 2; ++deck) {
+        gboolean mapped = FALSE;
+        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
+            if (audio.mixer.channels[channel].source_deck == (gint)deck) mapped = TRUE;
+        if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_EMPTY)
+            plan->options.deck_pool[plan->options.pool_count++] = deck;
+    }
+    if (!plan->options.pool_count) return invalid(error, "Sıra için boş ve MAIN'e atanmış oynatıcı bulunamadı; canlı oynatıcılar korunuyor.");
+    gboolean overlap = FALSE;
+    for (guint i = 0; i < plan->entries->len; ++i) if (((RadioSPlayoutEntry *)g_ptr_array_index(plan->entries, i))->run.overlap_frames) overlap = TRUE;
+    if (overlap && plan->options.pool_count < 2) return invalid(error, "Bindirme için boş ve MAIN'e atanmış iki oynatıcı gerekli.");
+    return TRUE;
+}
+static gboolean install_plan(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
+{
+    checkpoint_advert(p);
+    if (!choose_pool(p, plan, error)) return FALSE;
+    RadioSAudioRunItem *items = radios_playout_plan_items(plan);
+    gboolean configured = p->player_deck >= 0 ? radios_audio_engine_player_runner_configure(p->engine,(guint)p->player_deck,items,plan->entries->len,&plan->options,error) :
+        radios_audio_engine_runner_configure(p->engine, items, plan->entries->len, &plan->options, error);
+    gint adopt = -1; guint64 generation = 0;
+    if (configured && plan->player_autodj) {
+        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio); guint source = plan->options.deck_pool[0];
+        if (g_str_equal(audio.decks[source].media_id, items[0].media.media_id) && g_str_equal(audio.decks[source].version_id, items[0].media.version_id)) {
+            adopt = (gint)source; generation = audio.decks[source].generation;
+        }
+        for (guint index = 0; index < 2; ++index) if ((gint)plan->options.deck_pool[index] != adopt)
+            configured = configured && radios_audio_engine_unload(p->engine, plan->options.deck_pool[index], error);
+    }
+    gboolean accepted = configured && (adopt >= 0 ? radios_audio_engine_runner_start_adopting(p->engine, (guint)adopt, generation, error) :
+        runner_command(p,RADIOS_AUDIO_PLAYER_RUN_START,error));
+    g_free(items);
+    if (!accepted) return FALSE;
+    radios_playout_plan_free(p->plan); p->plan = plan; g_hash_table_remove_all(p->observed);
+    p->snapshot = (RadioSPlayoutSnapshot){.state = RADIOS_PLAYOUT_PREPARING, .total = plan->entries->len, .deck = -1, .next_deck = -1, .start_utc_us = plan->options.start_utc_us};
+    return TRUE;
+}
+static gboolean replacement_ready(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
+{
+    RadioSAudioSnapshot audio; RadioSAudioRunSnapshot actual;
+    radios_audio_engine_snapshot(p->engine, &audio); runner_snapshot(p, &actual);
+    guint available = 0;
+    for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS; ++deck) {
+        gboolean mapped = FALSE;
+        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
+            mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
+        if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_PLAYING && !actual.owned[deck])
+            return invalid(error, "MAIN'de elle çalınan kaynak var; önce operatör bu kaynağı durdurmalı.");
+        gboolean usable = mapped && audio.decks[deck].main_routed && (actual.owned[deck] || audio.decks[deck].state == RADIOS_AUDIO_EMPTY);
+        if (usable) ++available;
+        if (plan->automation) for (guint i = 0; i < plan->options.pool_count; ++i)
+            if (plan->options.deck_pool[i] == deck && !usable) return invalid(error, "Normal yayın dönüş oynatıcısı elle kullanılıyor; mevcut kaynak korunuyor.");
+    }
+    gboolean overlap = FALSE;
+    for (guint i = 0; i < plan->entries->len; ++i) overlap |= ((RadioSPlayoutEntry *)g_ptr_array_index(plan->entries, i))->run.overlap_frames != 0;
+    return available >= (overlap ? 2u : 1u) || invalid(error, "Devralma için boş veya sıraya ait MAIN oynatıcısı gerekli; mevcut kaynak korunuyor.");
+}
+static void append_fade_in(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, gint64 expected_start)
+{
+    RadioSPlayoutEntry *last = g_ptr_array_index(p->plan->entries, p->plan->entries->len - 1);
+    RadioSPlayoutEntry *first = g_ptr_array_index(plan->entries, 0);
+    guint64 span = last->run.media.cue_out_frame - last->run.media.cue_in_frame;
+    guint64 trigger = last->run.mode == RADIOS_AUDIO_RUN_CUE ? last->run.auto_next_frame - last->run.media.cue_in_frame :
+        last->run.mode == RADIOS_AUDIO_RUN_CROSSFADE ? span - MIN(span, last->run.overlap_frames) : span;
+    guint64 elapsed = trigger + (guint64)MAX((gint64)0, first->planned_utc_us - expected_start) * 48000 / 1000000;
+    first->run.fade_in_frames = MIN(MIN(last->run.overlap_frames, span > elapsed ? span - elapsed : 0),
+        first->run.media.cue_out_frame - first->run.media.cue_in_frame);
+}
+static void prepared(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *failure, gpointer value)
+{
+    Preparation *job = value; RadioSPlayoutController *p = job->playout;
+    if (p->closed || (!job->preview && job->intent != p->intent)) return;
+    GError *error = failure ? g_error_copy(failure) : NULL; RadioSPlayoutPlan *plan = NULL;
+    if (!error && result && JSON_NODE_HOLDS_OBJECT(result)) {
+        JsonObject *response = json_node_get_object(result);
+        JsonNode *history = json_object_get_member(response, "history");
+        if (!job->preview && p->player_deck < 0 && !p->history_loaded && history && JSON_NODE_HOLDS_OBJECT(history)) {
+            JsonObject *record = json_node_get_object(history);
+            JsonObject *configuration = json_object_get_object_member(record, "config");
+            radios_playout_history_import(p->history, json_object_get_array_member(configuration, "entries"));
+            radios_playout_history_set_rotation(p->history, json_object_has_member(configuration, "rotation") ? json_object_get_object_member(configuration, "rotation") : NULL);
+            p->history_loaded = TRUE;
+        }
+        job->request.now_utc_us = g_get_real_time();
+        plan = radios_playout_plan_build(response, &job->request, &error);
+    } else if (!error) invalid(&error, "Oynatma hazırlığı geçerli veri döndürmedi.");
+    if (job->preview) {
+        if (job->callback) job->callback(ctx, owner, plan ? plan->display : NULL, error, job->user);
+        radios_playout_plan_free(plan); g_clear_error(&error); return;
+    }
+    if (job->append) {
+        p->prefetching = FALSE;
+        RadioSAudioRunSnapshot actual; runner_snapshot(p, &actual);
+        if (actual.epoch != job->epoch || !p->automatic || !p->plan) { radios_playout_plan_free(plan); g_clear_error(&error); return; }
+        if (plan) {
+            append_fade_in(p, plan, job->request.start_utc_us);
+            RadioSAudioRunItem *items = radios_playout_plan_items(plan);
+            gboolean appended = p->plan->entries->len + plan->entries->len <= RADIOS_AUDIO_RUN_MAX_ITEMS &&
+                radios_audio_engine_runner_append(p->engine, items, plan->entries->len, &error);
+            g_free(items);
+            if (appended) {
+                p->plan->music_count = plan->music_count;
+                while (plan->entries->len) g_ptr_array_add(p->plan->entries, g_ptr_array_steal_index(plan->entries, 0));
+                radios_playout_plan_free(plan); g_clear_error(&error); return;
+            }
+            runner_snapshot(p, &actual);
+            if (actual.state == RADIOS_AUDIO_RUN_FINISHED || p->plan->entries->len + plan->entries->len > RADIOS_AUDIO_RUN_MAX_ITEMS ||
+                (error && error->domain == RADIOS_AUDIO_ERROR_DOMAIN && error->code == RADIOS_AUDIO_ERROR_STATE && actual.state != RADIOS_AUDIO_RUN_ERROR)) {
+                p->pending_plan = plan; g_clear_error(&error); return;
+            }
+            radios_playout_plan_free(plan);
+        }
+        g_strlcpy(p->extension_error, error ? error->message : "Sonraki rotasyon hazırlanamadı.", sizeof p->extension_error);
+        notice(p, p->extension_error); g_clear_error(&error); return;
+    }
+    p->preparing = FALSE;
+    if (plan && job->player_autodj) {
+        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+        for (guint index = 0; index < 2; ++index) if (audio.decks[job->pair[index]].generation != job->pair_generation[index]) {
+            invalid(&error, "AutoDJ hazırlanırken kaynak veya hedef deck değişti; yeni yükleme korunuyor.");
+            radios_playout_plan_free(plan); plan = NULL; break;
+        }
+    }
+    if (plan && !install_plan(p, plan, &error)) { radios_playout_plan_free(plan); plan = NULL; }
+    if (!plan) {
+        p->automatic = FALSE; p->failed = TRUE; p->snapshot.state = RADIOS_PLAYOUT_ERROR;
+        g_strlcpy(p->snapshot.error, error ? error->message : "Sıra başlatılamadı.", sizeof p->snapshot.error); notice(p, p->snapshot.error); g_clear_error(&error); return;
+    }
+    p->automatic = job->automatic;
+    if (p->automation_config) json_node_free(p->automation_config);
+    p->automation_config = job->automatic ? clone(job->config) : NULL;
+    notice(p, plan->options.start_utc_us > g_get_real_time() ? "Sıra doğrulandı; UTC başlangıcını bekliyor." : "Doğrulanmış sıra C ses motorunda hazırlanıyor.");
+    g_clear_error(&error);
+}
+static gboolean prepare_extension(RadioSPlayoutController *p, const RadioSAudioRunSnapshot *actual, GError **error)
+{
+    GtkWidget *owner = g_weak_ref_get(&p->owner);
+    if (!owner || gtk_widget_in_destruction(owner)) {
+        g_clear_object(&owner); p->automatic = FALSE; return TRUE;
+    }
+    Preparation *job = g_new0(Preparation, 1); job->playout = ref(p); job->automatic = job->append = TRUE;
+    job->intent = p->intent; job->epoch = actual->epoch; job->config = clone(p->automation_config);
+    job->history = radios_playout_history_copy(p->history);
+    RadioSPlayoutEntry *last = g_ptr_array_index(p->plan->entries, p->plan->entries->len - 1);
+    guint64 span = last->run.media.cue_out_frame - last->run.media.cue_in_frame;
+    guint64 trigger = last->run.mode == RADIOS_AUDIO_RUN_CUE ? last->run.auto_next_frame - last->run.media.cue_in_frame :
+        last->run.mode == RADIOS_AUDIO_RUN_CROSSFADE ? span - MIN(last->run.overlap_frames, span) : span;
+    gint64 shift = 0;
+    if (actual->index < p->plan->entries->len && actual->actual_current_frame) {
+        RadioSPlayoutEntry *current = g_ptr_array_index(p->plan->entries, actual->index);
+        guint64 consumed = actual->actual_current_frame > current->run.media.cue_in_frame ? actual->actual_current_frame - current->run.media.cue_in_frame : 0;
+        shift = g_get_real_time() - current->planned_utc_us - (gint64)(consumed * 1000000 / 48000);
+    }
+    for (guint i = 0; i < p->plan->entries->len; ++i) {
+        gchar key[64]; g_snprintf(key, sizeof key, "entry:%" G_GUINT64_FORMAT ":%u", actual->epoch, i);
+        RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, i);
+        if (!g_hash_table_contains(p->observed, key) && i >= actual->index)
+            radios_playout_history_observe(job->history, entry->run.media.media_id, entry->run.media.version_id,
+                entry->artist, entry->album, entry->planned_utc_us + shift, 1);
+    }
+    radios_playout_history_set_rotation(job->history, last->rotation_after);
+    job->request = (RadioSPlayoutRequest){.station_id = radios_data_station_id(p->ctx), .database_file = p->ctx->config->database_file,
+        .now_utc_us = g_get_real_time(), .start_utc_us = MAX(g_get_real_time(), last->planned_utc_us + shift + (gint64)(trigger * 1000000 / 48000)),
+        .live = TRUE, .history = job->history};
+    JsonObject *config = json_node_get_object(p->automation_config);
+    JsonArray *decks = json_object_get_array_member(config, "decks");
+    guint count = radios_json_int(config, "deckMode", 0) == 1 ? 1 : json_array_get_length(decks);
+    for (guint entry_index = p->plan->entries->len; entry_index > 0; --entry_index) {
+        RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, entry_index - 1);
+        gboolean found = FALSE;
+        for (guint deck_index = 0; deck_index < count; ++deck_index)
+            if ((gint)g_ascii_strtoll(json_array_get_string_element(decks, deck_index), NULL, 10) - 1 == entry->run.preferred_deck) {
+                job->request.deck_phase = (deck_index + 1) % count; found = TRUE; break;
+            }
+        if (found) break;
+    }
+    JsonNode *body = radios_data_body(p->ctx); JsonObject *o = json_node_get_object(body);
+    json_object_set_string_member(o, "kind", "automation");
+    json_object_set_object_member(o, "config", json_object_ref(json_node_get_object(job->config)));
+    p->prefetching = TRUE;
+    gboolean queued = radios_data_request(p->ctx, owner, "POST", "/v1/workflows/desktop-playout/prepare", body, prepared, job, preparation_free);
+    json_node_free(body); g_object_unref(owner);
+    if (!queued) { p->prefetching = FALSE; return invalid(error, "Sonraki rotasyon isteği gönderilemedi."); }
+    return TRUE;
+}
+static gboolean prepare_start(RadioSViewContext *ctx, GtkWidget *owner, const gchar *kind, const gchar *playlist_id,
+    JsonArray *entry_ids, JsonObject *config, guint start_index, guint mode, gdouble overlap, gint64 start_utc,
+    gboolean preview, RadioSDataCallback callback, gpointer user, GDestroyNotify destroy, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || !owner || gtk_widget_in_destruction(owner) || !radios_data_connected(ctx) || mode > 3 || !isfinite(overlap) || overlap < 0 || overlap > 30) {
+        if (destroy) destroy(user);
+        return invalid(error, "Sıra, medya bağlantısı veya ses motoru hazır değil.");
+    }
+    if (p->player_deck >= 0 && (g_str_equal(kind, "automation") || !radios_data_document_ready(p->history_document))) {
+        if (destroy) destroy(user);
+        return invalid(error, "Oynatıcı geçmişi henüz yüklenmedi veya genel AutoDJ komutu ayrı sıraya yönlendirilemez.");
+    }
+    if (p->player_deck >= 0 && (mode == 1 || overlap != 0 ||
+        (config && json_object_has_member(config, "autodj_players")) ||
+        (config && json_object_has_member(config, "queue_player") && radios_json_int(config, "queue_player", 0) != p->player_deck + 1))) {
+        if (destroy) destroy(user);
+        return invalid(error, "Oynatıcı kimliği veya tek oynatıcı geçiş ayarı uyuşmuyor; mevcut sıra korunuyor.");
+    }
+    if (p->player_deck >= 0) p->history_loaded = TRUE;
+    Preparation *job = g_new0(Preparation, 1); job->playout = ref(p); job->preview = preview;
+    job->automatic = g_str_equal(kind, "automation"); job->callback = callback; job->user = user; job->destroy = destroy;
+    if (config && json_object_has_member(config, "autodj_players")) {
+        JsonArray *pair = json_object_get_array_member(config, "autodj_players");
+        if (pair && json_array_get_length(pair) == 2) {
+            RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio); job->player_autodj = TRUE;
+            for (guint index = 0; index < 2; ++index) {
+                gint64 player = json_array_get_int_element(pair, index) - 1;
+                if (player < 0 || player >= 32) { preparation_free(job); return invalid(error, "AutoDJ hedefi geçersiz."); }
+                job->pair[index] = (guint)player; job->pair_generation[index] = audio.decks[player].generation;
+            }
+        }
+    }
+    job->request = (RadioSPlayoutRequest){.station_id = radios_data_station_id(ctx), .database_file = ctx->config->database_file,
+        .mode = mode, .start_index = start_index, .overlap_seconds = overlap, .now_utc_us = g_get_real_time(), .start_utc_us = start_utc,
+        .live = !preview};
+    JsonNode *body = radios_data_body(ctx); JsonObject *o = json_node_get_object(body);
+    json_object_set_string_member(o, "kind", kind);
+    if (playlist_id) json_object_set_string_member(o, "playlist_id", playlist_id);
+    if (entry_ids) json_object_set_array_member(o, "entry_ids", json_array_ref(entry_ids));
+    if (config) { job->config = clone_object(config); json_object_set_object_member(o, "config", json_object_ref(json_node_get_object(job->config))); }
+    if (!preview) {
+        runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, NULL); checkpoint_broadcast(p); checkpoint_advert(p); capture_history(p); extension_clear(p);
+        ++p->intent; job->intent = p->intent; p->preparing = TRUE; p->automatic = p->failed = FALSE;
+        owner_clear(p);
+        g_weak_ref_set(&p->owner, owner); p->owner_handler = g_signal_connect(owner, "destroy", G_CALLBACK(owner_destroyed), p);
+        p->snapshot = (RadioSPlayoutSnapshot){.state = RADIOS_PLAYOUT_PREPARING, .deck = -1, .next_deck = -1};
+    }
+    job->history = p->history_loaded ? radios_playout_history_copy(p->history) : NULL;
+    job->request.history = job->history;
+    gboolean queued = radios_data_request(ctx, owner, "POST", "/v1/workflows/desktop-playout/prepare", body, prepared, job, preparation_free);
+    json_node_free(body);
+    if (!queued && !preview) { p->preparing = FALSE; p->failed = TRUE; p->snapshot.state = RADIOS_PLAYOUT_ERROR; }
+    if (queued && !preview) radios_broadcast_queue_run_config(ctx, g_str_equal(kind, "programme") ? config : NULL);
+    return queued;
+}
+static RadioSPlayoutController *playout_new(RadioSViewContext *ctx, gint player_deck, GtkWidget *owner)
+{
+    if (!ctx || !ctx->audio) return NULL;
+    RadioSPlayoutController *p = g_new0(RadioSPlayoutController, 1); p->references = 1; p->ctx = ctx;
+    p->player_deck = player_deck;
+    p->engine = radios_audio_ui_engine_acquire(ctx); p->history = radios_playout_history_new();
+    g_weak_ref_init(&p->owner, NULL); p->observed = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    p->snapshot = (RadioSPlayoutSnapshot){.state = RADIOS_PLAYOUT_IDLE, .deck = -1, .next_deck = -1};
+    gchar *name = player_deck < 0 ? g_strdup("Yerel oynatma geçmişi") : g_strdup_printf("Oynatıcı %d oynatma geçmişi",player_deck + 1);
+    p->history_document = radios_data_document_new(ctx, owner, "playout_history", name, history_loaded, p); g_free(name);
+    p->timer = g_timeout_add(50, poll, p); return p;
+}
+RadioSPlayoutController *radios_playout_ui_new(RadioSViewContext *ctx)
+{ return ctx ? playout_new(ctx,-1,GTK_WIDGET(ctx->parent)) : NULL; }
+RadioSPlayoutController *radios_playout_ui_new_player(RadioSViewContext *ctx, guint deck, GtkWidget *owner)
+{ return ctx && deck < 32 && owner ? playout_new(ctx,(gint)deck,owner) : NULL; }
+void radios_playout_ui_close(RadioSPlayoutController *p)
+{
+    if (!p || p->closed) return;
+    runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, NULL); checkpoint_broadcast(p); checkpoint_advert(p); capture_history(p); extension_clear(p);
+    if (!radios_data_document_preserve_pending(p->history_document))
+        notice(p, "Son çalma checkpoint'i doğrulanamadı; kurtarmada ölçülmeyen son kuyruk belirsiz kalır.");
+    p->closed = TRUE; ++p->intent; p->automatic = p->preparing = FALSE;
+    if (p->timer) { g_source_remove(p->timer); p->timer = 0; }
+    owner_clear(p);
+}
+void radios_playout_ui_unref(RadioSPlayoutController *p)
+{
+    if (!p || !g_atomic_int_dec_and_test(&p->references)) return;
+    radios_playout_ui_close(p); radios_audio_engine_unref(p->engine); radios_playout_plan_free(p->plan);
+    radios_playout_history_free(p->history); g_hash_table_unref(p->observed); g_weak_ref_clear(&p->owner);
+    if (p->automation_config) json_node_free(p->automation_config);
+    g_free(p);
+}
+gboolean radios_playout_ui_start_player_autodj(RadioSViewContext *ctx, GtkWidget *owner, JsonArray *items, guint source, guint target, GError **error)
+{
+    RadioSPlayoutController *playout = controller(ctx);
+    if (!playout || playout->player_deck >= 0 || source >= 32 || target >= 32 || source == target || !items || json_array_get_length(items) < 2)
+        return invalid(error, "AutoDJ için farklı iki oynatıcı ve en az iki doğrulanmış yerel parça seçin.");
+    RadioSAudioRunSnapshot run; runner_snapshot(playout, &run);
+    for (guint deck = 0; deck < 32; ++deck) if (run.owned[deck]) return invalid(error, "Genel yayın deckleri henüz kullanımda; mevcut ses korunuyor.");
+    if (playout->preparing || run.state == RADIOS_AUDIO_RUN_PLAYING || run.state == RADIOS_AUDIO_RUN_OVERLAP || run.state == RADIOS_AUDIO_RUN_PAUSED ||
+        run.state == RADIOS_AUDIO_RUN_SCHEDULED || run.state == RADIOS_AUDIO_RUN_WAITING_MEDIA || run.state == RADIOS_AUDIO_RUN_PREROLL)
+        return invalid(error, "Genel AutoDJ / yayın sırası kullanımda; mevcut yayın korunuyor.");
+    JsonObject *config = json_object_new(); gchar *name = g_strdup_printf("Oynatıcı %u → %u AutoDJ", source + 1, target + 1);
+    json_object_set_string_member(config, "title", name); g_free(name); json_object_set_string_member(config, "note", "");
+    GDateTime *now = g_date_time_new_now_utc(); gchar *date = g_date_time_format(now, "%Y-%m-%d"); g_date_time_unref(now);
+    json_object_set_string_member(config, "date", date); g_free(date);
+    JsonArray *events = json_array_new(), *pair = json_array_new(); json_object_set_array_member(config, "events", events);
+    json_array_add_int_element(pair, source + 1); json_array_add_int_element(pair, target + 1); json_object_set_array_member(config, "autodj_players", pair);
+    json_object_set_boolean_member(config, "beat_sync", TRUE);
+    for (guint index = 0; index < json_array_get_length(items); ++index) {
+        JsonObject *input = json_array_get_object_element(items, index);
+        const gchar *binding[] = {"media_id", "version_id", "media_file_id", "media_sha256"};
+        if (!g_uuid_string_is_valid(radios_json_string(input, "media_id", ""))) { json_object_unref(config); return invalid(error, "AutoDJ SYNC yalnız doğrulanmış yerel medya kullanır; çevrimiçi PCM deck analizi değildir."); }
+        JsonObject *event = json_object_new(); gchar *id = g_uuid_string_random(); json_object_set_string_member(event, "id", id); g_free(id);
+        const gchar *metadata[] = {"title", "artist", "album"};
+        for (guint field = 0; field < G_N_ELEMENTS(metadata); ++field) json_object_set_string_member(event, metadata[field], radios_json_string(input, metadata[field], ""));
+        for (guint field = 0; field < G_N_ELEMENTS(binding); ++field) json_object_set_string_member(event, binding[field], radios_json_string(input, binding[field], ""));
+        json_object_set_string_member(event, "kind", "music"); json_object_set_int_member(event, "duration_ms", radios_json_int(input, "duration_ms", 0));
+        const gchar *empty[] = {"start_time", "version_label", "primary_file", "backup_file", "note"};
+        for (guint field = 0; field < G_N_ELEMENTS(empty); ++field) json_object_set_string_member(event, empty[field], "");
+        json_array_add_object_element(events, event);
+    }
+    gboolean accepted = radios_playout_ui_start_programme(ctx, owner, config, 0, RADIOS_AUDIO_RUN_CROSSFADE, 2, error);
+    json_object_unref(config); return accepted;
+}
+guint64 radios_playout_ui_intent(RadioSViewContext *ctx)
+{ RadioSPlayoutController *p = controller(ctx); return p ? p->intent : 0; }
+void radios_playout_ui_resume_free(RadioSPlayoutResume *resume)
+{
+    if (!resume) return;
+    radios_playout_plan_free(resume->plan);
+    g_clear_pointer(&resume->automation_config, json_node_free); g_free(resume);
+}
+gboolean radios_playout_ui_interrupt_prepared(RadioSViewContext *ctx, GtkWidget *owner,
+    JsonObject *response, RadioSPlayoutResume **out, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || !owner || !out || *out || !radios_data_connected(ctx) || gtk_widget_in_destruction(owner))
+        return invalid(error, "Acil yürütücüsü veya bağlantı hazır değil.");
+    RadioSPlayoutRequest request = {.station_id = radios_data_station_id(ctx), .database_file = ctx->config->database_file,
+        .mode = RADIOS_AUDIO_RUN_EOF, .now_utc_us = g_get_real_time(), .live = TRUE, .history = p->history};
+    RadioSPlayoutPlan *emergency = radios_playout_plan_build(response, &request, error);
+    if (!emergency) return FALSE; /* Reject invalid media before touching live PCM. */
+    if (!replacement_ready(p, emergency, error)) { radios_playout_plan_free(emergency); return FALSE; }
+    RadioSAudioRunSnapshot actual; runner_snapshot(p, &actual);
+    RadioSPlayoutResume *resume = g_new0(RadioSPlayoutResume, 1);
+    resume->paused = actual.state == RADIOS_AUDIO_RUN_PAUSED;
+    resume->automatic = p->automatic;
+    resume->automation_config = p->automation_config ? clone(p->automation_config) : NULL;
+    if (!runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, error)) {
+        radios_playout_plan_free(emergency); radios_playout_ui_resume_free(resume); return FALSE;
+    }
+    radios_advert_ui_checkpoint(ctx); capture_history(p);
+    if (p->automatic && actual.state == RADIOS_AUDIO_RUN_FINISHED && p->pending_plan) {
+        resume->plan = p->pending_plan; p->pending_plan = NULL;
+    }
+    extension_clear(p);
+    if (p->plan && actual.index < p->plan->entries->len && actual.state != RADIOS_AUDIO_RUN_FINISHED && actual.state != RADIOS_AUDIO_RUN_IDLE && actual.state != RADIOS_AUDIO_RUN_ERROR) {
+        resume->plan = p->plan; p->plan = NULL;
+        guint index = actual.index;
+        guint64 cursor = actual.actual_current_frame;
+        if (actual.next_index > actual.index && actual.next_index < resume->plan->entries->len && actual.actual_next_frame >
+            ((RadioSPlayoutEntry *)g_ptr_array_index(resume->plan->entries, actual.next_index))->run.media.cue_in_frame) {
+            index = actual.next_index; cursor = actual.actual_next_frame;
+        }
+        RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
+        guint n = runner_receipts(p, receipts, G_N_ELEMENTS(receipts)); guint64 occurrence = 0;
+        for (guint i = 0; i < n; ++i) if (receipts[i].epoch == actual.epoch && receipts[i].index < resume->plan->entries->len && receipts[i].occurrence >= occurrence &&
+            receipts[i].position_frames > ((RadioSPlayoutEntry *)g_ptr_array_index(resume->plan->entries, receipts[i].index))->run.media.cue_in_frame) {
+            occurrence = receipts[i].occurrence;
+            if (index != receipts[i].index) { index = receipts[i].index; cursor = receipts[i].position_frames; }
+            else cursor = MAX(cursor, receipts[i].position_frames);
+        }
+        for (guint i = 0; i < index; ++i) g_ptr_array_remove_index(resume->plan->entries, 0);
+        RadioSPlayoutEntry *first = g_ptr_array_index(resume->plan->entries, 0);
+        cursor = MAX(first->run.media.cue_in_frame, cursor);
+        if (cursor >= first->run.media.cue_out_frame) g_ptr_array_remove_index(resume->plan->entries, 0);
+        else {
+            first->run.media.cue_in_frame = cursor;
+            first->run.auto_next_frame = MAX(first->run.auto_next_frame, cursor);
+            first->run.fade_start_frame = MAX(first->run.fade_start_frame, cursor);
+            first->run.fade_end_frame = MAX(first->run.fade_end_frame, first->run.fade_start_frame);
+            first->run.fade_in_frames = 240; /* Five millisecond return fade. */
+            first->run.overlap_frames = MIN(first->run.overlap_frames, first->run.media.cue_out_frame - cursor);
+        }
+    }
+    if (resume->plan) {
+        resume->plan->options.start_utc_us = resume->plan->options.end_utc_us = 0;
+        for (guint i = 0; i < resume->plan->entries->len; ++i) {
+            RadioSPlayoutEntry *entry = g_ptr_array_index(resume->plan->entries, i);
+            entry->run.start_utc_us = entry->run.latest_start_utc_us = 0;
+        }
+    }
+    ++p->intent; p->automatic = p->preparing = p->failed = FALSE; owner_clear(p);
+    g_clear_pointer(&p->automation_config, json_node_free);
+    g_weak_ref_set(&p->owner, owner); p->owner_handler = g_signal_connect(owner, "destroy", G_CALLBACK(owner_destroyed), p);
+    *out = resume;
+    if (!install_plan(p, emergency, error)) { radios_playout_plan_free(emergency); p->failed = TRUE; return FALSE; }
+    return TRUE;
+}
+gboolean radios_playout_ui_restore(RadioSViewContext *ctx, GtkWidget *owner,
+    RadioSPlayoutResume *resume, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || !owner || !resume || !radios_data_connected(ctx)) return invalid(error, "Normal yayın dönüş bağlamı hazır değil.");
+    if (resume->plan && resume->plan->entries->len && !replacement_ready(p, resume->plan, error)) return FALSE;
+    if (!radios_playout_ui_action(ctx, RADIOS_PLAYOUT_STOP, error)) return FALSE;
+    if (!resume->plan || !resume->plan->entries->len)
+        return resume->automatic && resume->automation_config ?
+            radios_playout_ui_start_automation(ctx, owner, json_node_get_object(resume->automation_config), error) : TRUE;
+    g_weak_ref_set(&p->owner, owner); p->owner_handler = g_signal_connect(owner, "destroy", G_CALLBACK(owner_destroyed), p);
+    if (!install_plan(p, resume->plan, error)) return FALSE;
+    resume->plan = NULL; p->automatic = resume->automatic;
+    p->automation_config = resume->automation_config; resume->automation_config = NULL;
+    if (resume->paused) runner_command(p,RADIOS_AUDIO_PLAYER_RUN_PAUSE, NULL);
+    return TRUE;
+}
+gboolean radios_playout_ui_start_prepared(RadioSViewContext *ctx, GtkWidget *owner,
+    JsonObject *prepared_response, gint64 start_utc_us, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || !owner || gtk_widget_in_destruction(owner) || !radios_data_connected(ctx) ||
+        !prepared_response || !g_str_equal(radios_json_string(prepared_response, "kind", ""), "programme") || start_utc_us < 0)
+        return invalid(error, "Doğrulanmış kuşak veya yerel ses motoru hazır değil.");
+    RadioSPlayoutRequest request = {.station_id = radios_data_station_id(ctx), .database_file = ctx->config->database_file,
+        .mode = RADIOS_AUDIO_RUN_EOF, .now_utc_us = g_get_real_time(), .start_utc_us = start_utc_us,
+        .live = TRUE, .history = p->history};
+    RadioSPlayoutPlan *plan = radios_playout_plan_build(prepared_response, &request, error);
+    if (!plan) return FALSE;
+    runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, NULL); checkpoint_broadcast(p); checkpoint_advert(p); capture_history(p); extension_clear(p);
+    ++p->intent; p->preparing = p->automatic = p->failed = FALSE; owner_clear(p);
+    g_clear_pointer(&p->automation_config, json_node_free);
+    g_weak_ref_set(&p->owner, owner); p->owner_handler = g_signal_connect(owner, "destroy", G_CALLBACK(owner_destroyed), p);
+    if (!install_plan(p, plan, error)) {
+        radios_playout_plan_free(plan); p->failed = TRUE; p->snapshot.state = RADIOS_PLAYOUT_ERROR;
+        g_strlcpy(p->snapshot.error, error && *error ? (*error)->message : "Kuşak başlatılamadı.", sizeof p->snapshot.error);
+        notice(p, p->snapshot.error); return FALSE;
+    }
+    radios_broadcast_queue_run_config(ctx, NULL);
+    notice(p, start_utc_us > g_get_real_time() ? "Reklam kuşağı UTC başlangıcını bekliyor." : "Reklam kuşağı C ses motorunda hazırlanıyor.");
+    return TRUE;
+}
+gboolean radios_playout_ui_start_playlist(RadioSViewContext *ctx, GtkWidget *owner, const gchar *playlist_id,
+    JsonArray *ids, guint mode, gdouble overlap, GError **error)
+{ return prepare_start(ctx, owner, "playlist", playlist_id, ids, NULL, 0, mode, overlap, 0, FALSE, NULL, NULL, NULL, error); }
+gboolean radios_playout_ui_start_programme(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config,
+    guint start_index, guint mode, gdouble overlap, GError **error)
+{ return prepare_start(ctx, owner, "programme", NULL, NULL, config, start_index, mode, overlap, 0, FALSE, NULL, NULL, NULL, error); }
+gboolean radios_playout_ui_schedule_programme(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config,
+    gint64 start_ms, guint mode, gdouble overlap, GError **error)
+{
+    if (start_ms <= 0 || start_ms > G_MAXINT64 / 1000) return invalid(error, "Takvim başlangıcı geçersiz.");
+    return prepare_start(ctx, owner, "programme", NULL, NULL, config, 0, mode, overlap, start_ms * 1000, FALSE, NULL, NULL, NULL, error);
+}
+gboolean radios_playout_ui_start_automation(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, GError **error)
+{ return prepare_start(ctx, owner, "automation", NULL, NULL, config, 0, 0, 0, 0, FALSE, NULL, NULL, NULL, error); }
+gboolean radios_playout_ui_preview_automation(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config,
+    RadioSDataCallback callback, gpointer user, GDestroyNotify destroy, GError **error)
+{ return prepare_start(ctx, owner, "automation", NULL, NULL, config, 0, 0, 0, 0, TRUE, callback, user, destroy, error); }
+gboolean radios_playout_ui_action(RadioSViewContext *ctx, RadioSPlayoutAction action, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx); if (!p) return invalid(error, "Yerel yürütücü hazır değil.");
+    if (action == RADIOS_PLAYOUT_STOP) {
+        gboolean result = runner_command(p,RADIOS_AUDIO_PLAYER_RUN_STOP, error);
+        checkpoint_broadcast(p);
+        checkpoint_advert(p); capture_history(p); extension_clear(p);
+        ++p->intent; p->preparing = p->automatic = p->failed = FALSE; owner_clear(p);
+        p->snapshot = (RadioSPlayoutSnapshot){.state = RADIOS_PLAYOUT_IDLE, .deck = -1, .next_deck = -1}; return result;
+    }
+    if (p->preparing) return invalid(error, "Sıra hazırlanıyor; iptal etmek için Durdur kullanın.");
+    switch (action) {
+    case RADIOS_PLAYOUT_PAUSE: return runner_command(p,RADIOS_AUDIO_PLAYER_RUN_PAUSE, error);
+    case RADIOS_PLAYOUT_RESUME: return runner_command(p,RADIOS_AUDIO_PLAYER_RUN_RESUME, error);
+    case RADIOS_PLAYOUT_NEXT:
+    case RADIOS_PLAYOUT_PREVIOUS: {
+        gboolean accepted = runner_command(p, action == RADIOS_PLAYOUT_NEXT ?
+            RADIOS_AUDIO_PLAYER_RUN_NEXT : RADIOS_AUDIO_PLAYER_RUN_PREVIOUS, error);
+        if (accepted) {
+            JsonArray *completed = radios_playout_ui_take_completed(ctx); json_array_unref(completed);
+        }
+        return accepted;
+    }
+    case RADIOS_PLAYOUT_STOP: break;
+    }
+    return invalid(error, "Yürütücü komutu geçersiz.");
+}
+gboolean radios_playout_ui_navigation_snapshot(RadioSViewContext *ctx,
+    RadioSAudioRunSnapshot *snapshot)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || !snapshot || !p->plan || p->preparing || p->failed) return FALSE;
+    runner_snapshot(p, snapshot);
+    return TRUE;
+}
+static gboolean next_playlist_target(RadioSPlayoutController *p,
+    RadioSAudioRunSnapshot *run, guint *target)
+{
+    if (!p || !p->plan || p->preparing || p->failed || p->automatic) return FALSE;
+    runner_snapshot(p, run);
+    if ((run->state != RADIOS_AUDIO_RUN_PLAYING && run->state != RADIOS_AUDIO_RUN_OVERLAP &&
+         run->state != RADIOS_AUDIO_RUN_MANUAL_WAIT) || run->index >= p->plan->entries->len) return FALSE;
+    RadioSPlayoutEntry *current = g_ptr_array_index(p->plan->entries, run->index);
+    if (!g_str_equal(run->entry_id, current->run.entry_id)) return FALSE;
+    JsonObject *display = json_node_get_object(p->plan->display);
+    JsonArray *rows = json_object_has_member(display, "entries") ?
+        json_object_get_array_member(display, "entries") : NULL;
+    if (!rows || json_array_get_length(rows) != p->plan->entries->len) return FALSE;
+    JsonObject *row = json_array_get_object_element(rows, run->index);
+    const gchar *block = radios_json_string(row, "block_id", "");
+    if (!*block) return FALSE;
+    for (guint i = run->index + 1; i < json_array_get_length(rows); ++i) {
+        row = json_array_get_object_element(rows, i);
+        const gchar *candidate = radios_json_string(row, "block_id", "");
+        if (*candidate && !g_str_equal(block, candidate)) { *target = i; return TRUE; }
+    }
+    return FALSE;
+}
+gboolean radios_playout_ui_can_next_playlist(RadioSViewContext *ctx)
+{
+    RadioSAudioRunSnapshot run = {0}; guint target = 0;
+    return next_playlist_target(controller(ctx), &run, &target);
+}
+gboolean radios_playout_ui_next_playlist(RadioSViewContext *ctx, GError **error)
+{
+    RadioSPlayoutController *p = controller(ctx);
+    RadioSAudioRunSnapshot run = {0}; guint target = 0;
+    if (!next_playlist_target(p, &run, &target))
+        return invalid(error, "Çalan sırada geçilebilecek bir sonraki playlist yok.");
+    if (p->player_deck >= 0)
+        return radios_audio_engine_player_runner_jump_to(p->engine, (guint)p->player_deck,
+            run.epoch, target, error);
+    return radios_audio_engine_runner_jump_to(p->engine, run.epoch, target, error);
+}
+gboolean radios_playout_ui_get_snapshot(RadioSViewContext *ctx, RadioSPlayoutSnapshot *out)
+{ RadioSPlayoutController *p = controller(ctx); if (!p || !out) return FALSE; *out = p->snapshot; out->automation = p->automatic; return TRUE; }
+JsonArray *radios_playout_ui_take_completed(RadioSViewContext *ctx)
+{
+    JsonArray *result = json_array_new(); RadioSPlayoutController *p = controller(ctx);
+    if (!p || !p->plan || p->preparing || p->failed ||
+        p->snapshot.state == RADIOS_PLAYOUT_IDLE || p->snapshot.state == RADIOS_PLAYOUT_ERROR ||
+        p->snapshot.state == RADIOS_PLAYOUT_PREPARING || p->snapshot.state == RADIOS_PLAYOUT_SCHEDULED) return result;
+    RadioSAudioRunSnapshot run; runner_snapshot(p, &run);
+    if (run.state == RADIOS_AUDIO_RUN_IDLE || run.state == RADIOS_AUDIO_RUN_ERROR ||
+        run.state == RADIOS_AUDIO_RUN_PREROLL || run.state == RADIOS_AUDIO_RUN_SCHEDULED) return result;
+    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
+    guint count = runner_receipts(p, receipts, G_N_ELEMENTS(receipts));
+    for (guint i = 0; i < count; ++i) {
+        const RadioSAudioRunReceipt *receipt = &receipts[i];
+        if (receipt->epoch != run.epoch || receipt->terminal != RADIOS_AUDIO_RUN_TERMINAL_COMPLETE ||
+            receipt->index >= p->plan->entries->len) continue;
+        gchar key[96]; g_snprintf(key, sizeof key, "complete:%" G_GUINT64_FORMAT ":%" G_GUINT64_FORMAT,
+            receipt->epoch, receipt->occurrence);
+        if (g_hash_table_contains(p->observed, key)) continue;
+        g_hash_table_add(p->observed, g_strdup(key));
+        RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, receipt->index);
+        json_array_add_string_element(result, entry->run.entry_id);
+    }
+    return result;
+}
+static void metadata_copy(gchar *destination, gsize capacity, const gchar *value)
+{
+    g_strlcpy(destination, value ? value : "", capacity);
+    const gchar *invalid_utf8 = NULL;
+    if (!g_utf8_validate(destination, -1, &invalid_utf8)) destination[invalid_utf8 - destination] = '\0';
+}
+gboolean radios_playout_ui_header_snapshot(RadioSViewContext *ctx, RadioSPlayoutHeaderSnapshot *out)
+{
+    if (!out) return FALSE;
+    memset(out, 0, sizeof(*out));
+    RadioSPlayoutController *p = controller(ctx);
+    if (!p || p->closed) return FALSE;
+    if (!p->plan || p->preparing || p->failed) return TRUE;
+    RadioSAudioRunSnapshot run; runner_snapshot(p, &run);
+    if (run.state != RADIOS_AUDIO_RUN_PLAYING && run.state != RADIOS_AUDIO_RUN_OVERLAP &&
+        run.state != RADIOS_AUDIO_RUN_PAUSED && run.state != RADIOS_AUDIO_RUN_WAITING_MEDIA &&
+        run.state != RADIOS_AUDIO_RUN_MANUAL_WAIT) return TRUE;
+    if (run.index >= p->plan->entries->len) return TRUE;
+    const gchar *title = radios_json_string(json_node_get_object(p->plan->display), "programme_title", "");
+    if (!*title) return TRUE;
+    metadata_copy(out->programme_title, sizeof out->programme_title, title);
+    out->programme_active = out->programme_title[0] != '\0';
+    return TRUE;
+}
+gboolean radios_playout_ui_deck_metadata(RadioSViewContext *ctx, guint deck, RadioSPlayoutDeckMetadata *out)
+{
+    if (!out) return FALSE;
+    memset(out, 0, sizeof(*out));
+    RadioSPlayoutController *playout = controller(ctx);
+    if (!playout || !playout->plan || deck >= RADIOS_AUDIO_NORMAL_DECKS) return FALSE;
+    RadioSAudioRunSnapshot run; runner_snapshot(playout, &run);
+    if (!run.owned[deck]) return FALSE;
+    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(playout->engine, &audio);
+    const RadioSAudioDeckSnapshot *loaded = &audio.decks[deck];
+    if (!loaded->media_id[0] || !loaded->version_id[0]) return FALSE;
+    guint index = run.deck_next == (gint)deck ? run.next_index : run.index;
+    if (index >= playout->plan->entries->len) return FALSE;
+    RadioSPlayoutEntry *entry = g_ptr_array_index(playout->plan->entries, index);
+    if (!g_str_equal(entry->run.media.media_id, loaded->media_id) || !g_str_equal(entry->run.media.version_id, loaded->version_id)) {
+        entry = NULL;
+        for (guint candidate = MIN(run.index + 1, playout->plan->entries->len); candidate > 0; --candidate) {
+            RadioSPlayoutEntry *previous = g_ptr_array_index(playout->plan->entries, candidate - 1);
+            if (g_str_equal(previous->run.media.media_id, loaded->media_id) && g_str_equal(previous->run.media.version_id, loaded->version_id)) {
+                entry = previous; index = candidate - 1; break;
+            }
+        }
+        if (!entry) return FALSE;
+    }
+    metadata_copy(out->title, sizeof out->title, entry->title);
+    metadata_copy(out->artist, sizeof out->artist, entry->artist);
+    metadata_copy(out->album, sizeof out->album, entry->album);
+    metadata_copy(out->source_name, sizeof out->source_name, entry->source_name);
+    out->duration_ms = entry->run.duration_frames / 48;
+    if (index + 1 < playout->plan->entries->len) {
+        RadioSPlayoutEntry *next = g_ptr_array_index(playout->plan->entries, index + 1);
+        metadata_copy(out->next_title, sizeof out->next_title, next->title);
+        metadata_copy(out->next_artist, sizeof out->next_artist, next->artist);
+    }
+    return TRUE;
+}
+JsonNode *radios_playout_ui_history(RadioSViewContext *ctx)
+{
+    RadioSPlayoutController *p = controller(ctx); if (!p) return NULL;
+    JsonNode *node = radios_playout_history_json(p->history); JsonArray *rows = json_object_get_array_member(json_node_get_object(node), "entries");
+    for (guint i = 0; i < json_array_get_length(rows); ++i) {
+        JsonObject *row = json_array_get_object_element(rows, i); const gchar *title = radios_json_string(row, "media_id", "");
+        for (guint j = 0; p->plan && j < p->plan->entries->len; ++j) {
+            RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, j);
+            if (g_str_equal(radios_json_string(row, "media_id", ""), entry->run.media.media_id)) { title = entry->title; break; }
+        }
+        json_object_set_string_member(row, "title", title);
+    }
+    return node;
+}
+const gchar *radios_playout_ui_state_name(RadioSPlayoutState state)
+{
+    static const gchar *const names[] = {"Beklemede", "Hazırlanıyor", "UTC saatini bekliyor", "Çalıyor", "Geçiş yapıyor", "Duraklatıldı", "Medya / çıkış bekleniyor", "Operatör geçişini bekliyor", "Sıra bitti", "Yürütme hatası"};
+    return state <= RADIOS_PLAYOUT_ERROR ? names[state] : "Bilinmeyen durum";
+}

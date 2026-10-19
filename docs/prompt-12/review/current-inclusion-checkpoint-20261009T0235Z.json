@@ -1,0 +1,101 @@
+{
+  "observed_utc": "2026-10-09 02:35:55 UTC",
+  "responsible_agent": "/root/coordination_resume_12",
+  "manifest_scope": "Post-test read-only current observations; does not claim pre/post no drift or entire repository freeze",
+  "overall_pdf12_complete": false,
+  "implementation_inclusion_ready": true,
+  "default_binary_writer": "External PROMPT5/root only; prompt12 never installs RadioS/build/radios",
+  "test_results": [
+    {
+      "suite": "backend playlist",
+      "count": 19,
+      "passed": 19,
+      "seconds": 19.941,
+      "artifact": "review/provider-analysis-backend-final.log"
+    },
+    {
+      "suite": "helper provider analysis",
+      "count": 11,
+      "passed": 11,
+      "seconds": 2.42,
+      "artifact": "review/full-provider-tests.log",
+      "scope": "Private full encoded audio and synthetic auth, actual cache/CLI/ffmpeg; live provider false"
+    },
+    {
+      "suite": "native playlist full provider",
+      "count": 6,
+      "passed": 6,
+      "seconds": 11.3948,
+      "artifact": "review/full-provider-retest.log",
+      "scope": "Genuine private SDBASE/native GTK/managed-media/waveform/markers and authorized private cache export/import pipeline; live provider false"
+    },
+    {
+      "suite": "native drop",
+      "count": 3,
+      "passed": 3,
+      "seconds": 2.57129,
+      "artifact": "review/full-provider-tests.log"
+    }
+  ],
+  "focused_case_total": 39,
+  "open_items": [
+    "Apple/Spotify unbound catalogue rows require separately selected verified library audio for full waveform; direct independent catalogue PCM automatic full analysis not implemented",
+    "Live YouTube/account/video and live Apple/Spotify catalogue fullaudio validation not performed",
+    "Broad native_data case6 wrong-owner fixture failure; case7 not run; owner fix pending",
+    "Root user preference for Apple/Spotify analysis source method unanswered; independent source/evidence work continues"
+  ],
+  "source_manifest": {
+    "RadioS/src/ui/playlist.c": {
+      "bytes": 180886,
+      "sha256": "9bd25c536e7aa151e1143739c04a4cf98f4a0387e5fa3d721fda1762dd610ac9"
+    },
+    "RadioS/database/SDBASE/src/sdbase/desktop_playlist.py": {
+      "bytes": 22816,
+      "sha256": "137f43b1a7bd0f5d3c8e4ac62381dcab83fe2539b70a6c9dbebdf8f4ea218477"
+    },
+    "RadioS/tools/radios_playlist_analysis.py": {
+      "bytes": 7032,
+      "sha256": "5c2fc16f9df3ce64346db8e7f5b2cb2f2324ea561260a683bd0a4ed8718e1368"
+    },
+    "RadioS/tests/test_data_playlists.py": {
+      "bytes": 36029,
+      "sha256": "f8fa31905255256531322383c69d6ca3e90bc4cbd5000b61ab1318a1135845f2"
+    },
+    "RadioS/tests/test_prompt12_playlist_ui.c": {
+      "bytes": 46352,
+      "sha256": "f65760a39eac17cbdab91fc5ff193b6bac8d1e05b151ac298796e59ce39e5c69"
+    },
+    "RadioS/tests/test_prompt12_drop_ui.c": {
+      "bytes": 16370,
+      "sha256": "eb9e5e81681859ee90673ee6fb595021a9388eb83897e66300c90f90799e0559"
+    },
+    "RadioS/tests/test_prompt12_playlist_analysis.py": {
+      "bytes": 15213,
+      "sha256": "c1aa34930227d53abbd3d043bf2ea7bd4dabc923cd44b4ca753a0a0b1ad00f84"
+    },
+    "RadioS/tests/setup_prompt12_youtube_analysis.py": {
+      "bytes": 4854,
+      "sha256": "f229a0178770810e823d56d373b4b528333e2edc9473fbb8f5cd8237671e054f"
+    },
+    "RadioS/cmake/Pdf12Playlist.cmake": {
+      "bytes": 1276,
+      "sha256": "323e6a67d9ce825b2dd07e32a05b4b909c5ed13838dccb54d7bb469b8f8db7ce"
+    },
+    "RadioS/CMakeLists.txt": {
+      "bytes": 27295,
+      "sha256": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863"
+    },
+    "RadioS/src/ui/media.c": {
+      "bytes": 62302,
+      "sha256": "2c9f810e39bff907857f61550fd9618737817ef8a5548c71233db097510d7a06"
+    },
+    "RadioS/include/radios/media_ui.h": {
+      "bytes": 1949,
+      "sha256": "aebd4a945c56f3e53e408f75c26de3c26982bb4d3b2ef29cc2641e4930b6855b"
+    },
+    "RadioS/build/prompt12/checks/radios": {
+      "bytes": 2269144,
+      "sha256": "ab45025f7bdc9d4cda4485cdad999dc305a7cf438b69e7fcfaa9514066831163"
+    }
+  }
+}

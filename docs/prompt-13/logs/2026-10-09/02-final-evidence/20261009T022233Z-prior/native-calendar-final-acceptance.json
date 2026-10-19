@@ -1,0 +1,57 @@
+{
+  "started_utc": "2026-10-09T02:22:33.847199+00:00",
+  "finished_utc": "2026-10-09T02:22:36.499626+00:00",
+  "duration_seconds": 2.652429249999841,
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build/prompt13",
+    "-R",
+    "^native_automation_calendar$",
+    "--output-on-failure",
+    "-V",
+    "--output-junit",
+    "p13-native-calendar-final.xml"
+  ],
+  "exit_code": 0,
+  "native_case_outcomes": [
+    "ok 1 /native-automation-calendar/selection-rotation-copy-persistence",
+    "ok 2 /native-automation-calendar/verified-rotation-preview"
+  ],
+  "source_sha256_before": {
+    "src/ui/automation_calendar.c": "641b68c93e015fc347ef8248e1ccdfacb58ccd5a8ce6e64db5448ea83dd38a0e",
+    "src/ui/automation.c": "4524d7fbcd3ce84d1064dca329574fc72116ba28503aaaa49e0798fb7d7ee86b",
+    "include/radios/automation_calendar.h": "16e3ec19da6d0dae2ee5b45586b7d11807561a0880023ad2df38bfe3bee846e1",
+    "src/core/automation_calendar_plan.c": "abbddc2a3afe8dc0f8ed04ba42b3b4b4a15bee2ae49220966bd86f350c18b389",
+    "include/radios/automation_calendar_plan.h": "d2a9b67acaa2b3d88709ebdb5da7c10100c3cfdc1f009bb2dafec95c66e2a486",
+    "database/SDBASE/src/sdbase/desktop_automation_calendar.py": "9f2c6235d994c2246aff8a15f0d0eea48ae418eb81de888f32e374d38467ae3c",
+    "database/SDBASE/src/sdbase/desktop_api.py": "827b770ea3c6b1af5167b485f5cc70b42d3caa910ab27db9e528fb0a8e435324",
+    "tests/test_automation_calendar.c": "b59b4b3f893eb9c9fcb096dfdf925e06ea8cbe1292a61aa317b20517e8e41957",
+    "tests/run_automation_calendar_ui.py": "4e6177c193aed75d6cb467e48e9df8a24f476e50f1a54d6907a7f361f1baec66",
+    "tests/test_automation_calendar_plan.c": "3a7c628157a7c1b795c0659e6c2b0862b105d60cd52728c5ea61dc75411596db",
+    "tests/test_desktop_automation_calendar.py": "b780b30121dfd8ee4de7ad59e2d16f8884774f93aac21ccd9074ed4213485e65",
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+    "build/prompt13/test_automation_calendar": "2af44cba6d87f2c0fb98d291d62759fa7c52ccadd4545d4a7b37c94fc9f9e1d5"
+  },
+  "source_sha256_after": {
+    "src/ui/automation_calendar.c": "641b68c93e015fc347ef8248e1ccdfacb58ccd5a8ce6e64db5448ea83dd38a0e",
+    "src/ui/automation.c": "4524d7fbcd3ce84d1064dca329574fc72116ba28503aaaa49e0798fb7d7ee86b",
+    "include/radios/automation_calendar.h": "16e3ec19da6d0dae2ee5b45586b7d11807561a0880023ad2df38bfe3bee846e1",
+    "src/core/automation_calendar_plan.c": "abbddc2a3afe8dc0f8ed04ba42b3b4b4a15bee2ae49220966bd86f350c18b389",
+    "include/radios/automation_calendar_plan.h": "d2a9b67acaa2b3d88709ebdb5da7c10100c3cfdc1f009bb2dafec95c66e2a486",
+    "database/SDBASE/src/sdbase/desktop_automation_calendar.py": "9f2c6235d994c2246aff8a15f0d0eea48ae418eb81de888f32e374d38467ae3c",
+    "database/SDBASE/src/sdbase/desktop_api.py": "827b770ea3c6b1af5167b485f5cc70b42d3caa910ab27db9e528fb0a8e435324",
+    "tests/test_automation_calendar.c": "b59b4b3f893eb9c9fcb096dfdf925e06ea8cbe1292a61aa317b20517e8e41957",
+    "tests/run_automation_calendar_ui.py": "4e6177c193aed75d6cb467e48e9df8a24f476e50f1a54d6907a7f361f1baec66",
+    "tests/test_automation_calendar_plan.c": "3a7c628157a7c1b795c0659e6c2b0862b105d60cd52728c5ea61dc75411596db",
+    "tests/test_desktop_automation_calendar.py": "b780b30121dfd8ee4de7ad59e2d16f8884774f93aac21ccd9074ed4213485e65",
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+    "build/prompt13/test_automation_calendar": "2af44cba6d87f2c0fb98d291d62759fa7c52ccadd4545d4a7b37c94fc9f9e1d5"
+  },
+  "changed_during_test": [],
+  "capture": "docs/prompt-13/renders/native-calendar.png",
+  "capture_sha256": "b888627b39c08ed6c1ebd118d6453b63db43bf0ea7856d27cbeb19b4924ac077",
+  "capture_mtime_utc": "2026-10-09T02:22:35.823897+00:00",
+  "junit": "build/prompt13/p13-native-calendar-final.xml",
+  "log": "build/prompt13/p13-native-calendar-final.log"
+}

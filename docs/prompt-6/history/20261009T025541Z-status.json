@@ -1,0 +1,378 @@
+{
+  "session": "prompt6",
+  "updated_at_utc": "2026-10-09 02:51:01 UTC",
+  "active_agents": 4,
+  "max_concurrent_agents": 4,
+  "reference_review": "complete: 1 PDF page + 2 figures + independent byte hash comparisons",
+  "requirements": {
+    "P6-R1": "PASS: 4 native pedals; legacy5 neutralization; latest group8 and sanitizer",
+    "P6-R2": "PASS: source-matching simple pedal boxes, all existing controls readable, independent idle/held review",
+    "P6-R3": "PASS: normal and sanitizer realPCM/key/lifecycle/ownership; latest full9group9, idle/held source match"
+  },
+  "source_ownership": {
+    "pdf_ui": [
+      "src/ui/dj.c",
+      "assets/themes/dj-pedals.css"
+    ],
+    "data_core": [
+      "tests/test_dj_ui.c"
+    ],
+    "audio_ui": "patch done; whole-file serial handoff to scope11 ACCEPTED; helper/calls preserved"
+  },
+  "verification_passed": [
+    "LATEST full native_dj9/9 PASS65.92s correctownedDISPLAY199; TAP9/all9source/binary/defaultstable",
+    "Historical after-P7 native_dj FULL9/9 72.14s with actual positive1..9/TAP9; latest rerun FAIL21.12s",
+    "ASan+UBSan new migration7.61s and PTT13.97s",
+    "Normal isolated PTT10.36s",
+    "DSP and native_window fatal-warnings2/2 3.70s",
+    "Own current native_audio remaining7 exact groups PASS",
+    "Private Release strict build retry PASS",
+    "Release --check-config exit0",
+    "Private Release application G_DEBUG=fatal-warnings smoke exit0 02:21:15",
+    "Two independent idle/held source visual reviews",
+    "Six relevant source/runner hashes unchanged across final nativeDJ test"
+  ],
+  "verification_excluded": [
+    "Baseline smoke process0 with GTK alloc_needed critical",
+    "Wrong native GLib filter yielding1..0 with zero tests",
+    "Wrong-display persistence run omitted DISPLAY/GDK env, interrupted32.88s partial5; not acceptance"
+  ],
+  "current_blockers": [],
+  "resolved_snapshot_issues": [
+    "Queue header progress API declarations now present",
+    "player_loader function-pointer/gpointer strict issue changed to rendering boolean",
+    "All5 missing Preferences/header test sources now exist",
+    "Scope11 serial handoff accepted; preserve current mixer helper/calls",
+    "P13 misleading-indentation/fileresize/queue/preview declarations solved at02:00:15"
+  ],
+  "next": [
+    "Final latest idle/held independent visual reviews",
+    "Root cleans only newowned199 exec58909",
+    "Finalize durable records with dated tests/hashes and scope limits"
+  ],
+  "owned_test_display": {
+    "exec_session_id": 7408,
+    "display": "127.0.0.1:196",
+    "cleanup": "root only stops its owned Xvfb at final",
+    "status": "Gone; ps verified02:19, no cleanup needed"
+  },
+  "final_validation_plan": [
+    "Private current-source Debug strict radios/test_dj_ui/test_audio_ui",
+    "Full native_dj expected7 existing+2 new tests",
+    "Native audio regression",
+    "native_window G_DEBUG=fatal-warnings",
+    "Private ASan+UBSan PTT/migration halt_on_error=1, GUI detect_leaks=0"
+  ],
+  "current_build": "Current final Debug strict full app/tests PASS; private Release strict-O3 build PASS after ROOT1 g_strcmp0 fix; private app/config smoke exit0 PASS",
+  "native_dj_test_code": {
+    "registered_groups": 9,
+    "new_tests_code_ready": true,
+    "modal_grab_branch": "implemented",
+    "executed": "Latest properDISPLAY199 full9 PASS65.92s positive1..9/nineok/TestPassed; all9source/binary/defaultunchanged",
+    "library_helper": "Current public open_for_deck→open_selected→media-pick-accept actual GUI path; strict syntax and exact PTT PASS"
+  },
+  "owned_test_display_2": {
+    "exec_session_id": 61604,
+    "display": "127.0.0.1:197",
+    "tcp_port": 6197,
+    "test_exec_session_id": 65781,
+    "cleanup": "root only stops its owned process",
+    "status": "Gone; ps verified02:19, no cleanup needed"
+  },
+  "pdf_requirements_status": "P6-R1/P6-R2/P6-R3 IMPLEMENTED AND ACCEPTED",
+  "owned_test_display_current": {
+    "display": "127.0.0.1:198",
+    "exec_session_id": 92567,
+    "started_at_utc": "2026-10-09 02:20 UTC",
+    "status": "198 natural timeout124 ended; rootpsverified02:41"
+  },
+  "native_audio_regression": {
+    "first_case": "POST-GUARD PASS actual default per-case CLI",
+    "remaining_cases_passed": 7,
+    "positive_tap1_each": true,
+    "all_passed": true,
+    "log_first": "build/prompt6-acceptance/evidence/final-native-audio-isolated.log",
+    "log_remaining": "build/prompt6-acceptance/evidence/final-native-audio-followup.log",
+    "latest_total_passed": 8,
+    "latest_log": "build/prompt6-acceptance/evidence/post-cursor-native-audio.log"
+  },
+  "final_hash_proof": {
+    "checked_at_utc": "2026-10-09T02:19:00.858108+00:00",
+    "stable_during_test": 6,
+    "current_observed_at_utc": "2026-10-09 02:25:12 UTC",
+    "changed_since_proof_now": [
+      "tests/run_audio_ui.py"
+    ]
+  },
+  "default_binary": {
+    "writer": "PROMPT5/root",
+    "handoff_receipt_at_utc": "2026-10-09 02:19:22 UTC",
+    "installed_at_utc": "2026-10-09 02:35:19 UTC",
+    "installed_sha256_prefix": "b1578bb7",
+    "installed_metadata_verified_by_root": true,
+    "included_ui_source": "DJed2f0575/CSS62cfad92 verified in release-source-snapshot by pdf_ui",
+    "deployment_status": "COMPLETE by P5; no P6 default writes"
+  },
+  "transport_cursor_proof": {
+    "reported_at_utc": "2026-10-09 02:24:32 UTC",
+    "production_function_invariant": "DETERMINISTICALLY MEASURED FAIL with zero-consumption history",
+    "compile_exit": 0,
+    "run_exit": 0,
+    "outputs": [
+      {
+        "case": "loading-fences-stale-start",
+        "state": 1,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 0,
+        "cursor_ms": 0
+      },
+      {
+        "case": "previous-generation-fenced",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 41,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 0,
+        "cursor_ms": 0
+      },
+      {
+        "case": "ready-new-generation-zero-consumption",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 78672,
+        "cursor_ms": 1639
+      },
+      {
+        "case": "ready-real-consumption-positive-control",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 64,
+        "history_start_frames": 0,
+        "reported_before": 0,
+        "cursor_frames": 64,
+        "cursor_ms": 1
+      }
+    ],
+    "manifest": "build/prompt6-acceptance/seek-race-data-core/manifest.json",
+    "production_source_hashes": "unchanged before/after",
+    "scope_limit": "full thread scheduling not replayed",
+    "owner_notification_at_utc": "2026-10-09 02:27:15 UTC",
+    "reusable_regression": {
+      "command": "python3 build/prompt6-acceptance/seek-race-data-core/verify-invariant.py",
+      "baseline_at_utc": "2026-10-09 02:26:48 UTC",
+      "baseline_exit": 1,
+      "baseline_wrong_actual_frames": 78672,
+      "expected_frames": 0,
+      "positive_control_frames": 64,
+      "baseline_artifact_dir": "build/prompt6-acceptance/seek-race-data-core/verification-20261009T022648.574065Z",
+      "after_fix_requirement": "exit0 + positive64, then real native regression"
+    },
+    "owner_side_guard_observed": {
+      "engine_sha256": "4f5ff31124247bcdc1471b832535cd92b9961724cb8a3fff088c540b2a5941b5",
+      "writer": "ROOT1 explicitREADY2026-10-09 02:28:57 UTC; shared~4293 backup record confirmed by root",
+      "verifier_at_utc": "2026-10-09 02:30:26 UTC",
+      "verifier_exit": 0,
+      "four_controls": [
+        0,
+        0,
+        0,
+        64
+      ],
+      "evidence_dir": "build/prompt6-acceptance/seek-race-data-core/verification-20261009T023026.399203Z",
+      "native_final_regression": "Actual native_audio8/8 PASS after guard; STOP closed; unrelated latest DJ9 failure remains open",
+      "root_independent_verifier": {
+        "at_utc": "2026-10-09 02:30:18 UTC",
+        "exit": 0,
+        "artifact_dir": "build/prompt6-acceptance/seek-race-data-core/verification-20261009T023017.974102Z",
+        "guard_removal_restores_prior_be627c_byte_equal": true
+      }
+    }
+  },
+  "final_traceability_record": "docs/prompt-6/acceptance.md",
+  "remaining_items_completed": false,
+  "overall_status": "PDF6 three requirements accepted; latest nativeDJ9/9 PASS65.92s positiveTAP/source9stable; native_audio8/STOPresolved; P5 defaultinstallcomplete; final visual/resource record pending",
+  "engine_narrow_handoff_request": {
+    "at_utc": "2026-10-09 02:30:21 UTC",
+    "owner": "ROOT1",
+    "requester": "root6",
+    "file": "src/audio/engine.c",
+    "region": "actual_cursor_locked record loop only",
+    "proposed_one_hunk": "zero-consumed history filter",
+    "status": "CANCELLED NOOP: actual guard already independently landed; no P6 source writes",
+    "verify_after_fix": [
+      "actualfunction invariant exit0+positive64",
+      "fresh native_audio8",
+      "fresh native_dj9"
+    ],
+    "release_after": "immediately return region ownership"
+  },
+  "post_cursor_regression": {
+    "fresh_debug_build": "PASS after4f5ff311 guard",
+    "native_dj": {
+      "exec_session_id": 20694,
+      "display": "127.0.0.1:199",
+      "status": "FAIL14.41s,1/2PASS,group3 test421 fadedMAINpeak0.416249454 expected<0.0001"
+    },
+    "native_audio8": {
+      "exec_session_id": 50816,
+      "display": "127.0.0.1:198",
+      "mode": "actual default per-case CLI",
+      "status": "PASS8/8 exit0,8 positive actual cases"
+    },
+    "before_hash_record": "build/prompt6-acceptance/evidence/post-cursor-test-before.json",
+    "before_sources_and_binaries": 11
+  },
+  "owned_test_display_additional": {
+    "display": "127.0.0.1:199",
+    "exec_session_id": 58909,
+    "started_at_utc": "2026-10-09 02:47 UTC",
+    "status": "Fresh owned199 restarted after old199 cleaned exit0/no active test; root cleanup responsibility",
+    "host_pid": 169582
+  },
+  "latest_full_native_dj_green": true,
+  "new_postguard_asan": {
+    "exec_session_id": 35899,
+    "display": "127.0.0.1:198",
+    "status": "PASS new postguard cases7.57s migration +14.32s PTT actual TAP"
+  },
+  "post_cursor_asan_results": {
+    "migration_seconds": 7.57,
+    "ptt_seconds": 14.32,
+    "actual_positive_tap_each": 1,
+    "status": "PASS verified by root/pdf_ui"
+  },
+  "latest_trace_failure": {
+    "elapsed_seconds": 35.74,
+    "passed_groups": 5,
+    "failed_group": 6,
+    "failure": "test716 ON AIR micActiveTRUE failed because liveMAIN readinessfalse; cachedwidget sensitiveTRUE stale",
+    "source_hashes_unchanged": 7,
+    "production_callback": "Correctly rejected unsafe mic open; no productionDJ mutation",
+    "previous_crossfade_failure": "Later focused6.44s and trace6.42s PASS; historical0.416249454 cause not conclusively claimed"
+  },
+  "new_final_readiness_run": {
+    "exec_session_id": 73877,
+    "display": "127.0.0.1:199",
+    "fixture_sha256": "5ec70f9a620b12080292048f09938a8df0a80790650a6e44370f3da6302615b6",
+    "fresh_strict_build": "PASS",
+    "status": "FAIL21.12s: groups1–3 PASS; group4 reopen channel1 NULL assertion test512 failed",
+    "before_record": "build/prompt6-acceptance/evidence/final-readiness-test-before.json",
+    "before_sources_and_binaries": 9,
+    "assertions": "Original250ms gateTRUE and PCM200/300ms/peak<0.0001 preserved; bounded realMAIN/MIC readiness condition added"
+  },
+  "latest_completed_full_native_dj": {
+    "completed_at_utc": "2026-10-09T02:49:48.981216+00:00",
+    "independently_checked_by": "/root/coordination positiveTAP/manifest parser",
+    "elapsed_seconds": 65.92,
+    "passed_groups": 9,
+    "failed_groups": 0,
+    "fixture_sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "green": true,
+    "actual_exit": 0,
+    "log": "build/prompt6-acceptance/evidence/final-ack-native-dj.log",
+    "tap": "build/prompt6-acceptance/evidence/final-ack-native-dj-tap.log",
+    "after_manifest": "build/prompt6-acceptance/evidence/final-ack-test-after.json",
+    "all_nine_unchanged": true,
+    "bad_outcomes": []
+  },
+  "pending_fixture": {
+    "reported_at_utc": "2026-10-09 02:47:12 UTC",
+    "test_sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "change": "GenuineDBabsence plus exact two DJpage channel/sampler document revisions>0, ready&&!busy&&!dirty&&!pending&&!retry before SAMEreopen NULL",
+    "strict_syntax": "PASS",
+    "runtime": "PASS full9/9 65.92s correctownedDISPLAY199",
+    "production_mutation": false,
+    "original_assertions": "Original300ms/local assertions/reopen NULL and PCM thresholds retained",
+    "backup": "build/prompt6-backup/data_core/20261009T024712.538141Z",
+    "previous_assumption_corrected": "window_ready/publicdocument_ready means only ready, not saveACK; exact data.c450/453 audit prompted dedicated fence",
+    "excluded": "unrelated defaultrev0 documents"
+  },
+  "owned199_restart": {
+    "reported_at_utc": "2026-10-09 02:47:05 UTC",
+    "prior_exec": 11631,
+    "prior_stop": "CTRL-C exit0, hostnone verified",
+    "new_exec": 58909,
+    "display": 199,
+    "host_pid": 169582,
+    "timeout_seconds": 1200,
+    "test_active_during_restart": false
+  },
+  "latest_readiness_late_hash_fence": {
+    "record": "build/prompt6-acceptance/evidence/final-readiness-late-inspection.json",
+    "observed_at_utc": "2026-10-09 02:47:05 UTC",
+    "changed": {
+      "tests/test_dj_ui.c": "5ec→d351 after failed run before rootlatepoll"
+    },
+    "other_eight_hashes": "unchanged UI/CSS/audio/engine/helpers/testbinary/default",
+    "scope": "Do not claim all9unchanged for failed run; product/binary fence separate",
+    "retire_helper_callers_present": 5
+  },
+  "new_persistence_fixture_run": {
+    "fixture_sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "strict_build": "PASS",
+    "before_record": "build/prompt6-acceptance/evidence/final-persistence-test-before.json",
+    "before_sources_and_binaries": 9,
+    "wrong_display_attempt": {
+      "exec_session_id": 60238,
+      "display": "inherited :0/wayland",
+      "status": "INTERRUPTED after32.88s exit8, partial5 excluded from acceptance",
+      "cause": "Root omitted explicit DISPLAY/GDK env",
+      "cleanup": "ownedwrapper54409 SIGINT; child54424 alreadyexited; fixture cleanup verified",
+      "tap": "build/prompt6-acceptance/evidence/final-persistence-wrong-display-interrupted-tap.log",
+      "record": "build/prompt6-acceptance/evidence/final-persistence-interruption.json"
+    },
+    "corrected_run": {
+      "exec_session_id": 71778,
+      "DISPLAY": "127.0.0.1:199",
+      "GDK_BACKEND": "x11",
+      "RADIOS_SHOT_DIR": "explicit correct owned output",
+      "log": "build/prompt6-acceptance/evidence/final-ack-native-dj.log",
+      "status": "PASS65.92s actualexit0 positiveTAP9/all9hashstable"
+    }
+  },
+  "final_latest_hash_proof": {
+    "utc": "2026-10-09T02:49:48.981216+00:00",
+    "actual_exit": 0,
+    "seconds": 65.92,
+    "before_manifest": "final-persistence-test-before.json",
+    "run_context": "final-ack-run-context.json",
+    "all_nine_unchanged": true,
+    "changed": [],
+    "sha256": {
+      "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "src/ui/audio_ui.c": "af0be83991051ed2911dde3ca6cadd228df3171af05d53c2605d8628fb45eb0f",
+      "tests/test_dj_ui.c": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+      "src/audio/engine.c": "491ffd84f9f484634ef76e4e3b8ac3f9d6b906fc9eebbe30b592ad86c902901d",
+      "tests/run_dj_ui.py": "06b1f76c326af06fb3fb73d693bb4ad5b288d644fffcffd176dbbc8fc2d66525",
+      "tests/run_audio_ui.py": "d465589add6bad02d16a627d33c8c57846950b5e054cf477855280b5070ee84e",
+      "build/prompt6-acceptance/test_dj_ui": "02ccfbe7be0b58faab91f16764046f8a37e8dd9eb80c0e40a638bda28b962061",
+      "build/radios": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e"
+    },
+    "tap_plan": 9,
+    "positive_outcomes": [
+      "ok 1 /native-dj/configuration-CAS-reopen",
+      "ok 2 /native-dj/stale-CAS-preserves-controls",
+      "ok 3 /native-dj/PCM-pan-gain-mute-PFL-crossfade",
+      "ok 4 /native-dj/verified-sampler-retrigger-owner",
+      "ok 5 /native-dj/transition-pair-PCM-persistence-owner",
+      "ok 6 /native-dj/channel-routing-squares-ON-AIR",
+      "ok 7 /native-dj/master-channel-routing-PCM-persistence-cleanup",
+      "ok 8 /native-dj/four-pedals-legacy-fifth-migration",
+      "ok 9 /native-dj/push-to-talk-PCM-keyboard-loss-lifecycle"
+    ],
+    "bad_outcomes": []
+  },
+  "final_visual_review_status": "Latest idle/held2images produced02:49:19/02:49:32; independent reviews pending"
+}

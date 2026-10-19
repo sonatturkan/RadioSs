@@ -1,0 +1,22 @@
+# Tezdeki radyo yazılımları ve resmî kılavuz karşılaştırması
+
+30 Eylül 2026 itibarıyla tez 5.2'de ana aileler olarak **RCS Zetta, ENCO DAD/Presenter, WideOrbit WO Automation/Aurora, Myriad, mAirList, Jazler SOHO, Solea/DMK, Rivendell, LibreTime, AzuraCast, PlayoutONE, RadioBOSS/Cloud ve PlayIt Live** incelenir. Bölüm 5.3 ek envanterinde **NextKast, StationPlaylist Studio/Creator, SAM Broadcaster, Rocket Broadcaster, Radiologik DJ/Scheduler, yStream Studio, Arrakis Apex, TMGCast, ProppFrexx ONAIR, Dalet RadioSuite, RadioDJ, OpenBroadcaster, AudioVault, Simian, NexGen ve RVP Broadcast** yer alır. **Radyomatik** destek/kurtarma bağlamında; **GSelector, Aquira, JazlerShow, SpyCorder, PlayIt Cartwall, aircheck. ve musiccompanion.** ise aynı ekosistemdeki ayrı görevli ürünler olarak anılır. Tez bunların hepsini aynı şartlarda kurulup sınanmış ürünler olarak sunmaz.
+
+| Resmî kaynak | Gözlenen veri işi | SDBASE karşılığı / açık iş |
+|---|---|---|
+| [Rivendell RDLibrary](https://opsguide.rivendellaudio.org/html/chapter.rdlibrary.html), [RDLogEdit](https://opsguide.rivendellaudio.org/html/chapter.rdlogedit.html), [cart CSV dökümü](https://opsguide.rivendellaudio.org/html/sect.rdlibrary.generating_library_reports.html), [RDXL alan sözlüğü](https://opsguide.rivendellaudio.org/html/appendix.file_metadata.html) | Cart/cut seçimi, makro, işaret, zincir ve kesim başına CSV raporu | Tipli plan ve cart/cut modeli var. Resmî CSV sayfası sütun sırası/biçimini belirtmediğinden örnek dosya veya sürümlü biçim sözleşmesi olmadan tahmini parser yapılmaz; fiziksel ses yürütmesi ayrı. |
+| [mAirList DB kılavuzu](https://mairlist.docs.mairlist.com/database/setup/) | Plan ve ses önbelleği ayrımı, dış kimlik çözümü | Uçta hem plan hem hash doğrulanan ses; hata raporlu içe alma. |
+| [PlayoutONE izolasyon](https://support.aiir.com/article/136-isolation-mode) | Yerel veri/ses kopyası ve dönüşte eşitleme | `Endpoint.sdb`, çevrimdışı olay kuyruğu; gerçek çok bilgisayarlı saha tatbikatı açık. |
+| [Jazler SOHO kılavuzu](https://support.jazler.com/downloads/Manual-JazlerSOHO-en.pdf) | Kampanya, farklı spot, kuşak önizleme/konum | Kapasite ve rekabet kurallı reklam seçimi; trafik UI açık. |
+| [PlayIt Live kılavuzu](https://docs.playitsoftware.com/PlayItLive/218/PlayItLive.html), [eşitleme](https://docs.playitsoftware.com/PlayItLive/218/en-US/synchronising-data/connect-to-server/) | Dosya/metadata alan sahipliği ve yerel değişiklik birleşmesi | Alan kaynak politikaları, salt okunur aktarım; iki yönlü üretici adaptörü açık. |
+| [WideOrbit bölüm kuralları](https://wideorbit.com/blog/wo-automation-radio-segment-rulesets/), [yaz saati](https://wideorbit.com/blog/daylight-saving-time-wo-automation-setup/) | Hedef saate uyum, atlanan/tekrarlanan yerel saat | UTC an + IANA bölgesi, DST uyarıları; otomatik bölüm doldurma açık. |
+| [AzuraCast playlist](https://www.azuracast.com/docs/user-guide/playlists/), [mount](https://www.azuracast.com/docs/user-guide/mount-points/) | Öncelikli otomatik listeler, istek, farklı çıkışlar | Çıkışa göre hak verisi; streamer/istek/webhook modülleri açık. |
+| [ENCO DAD](https://www.enco.com/products/dad), [RCS entegrasyonu](https://www.rcsworks.com/blog/rcs-live-who-we-are/) | Haber ve trafik/yayın sistemleri arasında kimlikli akış | Ortak model var; MOS ve üretici protokol adaptörleri açık. |
+| [RadioBOSS bilgi saklama](https://manual.djsoft.net/radioboss/en/additional-information-storage.htm) | Yola bağlı metadata taşınmada kaybolabilir | UUID kimliği dosya yolundan ayrılmıştır. |
+| [ProppFrexx kılavuzu](https://www.proppfrexx.radio42.com/download/ProppFrexx%20ONAIR%20UserManual%20v4.0.pdf) | Yayın anında çözümlenen dinamik öğeler | Tipli zincir/makro veri alanı var; ürün protokolü uyumluluğu yok. |
+
+Solea, RCS, ENCO ve WideOrbit için herkese açık tam kılavuz doğrulanamadığından yalnız resmî ürün/teknik belgesinin gösterdiği işler kullanıldı. Rekordbox gereksiniminin kaynağı tez değil, ek kullanıcı isteğidir.
+
+## Değerlendirme
+
+SDBASE ortak kimlik, içerik sürümü, dosya/kopya, metadata, plan, reklam, hak ve yayın kanıtını temsil eder. **Bugün bütün ürünlerin bütün veritabanı kullanımını fazlasıyla karşıladığı veya onların yerine doğrudan takılabildiği kanıtlanmış değildir.** Üreticiye özel dosya/şema/protokol okuyucuları ve kapasite ölçümü gerekir. Sıfırdan yazılmış `.sdb` motoru için yük/çökme/çok makine/kurtarma kabulü özellikle önemlidir.

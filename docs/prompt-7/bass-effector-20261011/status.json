@@ -1,0 +1,124 @@
+{
+  "utc": "2026-10-11T12:15:41.285362+00:00",
+  "task": "Bas konuş mikrofon satırına Efektöre gönder eklemek",
+  "state": "COMPLETE_DELIVERED",
+  "project": "RadioS",
+  "record_owner": "/root/bass_continuity",
+  "implementation_owners": {
+    "/root": [
+      "src/ui/dj.c",
+      "src/ui/audio_ui.c",
+      "final build/install/launch"
+    ],
+    "/root/bass_fx_inspect": [
+      "include/radios/audio_dsp.h",
+      "src/audio/dsp.c",
+      "tests/test_effect_return.c",
+      "independent DSP and XRes review"
+    ],
+    "/root/bass_ui_inspect": [
+      "database/SDBASE/src/sdbase/desktop_api.py",
+      "tests/test_desktop_routing.py",
+      "tests/test_dj_ui.c",
+      "private native GTK visual and one PTT telemetry run"
+    ]
+  },
+  "AGENT_md_written": false,
+  "continuity_source_test_binary_process_mutations": false,
+  "maximum_team_concurrency": 4,
+  "contract": {
+    "ui_widget": "dj-speech-effector",
+    "choices": [
+      "Yok",
+      "Effector 1",
+      "Effector 2",
+      "Effector 3",
+      "Effector 4"
+    ],
+    "json": "speech.fx_slot",
+    "dsp": "speech_fx_slot; default -1, internal -1..4, public -1..3",
+    "routing": "Independent gated microphone SEND; existing channel/MASTER RETURN controls receive the selected wet bus. Unrelated strips are preserved. Closed gate flushes own microphone effect tail and preserves music tails.",
+    "legacy_records": "Missing field defaults to -1; microphone live state is never persisted."
+  },
+  "modified_source_sha256": {
+    "src/ui/dj.c": "961b349b250c6626b0c7cd37c2d51ef6c1b233a39fba3abbb1e303493fb26442",
+    "src/ui/audio_ui.c": "88e0c858c81b9e63b9a096fdebd1eff1e072e06a33c38deabd6b55f6ef10647b",
+    "include/radios/audio_dsp.h": "b983e7c11eb13d3ae5ff9d211358d307e3ffee7d87102d16e127119b9857868e",
+    "src/audio/dsp.c": "20ec63ef66adba2bea3871f9c90617af74f7a51ec4c90742f854fc273fef3b49",
+    "tests/test_effect_return.c": "aebdc6d8581c04a6eef06211c9f03caab7298c0cbe9f728d233c6ade7962dd40",
+    "database/SDBASE/src/sdbase/desktop_api.py": "cf569d5cea3725687187bd68e4b46f9f715c49b20b39aff3e24af6b92cebd7fb",
+    "tests/test_desktop_routing.py": "5c51676b216da5215502523dbc3158e7c02cb838ecb8f17fd504393dfed17f92",
+    "tests/test_dj_ui.c": "c6cbe5cf8dee75fa10095fea6d1ac542ac0f3936ab3d7e550e5efb0f1a36a405"
+  },
+  "acceptance": {
+    "distinct_cases_passed": 75,
+    "counts": {
+      "effect_return": 13,
+      "dsp": 20,
+      "desktop_api": 26,
+      "desktop_routing": 10,
+      "fresh_native_dj_selected": 4,
+      "native_effect_return": 2
+    },
+    "final_native_rechecks_passed": 2,
+    "repeat_counts_added_to_distinct_total": false,
+    "canonical_receipt": "acceptance.json",
+    "later_shared_source_receipt": "delivery-build.json",
+    "latest_build_receipt": "delivery-final-build.json",
+    "strict_release_build": "PASS",
+    "version_and_configuration": "PASS",
+    "latest_product_and_feature_guard_count": 316,
+    "independent_current_guard_drift": []
+  },
+  "delivery": {
+    "binary": "build/radios",
+    "candidate_installed_running_sha256": "8544460e4c29de40f14cb8bd0a663afefbbb843bbeba4a11618e466c71afc6a7",
+    "host_pid": 62547,
+    "window_id": "0x1600004",
+    "XRes_owner_pid": 62547,
+    "viewable": true,
+    "geometry": {
+      "Width": "1920",
+      "Height": "1042"
+    },
+    "normal_launch_profile": "saved application preference",
+    "proof": "visible-final.json",
+    "launch": "launch-final.json",
+    "new_schema_service": "service.json; owned host service refreshed to PID47862 with schema cf569d5cea3725687187bd68e4b46f9f715c49b20b39aff3e24af6b92cebd7fb"
+  },
+  "visual": {
+    "result": "PASS actual private GTK row and scrolled DJ viewport",
+    "images": [
+      "dj-speech-layout.png",
+      "dj-controls-layout.png"
+    ],
+    "reviewers": [
+      "/root",
+      "/root/bass_continuity",
+      "/root/bass_ui_inspect"
+    ],
+    "PTT_geometry": "96x54",
+    "selector_geometry": "96x26, aligned below PTT, no horizontal clipping",
+    "production_active_tab_claimed_dj": false,
+    "user_foreground_preserved": true,
+    "private_visual_log": "dj-controls-layout.log"
+  },
+  "retained_failed_diagnostics": {
+    "display_preflights": [
+      "dj-controls-layout-no-display.log",
+      "dj-controls-layout-fallback-display.log"
+    ],
+    "historical_optional_post_save_repeat": {
+      "log": "dj-controls-layout-scrolled-functional-retry.log",
+      "result": "Held-PTT post-save gate assertion failed; historical cause not directly observed and remains undetermined."
+    },
+    "single_later_telemetry": {
+      "log": "held-ptt-telemetry.log",
+      "result": "Actual window focus-out at t=0.078 closed gate before SAVE; MAIN/MIC ready, no audio error, loss epoch unchanged. This run verifies intentional PTT focus-loss protection and does not establish the historical failure cause."
+    },
+    "source_fence_attempts": "Concurrent unrelated source edits were detected, preserved and rebuilt; see build.json, delivery-build.json and delivery-final-build.json. Unbuilt unrelated test_data_ui.c changes were recorded separately."
+  },
+  "pending_required": [],
+  "optional_followup": "Historical instrumented post-save failure can be investigated separately; all canonical acceptance results and latest build/window identity are preserved.",
+  "source_claims": "Implementation finished; no pending source edits."
+}

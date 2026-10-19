@@ -1,0 +1,93 @@
+{
+  "utc": "2026-10-11T12:27:32.795307+00:00",
+  "agent": "/root/bass_ui_inspect",
+  "visual_only": true,
+  "canonical_functional_tests_repeated": false,
+  "private_x11": true,
+  "exit_code": 0,
+  "seconds": 3.717,
+  "passed_geometry": true,
+  "main_binary_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "original_test_sha256": "4b3550529cfb45008b65ec8f379553ed1ef8dc620f8f3b23f1733ca6f5920767",
+  "source_or_binary_changes": [],
+  "images": {
+    "dj-microphone-master.png": "5b1e4032a96a906bd1eadd05a15dce36971b5097bec87b247b01eba72826d3e6",
+    "dj-microphone-master-viewport.png": "e6921488e7a696fddd5e0f2ba52e98e63e87d2c47b200da9f77af0f4f08100f2",
+    "dj-microphone-channel.png": "5caafc51ad42b25324eedd489d5f251e77ed19f678681088bf4636ed1387f5e7",
+    "dj-microphone-channel-viewport.png": "a7e5c2bbad0f2b22b55320ea54ce125f2119551ff5f849273956da90fbf359de"
+  },
+  "geometry": {
+    "master": {
+      "visual_only": true,
+      "state": "master",
+      "checked": true,
+      "channel_sensitive": false,
+      "selected_id": "-1",
+      "checkbox": [
+        0,
+        0,
+        144,
+        21
+      ],
+      "chooser": [
+        0,
+        43,
+        144,
+        26
+      ],
+      "destination": [
+        394,
+        33,
+        144,
+        69
+      ],
+      "microphone": [
+        286,
+        0,
+        96,
+        102
+      ],
+      "viewport_chooser_y": 552,
+      "viewport_height": 602,
+      "overlap": false,
+      "clipping": false
+    },
+    "channel": {
+      "visual_only": true,
+      "state": "channel",
+      "checked": false,
+      "channel_sensitive": true,
+      "selected_id": "7",
+      "checkbox": [
+        0,
+        0,
+        144,
+        21
+      ],
+      "chooser": [
+        0,
+        43,
+        144,
+        26
+      ],
+      "destination": [
+        394,
+        33,
+        144,
+        69
+      ],
+      "microphone": [
+        286,
+        0,
+        96,
+        102
+      ],
+      "viewport_chooser_y": 552,
+      "viewport_height": 602,
+      "overlap": false,
+      "clipping": false
+    }
+  },
+  "stdout": "docs/prompt-7/microphone-master-channel-20261011/dj-microphone-layout.log",
+  "preserved_initial_link_failure": "build/bas-konus-master-kanal-20261011-1219/visual/compile-link.log"
+}

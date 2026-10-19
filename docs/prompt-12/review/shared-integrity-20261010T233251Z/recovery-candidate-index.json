@@ -1,0 +1,100 @@
+{
+  "created_utc": "2026-10-10T23:34:01.598079+00:00",
+  "owner": "/root/theme_coordination_12",
+  "recovery_state": "INCOMPLETE_PARTIAL_EVIDENCE_INDEX_ONLY",
+  "raw_backup_count": 5,
+  "current_scope_hourlog_count": 9,
+  "raw_backups": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/logs/2026-10-09-0148-prior-prompt-2-AGENT.md",
+      "relative": "prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/logs/2026-10-09-0148-prior-prompt-2-AGENT.md",
+      "bytes": 23232,
+      "sha256": "5da92e2ef5df32d9e3cd881fc78020048ef2ea6ba029d796419427edfa8dae9e"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/logs/2026-10-09/backups/AGENT.pre-prompt10.014842.md",
+      "relative": "prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/logs/2026-10-09/backups/AGENT.pre-prompt10.014842.md",
+      "bytes": 7694,
+      "sha256": "8c4de4bda758bf174cf6d7d4175936b5b9fb5adac55a32e72fe52b701950f5cd"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/AGENT.md",
+      "relative": "prompt/agent/archive/pre-prompt-11_2026-10-09_01-49-48_UTC/AGENT.md",
+      "bytes": 18552,
+      "sha256": "dbdbc9cea424e0c8bf6f650964bd412ed9114c1e7fbab9d9cb678ce2df7915b7"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/logs/2026-10-09-0148-prior-prompt-2-AGENT.md",
+      "relative": "prompt/agent/logs/2026-10-09-0148-prior-prompt-2-AGENT.md",
+      "bytes": 23232,
+      "sha256": "5da92e2ef5df32d9e3cd881fc78020048ef2ea6ba029d796419427edfa8dae9e"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/logs/2026-10-09/backups/AGENT.pre-prompt10.014842.md",
+      "relative": "prompt/agent/logs/2026-10-09/backups/AGENT.pre-prompt10.014842.md",
+      "bytes": 7694,
+      "sha256": "8c4de4bda758bf174cf6d7d4175936b5b9fb5adac55a32e72fe52b701950f5cd"
+    }
+  ],
+  "current_scope_hourlogs": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/launch-20261010-2329/logs/2026-10-10/23.md",
+      "relative": "RadioS/docs/prompt-7/launch-20261010-2329/logs/2026-10-10/23.md",
+      "bytes": 6457,
+      "sha256": "be9d794a99b473d61a29a593a9c009637a3180c4e4f4118d48d392fa83256af7"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-12/records/2026-10-10/23.md",
+      "relative": "RadioS/docs/prompt-12/records/2026-10-10/23.md",
+      "bytes": 32786,
+      "sha256": "ebdaf4e30fd74cd83110cb9f3281df9adabf3337b217a6d427f4fde8001ccb0b"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-13/logs/2026-10-10/23.md",
+      "relative": "RadioS/docs/prompt-13/logs/2026-10-10/23.md",
+      "bytes": 25754,
+      "sha256": "1bb8457c2a381baec577490fdaa20d1500d28345051701c80f49264fb04c005a"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/audio-manual-20261010/logs/2026-10-10/23.md",
+      "relative": "prompt/agent/audio-manual-20261010/logs/2026-10-10/23.md",
+      "bytes": 5600,
+      "sha256": "d34731ed40feacd6d29fc011eb295bd3c96a230177c8ccb891bf93268bb9c49e"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/sessions/provider-playlist-routing-20261010-2325/logs/2026-10-10/23.md",
+      "relative": "prompt/agent/sessions/provider-playlist-routing-20261010-2325/logs/2026-10-10/23.md",
+      "bytes": 6163,
+      "sha256": "82a25db90a43bddc74f376b3b92a95e7743c4fa3a517774cf9c353692770eb61"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/routing-graph-20261010/logs/2026-10-10_23.md",
+      "relative": "prompt/agent/routing-graph-20261010/logs/2026-10-10_23.md",
+      "bytes": 5143,
+      "sha256": "707bc5edae9d0778ffe971cbf539969aac135eca46d583e02ae1a49db25f3951"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/logs/effector-display/2026-10-10/23.md",
+      "relative": "prompt/agent/logs/effector-display/2026-10-10/23.md",
+      "bytes": 22207,
+      "sha256": "6b636ead50020005685b03c5747220d08c1b594f2eb79d89fb37dda666b55e35"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/logs/effect-return/2026-10-10/23.md",
+      "relative": "prompt/agent/logs/effect-return/2026-10-10/23.md",
+      "bytes": 22768,
+      "sha256": "c22621ccb55cb2473a3af816e514e8cdf9a3e4415ddc801080b99325304e1e8a"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/agent/logs/player-graphic/2026-10-10/23.md",
+      "relative": "prompt/agent/logs/player-graphic/2026-10-10/23.md",
+      "bytes": 8681,
+      "sha256": "55b67e8302a7ceadf7b1eb5d5b5da183f0ae633b099f616695f107d6e625776b"
+    }
+  ],
+  "known_pretruncation_full_size_231713": 933588,
+  "complete_raw_pretruncation_copy_found": false,
+  "coverage": "Raw copies from 2026-10-09 early registration and independently retained scope hour logs; no exact 933588+ byte full replay proven. Current shared entries must be preserved.",
+  "proposed_shared_mutation": "NONE until root peer review; durable index can be referenced and missing per-scope current checkpoints re-appended with actual fresh authority.",
+  "source_test_binary_writes": false
+}

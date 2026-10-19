@@ -1,0 +1,127 @@
+{
+  "checkpoint_utc": "2026-10-09 02:36:46 UTC",
+  "responsible_agent": "/root/source_review_resume_12",
+  "scope": "prompt12 main sources; read-only checkpoint, not a whole-tree freeze or pre/post no-drift proof",
+  "source_review": "docs/prompt-12/final-source-review.md",
+  "native_lifecycle_7_case": "pending owner implementation/runtime; current test source is checkpoint only",
+  "sources": [
+    {
+      "path": "src/ui/playlist.c",
+      "bytes": 180886,
+      "sha256": "9bd25c536e7aa151e1143739c04a4cf98f4a0387e5fa3d721fda1762dd610ac9",
+      "owner": "/root",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "src/ui/media.c",
+      "bytes": 62302,
+      "sha256": "2c9f810e39bff907857f61550fd9618737817ef8a5548c71233db097510d7a06",
+      "owner": "Scope11/root (prompt12 drop implementation serially devolved)",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "include/radios/media_ui.h",
+      "bytes": 1949,
+      "sha256": "aebd4a945c56f3e53e408f75c26de3c26982bb4d3b2ef29cc2641e4930b6855b",
+      "owner": "Scope11/root",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "database/SDBASE/src/sdbase/desktop_playlist.py",
+      "bytes": 22816,
+      "sha256": "137f43b1a7bd0f5d3c8e4ac62381dcab83fe2539b70a6c9dbebdf8f4ea218477",
+      "owner": "/root/provider_analysis_resume_12 restricted source/analysis hunks",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tests/test_data_playlists.py",
+      "bytes": 36029,
+      "sha256": "f8fa31905255256531322383c69d6ca3e90bc4cbd5000b61ab1318a1135845f2",
+      "owner": "/root/provider_analysis_resume_12",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tools/radios_playlist_analysis.py",
+      "bytes": 7032,
+      "sha256": "5c2fc16f9df3ce64346db8e7f5b2cb2f2324ea561260a683bd0a4ed8718e1368",
+      "owner": "/root/source_review_resume_12",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tests/test_prompt12_playlist_analysis.py",
+      "bytes": 15213,
+      "sha256": "c1aa34930227d53abbd3d043bf2ea7bd4dabc923cd44b4ca753a0a0b1ad00f84",
+      "owner": "/root/source_review_resume_12",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tests/setup_prompt12_youtube_analysis.py",
+      "bytes": 4854,
+      "sha256": "f229a0178770810e823d56d373b4b528333e2edc9473fbb8f5cd8237671e054f",
+      "owner": "/root/source_review_resume_12 test-only fixture",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tests/test_prompt12_playlist_ui.c",
+      "bytes": 46621,
+      "sha256": "38b0533ee7d1e644f8f04011668f0cf75ed36015580adec30788ae73c87196cd",
+      "owner": "/root/provider_analysis_resume_12",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "tests/test_prompt12_drop_ui.c",
+      "bytes": 16370,
+      "sha256": "eb9e5e81681859ee90673ee6fb595021a9388eb83897e66300c90f90799e0559",
+      "owner": "requirements_12 original (no resumed source changes)",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "cmake/Pdf12Playlist.cmake",
+      "bytes": 1276,
+      "sha256": "323e6a67d9ce825b2dd07e32a05b4b909c5ed13838dccb54d7bb469b8f8db7ce",
+      "owner": "/root",
+      "stable_before_after_stat": true
+    },
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 27295,
+      "sha256": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+      "owner": "multiple serial scopes; prompt12 owns one include only",
+      "stable_before_after_stat": true
+    }
+  ],
+  "requirements_source": [
+    {
+      "path": "12.pdf",
+      "bytes": 3345934,
+      "sha256": "7821ae7d1c985acd1e06b98837eac8b51b5c359424c2a3d4f8a0fe15e664ba36",
+      "current_sha256": "7821ae7d1c985acd1e06b98837eac8b51b5c359424c2a3d4f8a0fe15e664ba36",
+      "current_bytes": 3345934,
+      "unchanged": true
+    },
+    {
+      "path": "figures/sema_1.png",
+      "bytes": 4578467,
+      "sha256": "3f41352ef9ba0d48d46494e7019e6fc8d0b4261c9d2634e1bedbd20a78992730",
+      "current_sha256": "3f41352ef9ba0d48d46494e7019e6fc8d0b4261c9d2634e1bedbd20a78992730",
+      "current_bytes": 4578467,
+      "unchanged": true
+    },
+    {
+      "path": "figures/sema_2.png",
+      "bytes": 46454,
+      "sha256": "fdfd0891ec58f39f823b91c0ccfa4f3bd58e9a237704704bca864f2971d94a96",
+      "current_sha256": "fdfd0891ec58f39f823b91c0ccfa4f3bd58e9a237704704bca864f2971d94a96",
+      "current_bytes": 46454,
+      "unchanged": true
+    },
+    {
+      "path": "figures/sema_3.png",
+      "bytes": 22429,
+      "sha256": "c5519c74d9d44226d90d14a5366a415b283191865e59040434435d330022b33d",
+      "current_sha256": "c5519c74d9d44226d90d14a5366a415b283191865e59040434435d330022b33d",
+      "current_bytes": 22429,
+      "unchanged": true
+    }
+  ]
+}

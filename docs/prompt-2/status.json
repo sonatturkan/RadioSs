@@ -1,0 +1,91 @@
+{
+  "updated_utc": "2026-10-09 02:44:38 UTC",
+  "scope": "PROMPT-2",
+  "source": "prompt/2/2.pdf; figures/sema_1.png",
+  "record_owner": "PROMPT-2/coordinator",
+  "concurrency": {
+    "actual_max_including_root": 4,
+    "user_requested": 14,
+    "active_roles": [
+      "root",
+      "requirements",
+      "architecture",
+      "coordinator"
+    ]
+  },
+  "completed": [
+    "all one-page PDF and figure analysis plus full-page render",
+    "requirements and architecture reports",
+    "header visibility preferences",
+    "first header_status and immutable programme metadata",
+    "root1 bind, View Preferences, save/close merge integration",
+    "Preferences View NULL panel guard source verified",
+    "P2-01..06 functional+visual acceptance finalrequirements matrix",
+    "Default owner5 installedlatestP2 source16SHA equality independentlyverified",
+    "Final implementationreport independentreview complete, temporalwording corrected",
+    "Own isolated strictO3 Release/native8profile and independentreceipt verified",
+    "Final featuremanifest allactualhash/proofcounter/reference independentverification complete"
+  ],
+  "tests": {
+    "preferences": "11/11 latest PASS0.0196391s",
+    "header_component": "8/8 latest caption word-wrap PASS0.106554s",
+    "playout_ctest": "22/22 latest PASS0.0442078s",
+    "aggregate_true_data_path": "23/23 latest PASS0.0370954s; wrapped upstreamobservations",
+    "full_cmake_gui_link": "Current strict fullapp+selectedtarget build exit0 in latestevidence; externalplaylist drift limits unique globalcompiledsource attribution",
+    "visual_acceptance": "Final8 PNG independentPASS with matchingSHA/IHDR: header6 exact1000/1400/1800 normal/large, main1800x1000, View1030x1020; visual7source stable",
+    "online_flow": "Focused actualisolated SDBASEflow PASS1case3.98s; provider/audio wrapped",
+    "private_actual_path": "Two independent latest actualDB/Pulse nativePCM cases PASS6.6212s+9.45533s; prior4.87/7.49 samecases historical",
+    "main_window_minimum": "Normal1568/1568 andlarge1574/1574; ownpanel widthregression0bothfonts. Full1000/1400 unsupported/preexisting limit not PDF requirement",
+    "online_published_duration": "4/4 latest PASS0.0239918s; production onlinegetter/readonly provider observations wrapped",
+    "native_controls": "10/10 latest PASS2.64108s",
+    "final_selected_suite": "8/8CTest PASS18.96s,80actualGLib+focusedonline1=81; nofailure/skip",
+    "source_freeze": "CONTROL FAILURE: 370tracked,369stable,playlist1drift despite canonical lock; ourP2source stable. OverallscriptDRIFTexit1; all actual build/testcommands exit0",
+    "own_isolated_release": "StrictO3/DNDEBUG/Werror freshbuild0+native8profiles0,370source noDrift; binary116fc0aa..., actualPNG1920x1042 independentPASS",
+    "release_preferences": "Absentbefore/after null/null preserved; real INI behavior proved separately"
+  },
+  "active": [
+    "Root final user handoff; all four roles maintained actual maximum through verification"
+  ],
+  "pending": [],
+  "continue_from": [
+    "coordination-log.md latest PROMPT-2 event",
+    "logs/2026-10-09/02.md",
+    "../../../prompt/agent/AGENT.md latest PROMPT-2 checkpoint"
+  ],
+  "shared_write_protocol": "append only; .AGENT.md.lock -> AGENT.md.lock -> inode flock; preserve all scopes",
+  "recovery": "User requested continue after accidental closure; root+3agents actual running4/4 confirmed2026-10-09 02:18UTC",
+  "cancelled_claims": [
+    "Root2 existing test_playout_ui.c::test_independent_player_native_pcm assertionhunk claim cancelled; new architecture fixture instead"
+  ],
+  "default_binary": "P5installedb1578... actualreceiptmatch;16productionmatches dated02:32functionalP2/P5Release651header. Finalvisualalready2f869 at02:34:34 BEFOREinstall02:35:19; no writer/time attribution. CurrentisolatedRelease2f869verified; ownP2core15unchanged.",
+  "evidence": {
+    "private_isolated_two_pass": "evidence/private-isolated-two-pass-0228.log",
+    "private_isolated_two_pass_sha256": "b00cdd69e0c43cc683214fb52077091498f0367d1add717063b4a126d8a3dd48",
+    "combined_quota_failure": "Root/architecture reported history; original LastTest overwritten before coordinator capture, no fabricated artifact",
+    "latest_validation": "evidence/20261009T023257Z",
+    "complete_tap": "evidence/20261009T023257Z/selected-tests-full-tap.log",
+    "complete_tap_sha256": "019567135d643f582bf2593b25375dbd364c59e962f3d03a5399a6f6fdfc8894",
+    "final_visual": "screenshots/final-20261009T023434Z/manifest.json",
+    "independent_visual_review": "screenshots/final-20261009T023434Z/coordinator-visual-review.json",
+    "default_inclusion": "evidence/default-prompt5-p2-inclusion-verification.json",
+    "isolated_release": "evidence/release-20261009T023847Z/manifest.json",
+    "independent_release_review": "evidence/release-20261009T023847Z/coordinator-release-verification.json",
+    "final_feature_manifest": "evidence/final-feature-manifest.json",
+    "final_feature_manifest_sha256": "10cf55bb6bc37210acb4d056c2e83485e7d6be7569cf033fd876b979edda1114",
+    "independent_final_verification": "evidence/final-feature-independent-verification.json"
+  },
+  "status": "complete",
+  "required_p2_pending": [],
+  "next_steps": [
+    "FutureRadioS requests read latest AGENTS/sharedP2 checkpoint/status before newaction",
+    "Preserve defaultPROMPT5solewriter and scope-qualified fileownership; newsource changes need appropriate revalidation",
+    "Never extend dated P2 proof to futurewholeproject/otherPDF/providerhardware claims"
+  ],
+  "closed_utc": "2026-10-09 02:44:38 UTC",
+  "final_reviews": {
+    "root": "Final implementation/source/8image/Release PASS",
+    "requirements": "2026-10-09 02:43:27 UTC PDF/source/scope/counters/all6acceptanceIDs PASS",
+    "architecture": "Final47actualhash/noMismatch/source/proofscope PASS",
+    "coordinator": "Final47actualhash/noMismatch/completeTAP81/8actualimages/strictRelease370source PASS"
+  }
+}

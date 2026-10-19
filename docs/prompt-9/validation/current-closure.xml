@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="2"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="24"
+	timestamp="2026-10-09T02:13:53"
+	>
+	<testcase name="native_broadcast_online" classname="native_broadcast_online" time="12.8478" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S06626950cfa6bff3ff204023e6211550
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# GLib-DEBUG: setenv()/putenv() are not thread-safe and should not be used after threads are created
+1..11
+# Start of broadcast-online tests
+ok 1 /broadcast-online/youtube-source-lists-plays-account-saved-search
+# slow test /broadcast-online/youtube-source-lists-plays-account-saved-search executed in 3.05 secs
+ok 2 /broadcast-online/viewer-cannot-play
+ok 3 /broadcast-online/youtube-items-become-flow-events
+# slow test /broadcast-online/youtube-items-become-flow-events executed in 1.85 secs
+ok 4 /broadcast-online/flow-plays-youtube-events
+# slow test /broadcast-online/flow-plays-youtube-events executed in 2.66 secs
+ok 5 /broadcast-online/card-loads-and-plays-provider-list
+# slow test /broadcast-online/card-loads-and-plays-provider-list executed in 1.28 secs
+ok 6 /broadcast-online/spotify-list-plays-through-youtube-matches
+ok 7 /broadcast-online/apple-list-prepares-before-play
+ok 8 /broadcast-online/multiple-sources-music-playlist-scope
+ok 9 /broadcast-online/source-menu-search-hints-scope
+ok 10 /broadcast-online/multiple-selected-rows-insert-play-visible-order
+# slow test /broadcast-online/multiple-selected-rows-insert-play-visible-order executed in 1.09 secs
+**
+ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_broadcast_online_ui.c:835:create_online_selection: assertion failed (gtk_tree_selection_count_selected_rows(selection) == 2): (1 == 2)
+not ok /broadcast-online/selected-account-multiple-provider-playlists - ERROR:/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/tests/test_broadcast_online_ui.c:835:create_online_selection: assertion failed (gtk_tree_selection_count_selected_rows(selection) == 2): (1 == 2)
+Bail out!
+</system-out>
+	</testcase>
+	<testcase name="native_broadcast_catalogue" classname="native_broadcast_catalogue" time="24.1805" status="run">
+		<properties/>
+		<system-out>Native catalogue independent fixture: /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+TAP version 14
+# random seed: R02Sbad9d15bd5a16cb581ff74a110a83624
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+# Start of native-broadcast-catalogue tests
+ok 1 /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded
+# slow test /native-broadcast-catalogue/insert-replace-saved-programme-reopen-embedded executed in 0.93 secs
+# End of native-broadcast-catalogue tests
+1..1
+Native catalogue independent fixture: /native-broadcast-catalogue/stale-selection-real-SHA-CAS-owner-close
+TAP version 14
+# random seed: R02Sd1642e88fe5e204dcf896156bcdea3c3
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

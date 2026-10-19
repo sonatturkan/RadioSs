@@ -1,0 +1,38 @@
+{
+  "task": "RadioS latest source build and open",
+  "status": "LATEST_BUILD_COMPLETE_GUI_PROOF_PENDING",
+  "default_owner": "P2/root ACTIVE; serial handoff requested",
+  "default_mutated_by_our_team": false,
+  "candidate_build_dir": "RadioS/build/prompt7-open-20261010-2332",
+  "configure_result": "root-reported PASS",
+  "source_before_count": 234,
+  "source_before_aggregate": "7c5ce66cba4781586946467dd6edd98a1c5d5a5171d78fb5003209878801db68",
+  "root_evidence_dir": "RadioS/docs/prompt-7/build-launch-20261010",
+  "pending": [
+    "actual new executablePID/exehash and mapped visible window proof"
+  ],
+  "updated_utc": "2026-10-10 23:34:39 UTC",
+  "record_owner": "/root/launch_coordination",
+  "last_operation": "private-build-pass-current-drift-and-stop-shared-write",
+  "candidate_binary_sha256": "e6933fda2af359273419b6f1ccbe2f2b4026d556b5b4d6a3070432fa0c104ceb",
+  "build_result": "root-reported strict Release77actions PASS",
+  "version_check_exit_code": 0,
+  "config_check_exit_code": 0,
+  "shared_write_allowed": false,
+  "user_override": "ARTIK AGENT MD Yİ DOLDURMA DEVAM ET İŞİNE",
+  "current_source_drift": [
+    {
+      "path": "src/ui/audio_ui.c",
+      "current_sha256": "843bb6c803d0d1e84eaef3ca1b7c09b4674043d82767323ed62d38ba4c4a7bf0"
+    },
+    {
+      "path": "src/ui/automation_calendar.c",
+      "current_sha256": "e489bba52411202c7a91651a77742022bb87328cb93e001cab5f9bbbc50aa017"
+    }
+  ],
+  "latest_build_returncode": 0,
+  "latest_build_sources_unchanged": true,
+  "latest_build_receipt_utc": "2026-10-10T23:33:43.805530+00:00",
+  "latest_build_receipt": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/docs/prompt-7/build-launch-20261010/latest-build.json",
+  "coordinator_independent_read_verified": true
+}

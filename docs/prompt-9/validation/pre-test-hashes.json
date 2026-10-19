@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-09T02:01:04.346875+00:00",
+  "phase": "first targeted strict build passed; targeted two CTest tests running",
+  "sources": {
+    "src/ui/broadcast.c": "8f65c1b7fcc77301843fc83db085dac7b6d0032e95094193e851fd4145052581",
+    "src/ui/broadcast_online.c": "0549b47a9d3e6cce21ac3a7f8d83151d43f410e8ac9e0486720d138a2c65f98e",
+    "tests/test_broadcast_catalogue_ui.c": "604a228f1fba012e9e7447c1af3e9a4c68ae044df3b17d40dadc3555bc139910",
+    "tests/run_broadcast_catalogue_ui.py": "637afd2435380f4a5f2768656b17c21754eb11d3cc9bbbbee7ab75ce406e3589",
+    "tests/test_broadcast_online_ui.c": "b5f7c405dfeead72502beeed83d444a6ad5360b18b0cf619aa4d1774ea42f104",
+    "CMakeLists.txt": "3120ed6eb174b0fa2aab0ac17e4afabaeb1cc221e98938cfcae01b5a25987ca0",
+    "cmake/Pdf2HeaderStatus.cmake": "5b076d7ee1735f98acb73855c934cbe29ac48881d68bc422027f0f4bf1a9f134",
+    "cmake/Preferences.cmake": "f3ac32bc230fed66aa529449c58459b182d232cf33f904b31622778b1aef0686"
+  }
+}

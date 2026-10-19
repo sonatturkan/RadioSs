@@ -1,0 +1,57 @@
+{
+  "utc": "2026-10-09T02:24:33.309001+00:00",
+  "scope": "scope9/read-only final fingerprint; shared sources may evolve",
+  "tested_manifest": "docs/prompt-9/validation/resumed-20261009T022323Z/pre-test.json",
+  "tested_binaries": {
+    "test_broadcast_catalogue_ui": "eec6a76233f17cac35956c0846a819cc3cfde90686570f55c9d1abf2161354d3",
+    "test_broadcast_online_ui": "33820349b378f2c4c0aa730c809a7f02ff1b318a5baef20630debc7f0e13e60d"
+  },
+  "sources": {
+    "src/ui/broadcast.c": {
+      "tested_sha256": "61c550adce9efc0b3c892fb9792c6c45bf6bc640170e14bc23e990e7e2fa605b",
+      "current_sha256": "00fe052ddd32b4c7560ffc1fb844f749e86c2116142bbaed3095ac1393a28971"
+    },
+    "src/ui/broadcast_online.c": {
+      "tested_sha256": "e2825b4ce514eec14875b7f2375b922f52f4322a930e81440b578b8f05652fb4",
+      "current_sha256": "246e5f37364e8c3ea3085561762c06f5e4be8e67e418e65c2c451e677711a9a1"
+    },
+    "tests/test_broadcast_catalogue_ui.c": {
+      "tested_sha256": "89d7669f022c149fb4e2775a4e10d7be859048120ff725b10c62673630258f58",
+      "current_sha256": "89d7669f022c149fb4e2775a4e10d7be859048120ff725b10c62673630258f58"
+    },
+    "tests/test_broadcast_online_ui.c": {
+      "tested_sha256": "2b1c2ccdbc270c35cfc23d69d9a67d945b9cf1ab5f91083bf3e21f71e171c9ba",
+      "current_sha256": "7fa4d00e8b74561bd63787d5cbdad1851aa4e4c3125e24fef0e661381c9a7603"
+    },
+    "tests/run_broadcast_catalogue_ui.py": {
+      "tested_sha256": "4908ec497018e5bb5fe7f902e2f81a3e9b9d6e1e2d1a010a8a6389920c14fbc6",
+      "current_sha256": "4908ec497018e5bb5fe7f902e2f81a3e9b9d6e1e2d1a010a8a6389920c14fbc6"
+    },
+    "tests/run_online_services_ui.py": {
+      "tested_sha256": "c3eac705dc21d3d1f7ff61171fa3a9cdef5cf8feb03f7de030c599d93596ae6e",
+      "current_sha256": "c3eac705dc21d3d1f7ff61171fa3a9cdef5cf8feb03f7de030c599d93596ae6e"
+    }
+  },
+  "cmake_fingerprints": {
+    "CMakeLists.txt": "d1abb74f35e6fc710523dcfff7fe0c3d5bfdc42434a5a4b7e82d128afbddd863",
+    "cmake/Pdf12Playlist.cmake": "ba57db703aad6c02c482528c5ec91c45b28502ea5c2a9959c3b6f3591042ac9c",
+    "cmake/Pdf2HeaderStatus.cmake": "b9374b7029433ce14bf00b0f03b09fa67030cbe7095de350a46f32f13889e58a",
+    "cmake/Pdf4Neon.cmake": "a0093ae4212e60c4acba0a8757ce0f82ea1521d48f507d96a3f2d4087f1ab1c7",
+    "cmake/Preferences.cmake": "4bb318b13efea303a53999996e13e257cd6e746efdbddb45cd344e014e047a53",
+    "cmake/Prompt10Playlist.cmake": "64f9388c85a8fb3afdfb5f9c218df7bc0bfc0f35c65aac88b622bfbbe7020ec4",
+    "cmake/Prompt5Tests.cmake": "46adc7f5ee03a7245b12635263d06a47de37930677e639130ffff187ddd675e4",
+    "cmake/Prompt7Tests.cmake": "37c55e4258b827697de67793838b2604057b724b16445dcd356654351b705ae8",
+    "cmake/Prompt8Tests.cmake": "5f00087a666108d592714b13b372779e884e217b9ec5a39bd3be1fced2189ec1"
+  },
+  "compile_source_drift": [],
+  "runtime_source_drift": [
+    "src/ui/broadcast.c",
+    "src/ui/broadcast_online.c",
+    "src/ui/editors.c"
+  ],
+  "runtime_binary_drift": [],
+  "configuration": [
+    "BUILD_TESTING:BOOL=ON",
+    "CMAKE_BUILD_TYPE:STRING=Debug"
+  ]
+}

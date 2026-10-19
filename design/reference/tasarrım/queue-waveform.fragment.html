@@ -1,0 +1,36 @@
+<dialog class="qwf-dialog" id="queue-waveform-dialog" aria-labelledby="queue-waveform-title">
+  <form class="qwf-form" data-queue-waveform-form novalidate>
+    <header class="qwf-heading">
+      <div><p class="qwf-eyebrow">Parça işaretleri · GUI</p><h2 id="queue-waveform-title" data-qwf-title>Parça seçilmedi</h2><p class="qwf-meta" data-qwf-meta>—</p></div>
+      <button class="qwf-close" type="button" data-qwf-close aria-label="Parça işaretlerini kapat">×</button>
+    </header>
+    <dl class="qwf-overview"><div><dt>Parça süresi</dt><dd data-qwf-duration>—</dd></div><div><dt>Sonraki parça</dt><dd data-qwf-next>Yok</dd></div></dl>
+    <div class="qwf-toolbar" role="group" aria-label="Seçilen zaman konumuna işaret koy">
+      <button type="button" data-qwf-set="cueIn">Cue giriş</button><button type="button" data-qwf-set="intro">Vokal</button><button type="button" data-qwf-set="out">Cue çıkış</button><button type="button" data-qwf-set="fadeStart">Fade başlangıcı</button><button type="button" data-qwf-set="fadeEnd">Fade bitişi</button><button type="button" data-qwf-set="autoNext">Otomatik geçiş</button>
+    </div>
+    <section class="qwf-timeline-section" aria-labelledby="qwf-timeline-title">
+      <div class="qwf-timeline-heading"><h3 id="qwf-timeline-title">Zaman çizgisi · GUI taslağı</h3><output data-qwf-position>—:—</output></div>
+      <div class="qwf-timeline" data-qwf-timeline tabindex="0" role="group" aria-label="Parça zaman konumu ve sürüklenebilir işaretler" aria-describedby="qwf-timeline-help">
+        <p class="qwf-media-waiting">Dalga biçimi verisi bekleniyor</p><div class="qwf-marker-layer" data-qwf-marker-layer></div><div class="qwf-cursor" data-qwf-cursor aria-hidden="true"></div>
+      </div>
+      <div class="qwf-time-axis" data-qwf-time-axis aria-hidden="true"></div>
+      <p class="qwf-help" id="qwf-timeline-help">Süre biliniyorsa konuma tıkla veya ok tuşlarını kullan; işaretleri sürükle. Sayısal alanlar saniye cinsindedir.</p>
+    </section>
+    <div class="qwf-tools">
+      <div class="qwf-toolbar" role="group" aria-label="Görünüm ve değişiklikler"><button type="button" data-qwf-zoom="in" aria-label="Zaman çizgisini yakınlaştır">+</button><button type="button" data-qwf-zoom="out" aria-label="Zaman çizgisini uzaklaştır">−</button><button type="button" data-qwf-zoom="fit">Tüm süre</button><button type="button" data-qwf-undo>Geri al</button><button type="button" data-qwf-redo>İleri al</button><button type="button" data-qwf-reset>İşaretleri sıfırla</button></div>
+      <button type="button" class="qwf-preview-toggle" data-qwf-play aria-pressed="false">▶ Oynat · GUI</button>
+    </div>
+    <fieldset class="qwf-marker-fields" data-qwf-fields><legend>Parça işaretleri</legend>
+      <div><label for="qwf-cue-in">Cue giriş</label><input id="qwf-cue-in" name="cueIn" type="number" min="0" step="0.1" required></div>
+      <div><label for="qwf-intro">Vokal / intro</label><input id="qwf-intro" name="intro" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-out">Cue çıkış</label><input id="qwf-out" name="out" type="number" min="0" step="0.1" placeholder="Süre bilinmiyor"></div>
+      <div><label for="qwf-fade-start">Fade başlangıcı</label><input id="qwf-fade-start" name="fadeStart" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-fade-end">Fade bitişi</label><input id="qwf-fade-end" name="fadeEnd" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-auto-next">Otomatik geçiş noktası</label><input id="qwf-auto-next" name="autoNext" type="number" min="0" step="0.1" placeholder="İsteğe bağlı"></div>
+      <div><label for="qwf-overlap">Sonraki parçayla bindirme</label><input id="qwf-overlap" name="overlap" type="number" min="0" step="0.1" value="0"></div>
+      <label class="qwf-check" for="qwf-automatic"><input id="qwf-automatic" name="automatic" type="checkbox"> Otomatik geçiş taslağı</label>
+    </fieldset>
+    <p class="qwf-status" data-qwf-status role="status" aria-live="polite">Parça seçilince işaretler açılır.</p>
+    <div class="qwf-dialog-actions"><button type="button" data-qwf-close>Vazgeç</button><button class="qwf-save" type="submit" data-qwf-save>İşaretleri taslağa uygula</button></div>
+  </form>
+</dialog>

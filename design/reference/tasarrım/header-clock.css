@@ -1,0 +1,133 @@
+.header-clock-column {
+    min-width: 0;
+    color: #c5cbd3;
+}
+
+.header-clock-summary {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+}
+
+.header-analog-clock {
+    flex: 0 0 104px;
+    width: 104px;
+    height: 104px;
+    overflow: visible;
+}
+
+.clock-face {
+    fill: #0b0d11;
+    stroke: #343941;
+    stroke-width: 1;
+}
+
+.clock-ticks {
+    fill: none;
+    stroke: #68717d;
+    stroke-width: 1;
+    stroke-linecap: round;
+}
+
+.clock-numerals {
+    fill: #929aa5;
+    font-size: 9px;
+    font-weight: 400;
+    text-anchor: middle;
+}
+
+.clock-hand { stroke-linecap: round; }
+.clock-hour-hand { stroke: #d4d9e0; stroke-width: 3; }
+.clock-minute-hand { stroke: #e8ecf0; stroke-width: 2; }
+.clock-second-hand { stroke: #90a4b7; stroke-width: 1; }
+.clock-center { fill: #c9d1db; stroke: #0b0d11; stroke-width: 1; }
+
+.header-clock-reading { min-width: 0; }
+
+.header-clock-label {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    color: #939da9;
+    font-size: 9px;
+    font-weight: 450;
+    letter-spacing: 1px;
+}
+
+.header-clock-label span {
+    color: #697583;
+    font-size: 8px;
+    letter-spacing: .5px;
+}
+
+.header-clock-time {
+    display: block;
+    margin-top: 5px;
+    color: #e2e6eb;
+    font-size: clamp(24px, 2.4vw, 30px);
+    font-weight: 250;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.7px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.header-calendar {
+    display: block;
+    margin-top: 7px;
+    color: #8d98a6;
+    font-size: 10px;
+    font-weight: 350;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.header-programme {
+    margin-top: 16px;
+    padding-top: 13px;
+    border-top: 1px solid #242930;
+}
+
+.header-programme h2 {
+    margin: 0;
+    color: #8f99a6;
+    font-size: 9px;
+    font-weight: 450;
+    letter-spacing: .9px;
+}
+
+.header-programme p {
+    margin: 6px 0 0;
+    color: #c1c9d3;
+    font-size: 12px;
+    font-weight: 350;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.header-next-programme {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-top: 9px;
+}
+
+.header-next-programme > span {
+    color: #798694;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+.header-next-programme p {
+    margin: 0;
+    color: #97a3b1;
+    font-size: 10px;
+}
+
+@media (max-width: 380px) {
+    .header-clock-summary { gap: 14px; }
+    .header-analog-clock { flex-basis: 96px; width: 96px; height: 96px; }
+    .header-clock-time { font-size: 25px; }
+}

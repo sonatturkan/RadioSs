@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="1"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="2"
+	timestamp="2026-10-09T02:22:33"
+	>
+	<testcase name="native_automation_calendar" classname="native_automation_calendar" time="2.64387" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S596bbd56a33e1d67e978dcaf503be5ec
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..2
+# Start of native-automation-calendar tests
+# Native data notice: Veritabanı bağlı; kalıcı kayıtlar yükleniyor.
+# Native data notice: Takvim değişiklikleri kaydediliyor…
+# Save checkpoint: 2026-10-05  ·  18:00 – 19:00  ·  1 event seçili; status=Takvim değişiklikleri kaydediliyor…
+# Native data notice: Değişiklik veritabanına kaydedildi.
+# Native data notice: Takvim veritabanıyla eşitlendi.
+# Native data notice: Takvim değişiklikleri kaydediliyor…
+# Native data notice: Değişiklik veritabanına kaydedildi.
+# Native data notice: Takvim veritabanıyla eşitlendi.
+# Save checkpoint: 2026-10-05  ·  18:00 – 19:00  ·  1 event seçili; status=Takvim veritabanıyla eşitlendi.
+# Native data notice: Takvim değişikl...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

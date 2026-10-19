@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-11T12:14:30.926551+00:00",
+  "passed": true,
+  "expected_sha256": "8544460e4c29de40f14cb8bd0a663afefbbb843bbeba4a11618e466c71afc6a7",
+  "installed_sha256": "8544460e4c29de40f14cb8bd0a663afefbbb843bbeba4a11618e466c71afc6a7",
+  "process": {
+    "pid": 62547,
+    "exe": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/RadioS/build/radios",
+    "sha256": "8544460e4c29de40f14cb8bd0a663afefbbb843bbeba4a11618e466c71afc6a7"
+  },
+  "window": {
+    "window": "0x1600004",
+    "owner_query_status": 0,
+    "owners": [
+      {
+        "pid": 62547,
+        "client_base": "0x1600000",
+        "mask": 2
+      }
+    ],
+    "viewable": true,
+    "geometry": {
+      "Width": "1920",
+      "Height": "1042"
+    }
+  },
+  "requested_profile": "saved application preference",
+  "feature_layout_evidence": "dj-controls-layout.png and dj-speech-layout.png",
+  "first_probe": "Window class matching was case-sensitive; corrected to match actual Radios class."
+}

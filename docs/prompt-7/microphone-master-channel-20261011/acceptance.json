@@ -1,0 +1,161 @@
+{
+  "utc": "2026-10-11T12:28:17.118760+00:00",
+  "agent": "/root",
+  "passed": true,
+  "distinct_cases_passed": 88,
+  "counts": {
+    "effect_return": 19,
+    "dsp": 20,
+    "desktop_api": 28,
+    "desktop_routing": 13,
+    "native_dj_and_effect_return": 8
+  },
+  "repeats_counted_again": false,
+  "checks": [
+    {
+      "group": "effect_return",
+      "log": "dsp-core-test_effect_return.log",
+      "cases": [
+        "/effect-return/validation-atomic",
+        "/effect-return/cross-source-independent-slots",
+        "/effect-return/same-source-no-feedback",
+        "/effect-return/cue-pfl-meters-mute",
+        "/effect-return/master-crossfade",
+        "/effect-return/recipient-equalizer",
+        "/effect-return/speech-duck-gate-tail",
+        "/effect-return/speech-send-validation",
+        "/effect-return/speech-send-independent-returns",
+        "/effect-return/speech-send-once-channel-assignments",
+        "/effect-return/speech-send-gate-route-music-tails",
+        "/effect-return/speech-send-ducking",
+        "/effect-return/speech-send-legacy-music-history",
+        "/effect-return/speech-destination-validation",
+        "/effect-return/speech-destination-legacy-exclusive",
+        "/effect-return/speech-destination-controls-gate",
+        "/effect-return/speech-destination-pre-equalizer",
+        "/effect-return/speech-destination-preserve-music-tails",
+        "/effect-return/speech-destination-ducking-independent-aux"
+      ],
+      "passed": true
+    },
+    {
+      "group": "dsp",
+      "log": "dsp-core-test_dsp.log",
+      "cases": [
+        "/dsp/validation-atomic",
+        "/dsp/routing-sampler-pfl-solo",
+        "/dsp/pan-gain-equal-power",
+        "/dsp/eq-frequency-response",
+        "/dsp/all-14-effects",
+        "/dsp/send-return",
+        "/dsp/five-slots-master",
+        "/dsp/master-aux-routing",
+        "/dsp/master-channel-send-return",
+        "/dsp/master-channel-speech-ducking",
+        "/dsp/master-channel-validation-atomic",
+        "/dsp/speech-duck-and-mic-gate",
+        "/dsp/external-master-eq-fx-mute-duck",
+        "/dsp/transition-sample-envelope",
+        "/dsp/engine-config-contract",
+        "/dsp/channel-send-return-chain",
+        "/dsp/channel-routing-feedback-atomic",
+        "/dsp/routed-microphone-gate-and-duck",
+        "/dsp/click-free-controls",
+        "/dsp/roll-algorithm-distinction"
+      ],
+      "passed": true
+    },
+    {
+      "group": "desktop_api",
+      "log": "desktop-api.log",
+      "count": 28,
+      "passed": true
+    },
+    {
+      "group": "desktop_routing",
+      "log": "desktop-routing-agent.log",
+      "count": 13,
+      "passed": true
+    },
+    {
+      "group": "speech-master-channel-route",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-speech-master-channel-route.log",
+      "cases": [
+        "/native-dj/speech-master-channel-route"
+      ],
+      "passed": true
+    },
+    {
+      "group": "speech-effector-route",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-speech-effector-route.log",
+      "cases": [
+        "/native-dj/speech-effector-route"
+      ],
+      "passed": true
+    },
+    {
+      "group": "push-to-talk-lifecycle",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-push-to-talk-lifecycle.log",
+      "cases": [
+        "/native-dj/push-to-talk-PCM-keyboard-loss-lifecycle"
+      ],
+      "passed": true
+    },
+    {
+      "group": "four-pedals-migration",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-four-pedals-migration.log",
+      "cases": [
+        "/native-dj/four-pedals-legacy-fifth-migration"
+      ],
+      "passed": true
+    },
+    {
+      "group": "configuration-CAS-reopen",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-configuration-CAS-reopen.log",
+      "cases": [
+        "/native-dj/configuration-CAS-reopen"
+      ],
+      "passed": true
+    },
+    {
+      "group": "cold-load-preserves-saved-mixer",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-cold-load-preserves-saved-mixer.log",
+      "cases": [
+        "/native-dj/cold-load-preserves-saved-mixer"
+      ],
+      "passed": true
+    },
+    {
+      "group": "native-effect-return",
+      "log": "docs/prompt-7/microphone-master-channel-20261011/delivery-native-effect-return.log",
+      "cases": [
+        "/native-effect-return/selector-PCM-independent-reopen-cleanup",
+        "/native-effect-return/legacy-channel-return-migration"
+      ],
+      "passed": true
+    }
+  ],
+  "current_guard_count": 319,
+  "current_source_drift": [],
+  "candidate_sha256": "e257a190daa54ce571015542b749658d0c4d23b601de344f2258234d94e9546d",
+  "visual_geometry_passed": true,
+  "root_visual_review": "Actual GTK images for checked Master (channel disabled) and unchecked selected channel (enabled) inspected; controls fit the existing dark interface without clipping/overlap.",
+  "resolved_attempt_failures": [
+    {
+      "log": "desktop-routing-first-rate-limit.log",
+      "cause": "HTTP fixture exceeded existing request quota with redundant full replay/CAS on all channel values.",
+      "solution": "Kept all channel PUT/reopen assertions and checked replay/CAS on meaningful boundaries; unchanged production rate limits; 13 tests passed."
+    },
+    {
+      "log": "native-effect-return.log",
+      "cause": "Previously compiled test hardcoded Kanal 2 before concurrent channel-name support reported actual Player 2.",
+      "solution": "Preserved current upstream assertion comparing incoming name with actual channel name entry; fresh full RETURN test passed."
+    },
+    {
+      "log": "build/bas-konus-master-kanal-20261011-1219/visual/compile-link.log",
+      "cause": "New mixer_ready API in concurrently changed native test was absent from previous compiled library.",
+      "solution": "Rebuilt all current targets and linked unchanged functional-test copy against matching libraries; visual geometry check passed."
+    }
+  ],
+  "remaining_task_failures": []
+}

@@ -1,0 +1,35 @@
+{
+  "started_utc": "2026-10-09T02:09:13.646146+00:00",
+  "ended_utc": "2026-10-09T02:09:26.135342+00:00",
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build/prompt-7-validation",
+    "--output-on-failure",
+    "-R",
+    "^(native_live_players|native_player_loader)$"
+  ],
+  "exit_code": 0,
+  "stdout_log": "docs/prompt-7/test-evidence/current-ctest-20261009T020913Z.log",
+  "sources_before": {
+    "src/ui/broadcast.c": "1a75761969eccd0dbdcece3c9e731bc16702a855f5ae25447ac8d0bf3518c939",
+    "src/ui/player_loader.c": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+    "include/radios/player_transport.h": "5dfa88f49f17f79f01bbe152cc9431356c6d732c55943eb27958a9e21ef4c3ba",
+    "src/ui/media.c": "5aabe9c62b531f5ab334c84fc8571689b184bc4f1dc38b8d187139ac775a1c43",
+    "src/ui/dj.c": "eeceaeab9e710e7b9f7a96cf06296eb6871578c24bbf7b693e532974c56cfb82",
+    "tests/test_live_players_ui.c": "e11ebbdd5e4ee73ac198ff4c23acee93ce85356bb27ce879d92a9eb419cd7d1c",
+    "tests/test_player_loader_ui.c": "b3802bd4643840911e4007e2c35750fda6153ef6b834130aa4f079050b1a1145",
+    "cmake/Prompt7Tests.cmake": "37c55e4258b827697de67793838b2604057b724b16445dcd356654351b705ae8"
+  },
+  "sources_after": {
+    "src/ui/broadcast.c": "1a75761969eccd0dbdcece3c9e731bc16702a855f5ae25447ac8d0bf3518c939",
+    "src/ui/player_loader.c": "e097e570e408784edde6b52f7150a41a856dd52c54e2809ac97e6c93b92b14d3",
+    "include/radios/player_transport.h": "5dfa88f49f17f79f01bbe152cc9431356c6d732c55943eb27958a9e21ef4c3ba",
+    "src/ui/media.c": "5aabe9c62b531f5ab334c84fc8571689b184bc4f1dc38b8d187139ac775a1c43",
+    "src/ui/dj.c": "eeceaeab9e710e7b9f7a96cf06296eb6871578c24bbf7b693e532974c56cfb82",
+    "tests/test_live_players_ui.c": "e11ebbdd5e4ee73ac198ff4c23acee93ce85356bb27ce879d92a9eb419cd7d1c",
+    "tests/test_player_loader_ui.c": "b3802bd4643840911e4007e2c35750fda6153ef6b834130aa4f079050b1a1145",
+    "cmake/Prompt7Tests.cmake": "37c55e4258b827697de67793838b2604057b724b16445dcd356654351b705ae8"
+  },
+  "scope": "Current combined source native live-player and picker GTK tests. Mocked provider/decoder boundaries; no claim of hardware or live services."
+}

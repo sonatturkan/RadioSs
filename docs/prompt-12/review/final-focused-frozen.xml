@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Linux-cc"
+	tests="5"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="sonats-dell"
+	time="25"
+	timestamp="2026-10-09T02:38:11"
+	>
+	<testcase name="native_media_drop" classname="native_media_drop" time="4.52856" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sdc648129a0165000e303b07848abfc01
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..8
+# Start of media-drop tests
+ok 1 /media-drop/window-multi-copy-sha
+# slow test /media-drop/window-multi-copy-sha executed in 0.56 secs
+ok 2 /media-drop/inline-markers-persist
+# slow test /media-drop/inline-markers-persist executed in 0.58 secs
+ok 3 /media-drop/multiple-playlist-routing
+# slow test /media-drop/multiple-playlist-routing executed in 0.84 secs
+ok 4 /media-drop/library-mixed-invalid-source
+ok 5 /media-drop/disconnected-preserves-source
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 6 /media-drop/busy-chooser-cancel
+ok 7 /media-drop/malformed-limit-close
+ok 8 /media-drop/retained-widget-late-drop
+# End of media-drop tests
+</system-out>
+	</testcase>
+	<testcase name="native_controls" classname="native_controls" time="2.42014" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sea8c53ea764776d404be9d1908e2e263
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..10
+# Start of ui tests
+# Start of markers tests
+ok 1 /ui/markers/validation
+ok 2 /ui/markers/history
+ok 3 /ui/markers/cancel
+# End of markers tests
+# Start of transition tests
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation keyfile (GKeyfileSettingsBackend) for ‘gsettings-backend’
+ok 4 /ui/transition/validation
+# End of transition tests
+# Start of forms tests
+ok 5 /ui/forms/preserve-input
+# End of forms tests
+# Start of profiles tests
+ok 6 /ui/profiles/lifecycle
+# End of profiles tests
+# Start of playlist tests
+ok 7 /ui/playlist/session
+# End of playlist tests
+# Start of dj tests
+ok 8 /ui/dj/session
+# End of dj tests
+# Start of emergency tests
+ok 9 /ui/emergency/session
+# End of emergency tests
+# Start of preferen...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_prompt12_playlist" classname="native_prompt12_playlist" time="13.9314" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02Sae53983b977b969765de5d0ace7a1a1a
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..7
+# Start of prompt12 tests
+ok 1 /prompt12/selectors-provider-copy
+ok 2 /prompt12/provider-form-edit-roundtrip
+# slow test /prompt12/provider-form-edit-roundtrip executed in 0.52 secs
+ok 3 /prompt12/inline-analysis-marker-stale-selection
+# slow test /prompt12/inline-analysis-marker-stale-selection executed in 4.65 secs
+ok 4 /prompt12/provider-bound-analysis-marker-reopen
+# slow test /prompt12/provider-bound-analysis-marker-reopen executed in 0.72 secs
+ok 5 /prompt12/provider-analysis-picker-source-copy
+# slow test /prompt12/provider-analysis-picker-source-copy executed in 0.86 secs
+ok 6 /prompt12/youtube-unbound-full-analysis-pipeline
+# slow test /prompt12/youtube-unbound-full-analysis-pipeline executed in 0.82 secs
+ok 7 /prompt12/youtube-exp...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="native_prompt12_drop" classname="native_prompt12_drop" time="2.39478" status="run">
+		<properties/>
+		<system-out>TAP version 14
+# random seed: R02S95154a6ce4663b4f520c793006c4ea73
+# GLib-DEBUG: unsetenv() is not thread-safe and should not be used after threads are created
+# GLib-GIO-DEBUG: _g_io_module_get_default: Found default implementation local (GLocalVfs) for ‘gio-vfs’
+1..3
+# Start of prompt12-drop tests
+ok 1 /prompt12-drop/target-multi-binding-confirmed
+# slow test /prompt12-drop/target-multi-binding-confirmed executed in 0.87 secs
+ok 2 /prompt12-drop/cancel-repeated-drop-preserves
+ok 3 /prompt12-drop/owner-close-pending-import
+# End of prompt12-drop tests
+</system-out>
+	</testcase>
+	<testcase name="prompt12_provider_analysis" classname="prompt12_provider_analysis" time="2.47152" status="run">
+		<properties/>
+		<system-out>test_cli_rejects_duplicate_json_and_cancellation_has_no_audio_output (test_prompt12_playlist_analysis.PlaylistAnalysisTests.test_cli_rejects_duplicate_json_and_cancellation_has_no_audio_output) ... ok
+test_cold_cache_uses_existing_preparation_and_real_decode (test_prompt12_playlist_analysis.PlaylistAnalysisTests.test_cold_cache_uses_existing_preparation_and_real_decode) ... ok
+test_complete_wave_and_opus_bytes_reuse_verified_cache (test_prompt12_playlist_analysis.PlaylistAnalysisTests.test_complete_wave_and_opus_bytes_reuse_verified_cache) ... ok
+test_corrupt_audio_is_repaired_only_by_authorized_valid_audio (test_prompt12_playlist_analysis.PlaylistAnalysisTests.test_corrupt_audio_is_repaired_only_by_authorized_valid_audio) ... ok
+test_expired_lease_checks_current_account_before_cached_bytes (test_prompt12_playlist_analysis.PlaylistAnalysisTests.test_expired_lease_checks_current_account_before_cached_bytes) ... ok
+test_generation_change_during_download_cancels_without_ready_recording (test_prompt12_playlist_an...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

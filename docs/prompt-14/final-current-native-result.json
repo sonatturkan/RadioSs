@@ -1,0 +1,17 @@
+{
+  "started_utc": "2026-10-09T02:07:29.585489+00:00",
+  "finished_utc": "2026-10-09T02:07:37.128916+00:00",
+  "command": [
+    "ctest",
+    "--test-dir",
+    "build-prompt-14",
+    "--output-on-failure",
+    "--output-junit",
+    "/home/sturkan/Masa\u00fcst\u00fc/radyo projesi/kaynak kodlar/RadioS/build-prompt-14/evidence/final-current-native.xml",
+    "-R",
+    "^native_(online_services|youtube_music)$",
+    "--parallel",
+    "1"
+  ],
+  "exit_code": 0
+}

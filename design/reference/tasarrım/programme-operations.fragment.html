@@ -1,0 +1,52 @@
+<!-- PROGRAMME OPERATIONS: Programlar toolbarından hemen sonra, drop hintten önce -->
+<div class="programme-operations" aria-label="Program revizyonu ve yayın hazırlığı">
+    <div class="programme-operation-states">
+        <span class="programme-revision" data-programme-revision>Revizyon 1</span>
+        <span class="programme-stage" data-programme-stage data-stage="draft">Taslak</span>
+        <span class="programme-engine-state">Motor bekleniyor</span>
+    </div>
+    <div class="programme-operation-buttons">
+        <button type="button" data-programme-save>Kaydet</button>
+        <button type="button" data-programme-review>Değişiklikleri incele</button>
+        <button type="button" data-programme-send-review>Yerel onaya gönder</button>
+        <button type="button" disabled title="Yayın motoru ve yetkili onay bağlantısı bekleniyor">Yayına yükle</button>
+    </div>
+    <p><span data-programme-save-state>Kaydedilmemiş değişiklikler</span><span> · Yerel taslak; aktif yayın programı değişmez.</span></p>
+</div>
+<!-- /PROGRAMME OPERATIONS -->
+
+<!-- PROGRAMME TIMING: mevcut timed-event-summary bloğunun yerine -->
+<section class="programme-timing" aria-labelledby="programme-timed-heading">
+    <div class="programme-timing-heading">
+        <div><h3 id="programme-timed-heading">Kesin saat · Erken / geç</h3><p data-programme-timed-title>Kesin saatli olay</p></div>
+        <button type="button" data-programme-timing-edit>Ayarla</button>
+    </div>
+    <dl class="programme-timing-values">
+        <div><dt>Hedef saat</dt><dd data-programme-target-time>—:—</dd></div>
+        <div><dt>Tahmini giriş</dt><dd data-programme-estimated-time>Belirsiz</dd></div>
+        <div><dt>Sapma</dt><dd data-programme-time-delta>Hesaplanamıyor</dd></div>
+    </dl>
+    <p class="programme-timing-policy" data-programme-timing-policy>Hedef saatte kes</p>
+    <p class="programme-timing-note" data-programme-timing-note>Süre ve program başlangıç saati bekleniyor.</p>
+</section>
+<!-- /PROGRAMME TIMING -->
+
+<!-- PROGRAMME OPERATION DIALOGS: body sonunda mevcut programme dialoglarının yanına -->
+<dialog class="programme-dialog" id="programme-review-dialog" aria-labelledby="programme-review-title">
+    <div class="programme-dialog-heading"><h2 id="programme-review-title">Taslak incelemesi</h2><button type="button" data-close-programme-dialog aria-label="Taslak incelemesini kapat">×</button></div>
+    <p class="programme-dialog-note">Yerel onay bu taslağın gözden geçirildiğini belirtir. Dosya hazırlığı, reklam onayı ve yayına yükleme için gerçek sistem bağlantısı gerekir.</p>
+    <div data-programme-review-content></div>
+    <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Kapat</button><button class="programme-dialog-save" type="button" data-programme-approve>Yerel taslağı onayla</button></div>
+</dialog>
+<dialog class="programme-dialog" id="programme-timing-editor" aria-labelledby="programme-timing-editor-title">
+    <form data-programme-timing-form>
+        <div class="programme-dialog-heading"><h2 id="programme-timing-editor-title">Kesin saat davranışı</h2><button type="button" data-close-programme-dialog aria-label="Kesin saat düzenleyicisini kapat">×</button></div>
+        <p class="programme-dialog-note">Tahmini giriş, program başlangıcından öğe süreleri ve kayıtlı geçiş bindirmeleriyle hesaplanır. Bilinmeyen süre varsa sonuç belirsiz kalır. Hedef, bu akışın ardından gelecek olaydır; gerçek yayın motoruna komut gönderilmez.</p>
+        <label for="programme-timed-title">Hedef olay</label><input id="programme-timed-title" name="title" maxlength="80" required autocomplete="off">
+        <div class="programme-dialog-fields"><div><label for="programme-start-time">Program başlangıcı (UTC)</label><input id="programme-start-time" name="start" type="time" required></div><div><label for="programme-target-time">Hedef saat (UTC)</label><input id="programme-target-time" name="target" type="time" required></div></div>
+        <label for="programme-timed-policy">Hedef saatte davranış</label><select id="programme-timed-policy" name="policy"><option value="cut">Parçayı kes · hedef saatte gir</option><option value="finish">Bitmesini bekle · sınırlı bekleme</option></select>
+        <label for="programme-timed-wait">En fazla bekleme (saniye)</label><input id="programme-timed-wait" name="maxWait" type="number" min="0" max="600" step="1" value="30">
+        <div class="programme-dialog-actions"><button type="button" data-close-programme-dialog>Vazgeç</button><button class="programme-dialog-save" type="submit">Taslağa uygula</button></div>
+    </form>
+</dialog>
+<!-- /PROGRAMME OPERATION DIALOGS -->

@@ -1,0 +1,549 @@
+{
+  "session": "prompt6",
+  "observed_at_utc": "2026-10-09 01:51:12 UTC",
+  "sources": [
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/6/6.pdf",
+      "bytes": 107639,
+      "sha256": "f058545c34da19aae49c9c23bdbd5d90e78bba2f710ea0985ea471f957b0a0e6"
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/6/figures/sema_1.png",
+      "bytes": 59206,
+      "sha256": "44b9628ac7df6bf069c1567451e3f7bde10861466655ede423a0a7bfbac717bf",
+      "width": 1668,
+      "height": 557
+    },
+    {
+      "path": "/home/sturkan/Masaüstü/radyo projesi/kaynak kodlar/prompt/6/figures/sema_2.png",
+      "bytes": 15305,
+      "sha256": "23d230fcecccb6ef86b52947b8579742906782fff55fed95b7cd0fcc72a82a68",
+      "width": 1627,
+      "height": 130
+    }
+  ],
+  "current_test_artifacts_missing": [
+    "build/CTestTestfile.cmake",
+    "build/Testing/Temporary/LastTest.log",
+    "build/closure-full.xml",
+    "build/closure-final-acceptance.json"
+  ],
+  "pdf_review": {
+    "reported_by": "/root/pdf_ui",
+    "checked_at_utc": "2026-10-09 01:52:18 UTC",
+    "pages": 1,
+    "render_scale": 2,
+    "full_text_and_all_figures_reviewed": true,
+    "figure_equality_independently_hashed_by": "/root/coordination",
+    "artifacts": [
+      {
+        "path": "build/prompt6-pdf-review/page-1-image-1-FormXob.2a828ef2e3a47d75b4221dd8c83952b0.png",
+        "bytes": 15305,
+        "sha256": "23d230fcecccb6ef86b52947b8579742906782fff55fed95b7cd0fcc72a82a68"
+      },
+      {
+        "path": "build/prompt6-pdf-review/page-1-image-2-FormXob.4f6942569048ae0df19569a7b7620421.png",
+        "bytes": 59206,
+        "sha256": "44b9628ac7df6bf069c1567451e3f7bde10861466655ede423a0a7bfbac717bf"
+      },
+      {
+        "path": "build/prompt6-pdf-review/page-1.png",
+        "bytes": 95507,
+        "sha256": "fc65ba2b3e4f533f8d67e23c42a8a016383c3273a4f17101133c55864baa6486"
+      }
+    ]
+  },
+  "root_independent_review": {
+    "reported_at_utc": "2026-10-09 01:54:03 UTC",
+    "full_text": true,
+    "render_scale": 2,
+    "embedded_figure_sha256_equality": true,
+    "artifacts": [
+      {
+        "path": "build/prompt6-acceptance/evidence/6-page-1.png",
+        "bytes": 79170,
+        "sha256": "cfb3afde76a7c58e623266cbb299c30df1416259ca4433ebe4ea2e509bffc770"
+      },
+      {
+        "path": "build/prompt6-acceptance/evidence/6-full-text.txt",
+        "bytes": 192,
+        "sha256": "dc8abf4c4f63dc6899d4da1e0919c73e75c1fa0200af7b883f2ea75d005fa90c"
+      }
+    ]
+  },
+  "backup_evidence": [
+    {
+      "path": "build/prompt6-backup/data_core/src/ui/audio_ui.c",
+      "bytes": 74978,
+      "sha256": "5df92f7142a8f95b995f9a59cb132a263409fab956055d8759c9f3c47aad62ad"
+    },
+    {
+      "path": "build/prompt6-backup/data_core/tests/test_dj_ui.c",
+      "bytes": 53029,
+      "sha256": "d77341e05ae1271b534d98e80f9b46ca547ec9d71874c204a68cd005e82884b8"
+    },
+    {
+      "path": "build/prompt6-backup/pdf_ui/dj.c.before",
+      "bytes": 95359,
+      "sha256": "ecba763c608f4e9660a0000a7fcbef6e70a2c45c6452a565572c75be3c101558"
+    }
+  ],
+  "ui_first_pass_reported_at_utc": "2026-10-09 01:54:51 UTC",
+  "ui_first_pass_sha256": {
+    "src/ui/dj.c": "837984b41efc0d0b93bc184aed1408ec559fb16f5269b1977ead4ff8ea885c7f",
+    "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00"
+  },
+  "ui_review_after_grab_notify": {
+    "reported_at_utc": "2026-10-09 01:59:10 UTC",
+    "independently_checked_at_utc": "2026-10-09 02:00:33 UTC",
+    "sha256": {
+      "src/ui/dj.c": "35aec290a3d7176c7fb97812c7d21482ad5f7493b7270dd1412c69a4d90dfd4a",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00"
+    },
+    "implementation_review_complete": true,
+    "native_and_visual_acceptance": "pending"
+  },
+  "ui_latest_lifetime_fix": {
+    "reported_at_utc": "2026-10-09 02:01:53 UTC",
+    "observed_at_utc": "2026-10-09 02:02:49 UTC",
+    "source_sha256": {
+      "src/ui/dj.c": "dc0e515fa70a4f8b3d34f1ce5ef59d2d74049a4faf84bad43a363e03e89a5548",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "tests/test_dj_ui.c": "c5c48db2dc84a207a87eed3f893912b3d4012cd319dfa470d3c3b607e75d44f1"
+    },
+    "runtime_acceptance": "pending"
+  },
+  "native_first_run": {
+    "reported_at_utc": "2026-10-09 02:04:32 UTC",
+    "groups": 9,
+    "passed": 8,
+    "failed": 1,
+    "elapsed_seconds": 58.89,
+    "failed_group": "push-to-talk-PCM-keyboard-loss-lifecycle",
+    "new_fx4_migration_passed": true,
+    "final_acceptance": false
+  },
+  "ui_after_flush_and_css_fix": {
+    "reported_at_utc": "2026-10-09 02:06:27 UTC",
+    "observed_sha256": "eeceaeab9e710e7b9f7a96cf06296eb6871578c24bbf7b693e532974c56cfb82",
+    "tests": "rerun pending"
+  },
+  "first_idle_visual_review": {
+    "reviewers": [
+      "/root/pdf_ui",
+      "/root/data_core"
+    ],
+    "matches_source": true,
+    "artifacts": [
+      {
+        "path": "build/prompt6-acceptance/evidence/screens/mixer-layout.png",
+        "bytes": 128099,
+        "sha256": "8cc36c2a3b8431ecd02451dc84a607c4a0c047c5860fdc3990fe74ff4d7503f4"
+      },
+      {
+        "path": "build/prompt6-acceptance/evidence/screens/prompt6-four-pedals-idle.png",
+        "bytes": 127857,
+        "sha256": "fe9428015e84355f3eee4720d77742e1466169a75af515266c1c647049af5038"
+      }
+    ]
+  },
+  "pre_first_test_source_hashes": {
+    "src/ui/dj.c": "dc0e515fa70a4f8b3d34f1ce5ef59d2d74049a4faf84bad43a363e03e89a5548",
+    "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+    "src/ui/audio_ui.c": "fd4777c0be119512d47ae4d3bc73835fa98f9f9b5d7fcd2050d573d26a7985d3",
+    "tests/test_dj_ui.c": "c5c48db2dc84a207a87eed3f893912b3d4012cd319dfa470d3c3b607e75d44f1"
+  },
+  "latest_exact_case_reports": {
+    "reviewers": [
+      "/root/data_core",
+      "/root/pdf_ui"
+    ],
+    "normal_ptt_seconds": 10.36,
+    "asan_migration_seconds": 7.61,
+    "asan_ptt_seconds": 13.97,
+    "positive_tap_each": "ok1 and1..1",
+    "runtime_reported_pass": true,
+    "full_current_suite": "pending",
+    "held_screen_review": "matches source"
+  },
+  "native_helper_after_picker_update_sha256": {
+    "observed_at_utc": "2026-10-09 02:13:24 UTC",
+    "tests/test_dj_ui.c": "ee319c7ae8ae450b52c96044c440ef4025b3416015e8e64456b8da846dd43476"
+  },
+  "held_visual_artifact": {
+    "path": "build/prompt6-acceptance/evidence/screens/prompt6-push-to-talk-held.png",
+    "bytes": 131740,
+    "sha256": "bc654a1954fe0fbcb04ab0b539f752eaef7e069fd9a9aae2752e402a0ca0c8d8"
+  },
+  "final_pdf_acceptance": {
+    "at_utc": "2026-10-09 02:25:12 UTC",
+    "requirements": [
+      "P6-R1",
+      "P6-R2",
+      "P6-R3"
+    ],
+    "native_dj_groups_passed": 9,
+    "elapsed_seconds": 72.14,
+    "positive_tap": [
+      "ok 1 /native-dj/configuration-CAS-reopen",
+      "ok 2 /native-dj/stale-CAS-preserves-controls",
+      "ok 3 /native-dj/PCM-pan-gain-mute-PFL-crossfade",
+      "ok 4 /native-dj/verified-sampler-retrigger-owner",
+      "ok 5 /native-dj/transition-pair-PCM-persistence-owner",
+      "ok 6 /native-dj/channel-routing-squares-ON-AIR",
+      "ok 7 /native-dj/master-channel-routing-PCM-persistence-cleanup",
+      "ok 8 /native-dj/four-pedals-legacy-fifth-migration",
+      "ok 9 /native-dj/push-to-talk-PCM-keyboard-loss-lifecycle"
+    ],
+    "hash_proof": {
+      "checked_utc": "2026-10-09T02:19:00.858108+00:00",
+      "sha256": {
+        "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+        "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+        "src/ui/audio_ui.c": "2ea89ec5a353044ec93a24a38cc5c616d7f24f828ca6b4d49ae8e26b7e1658c5",
+        "tests/test_dj_ui.c": "ee319c7ae8ae450b52c96044c440ef4025b3416015e8e64456b8da846dd43476",
+        "tests/run_dj_ui.py": "06b1f76c326af06fb3fb73d693bb4ad5b288d644fffcffd176dbbc8fc2d66525",
+        "tests/run_audio_ui.py": "36f215bc90fdf13c1ce6d6851bf05e0213c7f95a247cad0e1465ed0623b0948b"
+      },
+      "unchanged_from_test_before": {
+        "src/ui/dj.c": true,
+        "assets/themes/dj-pedals.css": true,
+        "src/ui/audio_ui.c": true,
+        "tests/test_dj_ui.c": true,
+        "tests/run_dj_ui.py": true,
+        "tests/run_audio_ui.py": true
+      },
+      "actual_dj_tests": [
+        "ok 1 /native-dj/configuration-CAS-reopen",
+        "ok 2 /native-dj/stale-CAS-preserves-controls",
+        "ok 3 /native-dj/PCM-pan-gain-mute-PFL-crossfade",
+        "ok 4 /native-dj/verified-sampler-retrigger-owner",
+        "ok 5 /native-dj/transition-pair-PCM-persistence-owner",
+        "ok 6 /native-dj/channel-routing-squares-ON-AIR",
+        "ok 7 /native-dj/master-channel-routing-PCM-persistence-cleanup",
+        "ok 8 /native-dj/four-pedals-legacy-fifth-migration",
+        "ok 9 /native-dj/push-to-talk-PCM-keyboard-loss-lifecycle"
+      ],
+      "test_binary_sha256": "4d4577dd694f95c5040af2050fdca4f00de11a306bbbe376a059831b85ced8bf",
+      "normal_app_sha256": "15a6b585b965af59b7516cf4e0ffe7beb12ffa56d7c098a4a7ddf85dc016daae"
+    },
+    "current_observed_hashes": {
+      "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "src/ui/audio_ui.c": "2ea89ec5a353044ec93a24a38cc5c616d7f24f828ca6b4d49ae8e26b7e1658c5",
+      "tests/test_dj_ui.c": "ee319c7ae8ae450b52c96044c440ef4025b3416015e8e64456b8da846dd43476",
+      "tests/run_dj_ui.py": "06b1f76c326af06fb3fb73d693bb4ad5b288d644fffcffd176dbbc8fc2d66525",
+      "tests/run_audio_ui.py": "d465589add6bad02d16a627d33c8c57846950b5e054cf477855280b5070ee84e"
+    },
+    "changed_since_proof": [
+      "tests/run_audio_ui.py"
+    ],
+    "audio_other7_positive_tests": [
+      "ok 1 /native-audio/preview-CUE-main-silence",
+      "ok 1 /native-audio/inline-waveform-transport-owner",
+      "ok 1 /native-audio/inline-markers-picker-latest",
+      "ok 1 /native-audio/station-path-hash-rejection",
+      "ok 1 /native-audio/preferences-CAS-reopen",
+      "ok 1 /native-audio/generation-owner-close",
+      "ok 1 /native-audio/card-CUE-loaded-owner"
+    ],
+    "audio_transport_failure": "1639!=0 remains open",
+    "release_build_and_private_app": "PASS after ROOT1fix; default installation belongsP5"
+  },
+  "release_candidate": {
+    "utc": "2026-10-09T02:22:14.922342+00:00",
+    "release_candidate": "build/prompt6-release/radios",
+    "build_type": "Release",
+    "optimization": "-O3 -DNDEBUG",
+    "strict_warnings": true,
+    "private_app_smoke": {
+      "result": "PASS",
+      "exit_code": 0,
+      "private_database": true,
+      "owned_pulse_outputs": true,
+      "G_DEBUG": "fatal-warnings",
+      "log": "build/prompt6-acceptance/evidence/release-native-window.log"
+    },
+    "default_install": "NOT performed by prompt6; serial ownership PROMPT5/root, receipt02:19:22UTC",
+    "sha256": {
+      "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "src/ui/audio_ui.c": "2ea89ec5a353044ec93a24a38cc5c616d7f24f828ca6b4d49ae8e26b7e1658c5",
+      "tests/test_dj_ui.c": "ee319c7ae8ae450b52c96044c440ef4025b3416015e8e64456b8da846dd43476",
+      "src/ui/window.c": "a4dccf6f156525a44f9797149412f2f9fbb23280e60849529a17fa21271f73a8",
+      "src/audio/engine.c": "ae9af9371eae0db6c3dc16c3ce2f526aa8190d121faa2e05372a25098d30e3d7",
+      "build/prompt6-release/radios": "0c2856304d69ddfcc0732be72268e79036d7314bf6c00460963680e6617a6e3c"
+    },
+    "scope": "Primary P6 stable sources and runnable candidate; mutable foreign-source hashes are observation, not a whole-repository frozen-source acceptance claim."
+  },
+  "deterministic_engine_cursor_proof": {
+    "reported_at_utc": "2026-10-09 02:24:32 UTC",
+    "production_function_invariant": "DETERMINISTICALLY MEASURED FAIL with zero-consumption history",
+    "compile_exit": 0,
+    "run_exit": 0,
+    "outputs": [
+      {
+        "case": "loading-fences-stale-start",
+        "state": 1,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 0,
+        "cursor_ms": 0
+      },
+      {
+        "case": "previous-generation-fenced",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 41,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 0,
+        "cursor_ms": 0
+      },
+      {
+        "case": "ready-new-generation-zero-consumption",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 0,
+        "history_start_frames": 78672,
+        "reported_before": 0,
+        "cursor_frames": 78672,
+        "cursor_ms": 1639
+      },
+      {
+        "case": "ready-real-consumption-positive-control",
+        "state": 2,
+        "deck_generation": 42,
+        "history_generation": 42,
+        "consumed_frames": 64,
+        "history_start_frames": 0,
+        "reported_before": 0,
+        "cursor_frames": 64,
+        "cursor_ms": 1
+      }
+    ],
+    "manifest": "build/prompt6-acceptance/seek-race-data-core/manifest.json",
+    "production_source_hashes": "unchanged before/after",
+    "scope_limit": "full thread scheduling not replayed",
+    "owner_notification_at_utc": "2026-10-09 02:27:15 UTC"
+  },
+  "final_visual_provenance": {
+    "screens/prompt6-four-pedals-idle.png": {
+      "sha256": "334a7b2f7b8dbbbdc388b070e6895cb616e96aee87caf7429ab3a6ab8bcdadd8",
+      "mtime_utc": "2026-10-09T02:15:54.006711+00:00",
+      "scope": "Final P7-after full9 runtime artifacts; no old image substitution"
+    },
+    "screens/prompt6-push-to-talk-held.png": {
+      "sha256": "c8984b6c1c4c7f2cdbf264aefd865f8fa57b8b71931948d2f7a99b24d561e519",
+      "mtime_utc": "2026-10-09T02:16:06.570366+00:00",
+      "scope": "Final P7-after full9 runtime artifacts; no old image substitution"
+    },
+    "final-native-dj.log": {
+      "sha256": "a458093ebd6f9c50e611aad5a4b3cfdef2b8e50c78bf02e416493c591870fbd8",
+      "mtime_utc": "2026-10-09T02:16:17.982735+00:00",
+      "scope": "Final P7-after full9 runtime artifacts; no old image substitution"
+    },
+    "final-native-dj-tap.log": {
+      "sha256": "ea050d3172caa4979efd8d22dc796d0398e7dc263d37ed159f25d2d726789ab6",
+      "mtime_utc": "2026-10-09T02:16:17.982100+00:00",
+      "scope": "Final P7-after full9 runtime artifacts; no old image substitution"
+    }
+  },
+  "extended_cursor_verifier": {
+    "at_utc": "2026-10-09 02:37:01 UTC",
+    "exit": 0,
+    "outputs": [
+      0,
+      0,
+      0,
+      64,
+      0,
+      12000
+    ],
+    "boundary_cases": [
+      "Before audibility stays0",
+      "First audible tempo0.5 accepts nonzero start12000 despitefloor0"
+    ],
+    "production_sources_unchanged": true,
+    "artifact_dir": "build/prompt6-acceptance/seek-race-data-core/extended-verification-20261009T023701.352023Z",
+    "full_timing_replay": false
+  },
+  "default_deployment": {
+    "writer": "PROMPT5/root",
+    "handoff_receipt_at_utc": "2026-10-09 02:19:22 UTC",
+    "installed_at_utc": "2026-10-09 02:35:19 UTC",
+    "installed_sha256_prefix": "b1578bb7",
+    "installed_metadata_verified_by_root": true,
+    "included_ui_source": "DJed2f0575/CSS62cfad92 verified in release-source-snapshot by pdf_ui",
+    "deployment_status": "COMPLETE by P5; no P6 default writes"
+  },
+  "readiness_fixture_final_pending": {
+    "exec_session_id": 73877,
+    "display": "127.0.0.1:199",
+    "fixture_sha256": "5ec70f9a620b12080292048f09938a8df0a80790650a6e44370f3da6302615b6",
+    "fresh_strict_build": "PASS",
+    "status": "FAIL21.12s: groups1–3 PASS; group4 reopen channel1 NULL assertion test512 failed",
+    "before_record": "build/prompt6-acceptance/evidence/final-readiness-test-before.json",
+    "before_sources_and_binaries": 9,
+    "assertions": "Original250ms gateTRUE and PCM200/300ms/peak<0.0001 preserved; bounded realMAIN/MIC readiness condition added"
+  },
+  "latest_completed_full_native_dj": {
+    "completed_at_utc": "2026-10-09T02:49:48.981216+00:00",
+    "independently_checked_by": "/root/coordination positiveTAP/manifest parser",
+    "elapsed_seconds": 65.92,
+    "passed_groups": 9,
+    "failed_groups": 0,
+    "fixture_sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "green": true,
+    "actual_exit": 0,
+    "log": "build/prompt6-acceptance/evidence/final-ack-native-dj.log",
+    "tap": "build/prompt6-acceptance/evidence/final-ack-native-dj-tap.log",
+    "after_manifest": "build/prompt6-acceptance/evidence/final-ack-test-after.json",
+    "all_nine_unchanged": true,
+    "bad_outcomes": []
+  },
+  "pending_fixture": {
+    "status": "COMPLETE",
+    "sha256": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+    "actual_runtime": "PASS9/9 65.92s",
+    "write_lease": "RELEASED"
+  },
+  "last_updated_at_utc": "2026-10-09 02:56:20 UTC",
+  "latest_readiness_late_hash_fence": {
+    "record": "build/prompt6-acceptance/evidence/final-readiness-late-inspection.json",
+    "observed_at_utc": "2026-10-09 02:47:05 UTC",
+    "changed": {
+      "tests/test_dj_ui.c": "5ec→d351 after failed run before rootlatepoll"
+    },
+    "other_eight_hashes": "unchanged UI/CSS/audio/engine/helpers/testbinary/default",
+    "scope": "Do not claim all9unchanged for failed run; product/binary fence separate",
+    "retire_helper_callers_present": 5
+  },
+  "persistence_fixture_final_run": {
+    "corrected_run": "PASS9/9 65.92s explicitDISPLAY199",
+    "wrong_display_attempt": "Interrupted32.88s partial5 excluded, artifact preserved"
+  },
+  "latest_final_test_hashes": {
+    "utc": "2026-10-09T02:49:48.981216+00:00",
+    "actual_exit": 0,
+    "seconds": 65.92,
+    "before_manifest": "final-persistence-test-before.json",
+    "run_context": "final-ack-run-context.json",
+    "all_nine_unchanged": true,
+    "changed": [],
+    "sha256": {
+      "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "src/ui/audio_ui.c": "af0be83991051ed2911dde3ca6cadd228df3171af05d53c2605d8628fb45eb0f",
+      "tests/test_dj_ui.c": "92a2b701200eed5bb1a34860f1618854ecf327cbf35fcd16466a2aa18fdad63a",
+      "src/audio/engine.c": "491ffd84f9f484634ef76e4e3b8ac3f9d6b906fc9eebbe30b592ad86c902901d",
+      "tests/run_dj_ui.py": "06b1f76c326af06fb3fb73d693bb4ad5b288d644fffcffd176dbbc8fc2d66525",
+      "tests/run_audio_ui.py": "d465589add6bad02d16a627d33c8c57846950b5e054cf477855280b5070ee84e",
+      "build/prompt6-acceptance/test_dj_ui": "02ccfbe7be0b58faab91f16764046f8a37e8dd9eb80c0e40a638bda28b962061",
+      "build/radios": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e"
+    },
+    "tap_plan": 9,
+    "positive_outcomes": [
+      "ok 1 /native-dj/configuration-CAS-reopen",
+      "ok 2 /native-dj/stale-CAS-preserves-controls",
+      "ok 3 /native-dj/PCM-pan-gain-mute-PFL-crossfade",
+      "ok 4 /native-dj/verified-sampler-retrigger-owner",
+      "ok 5 /native-dj/transition-pair-PCM-persistence-owner",
+      "ok 6 /native-dj/channel-routing-squares-ON-AIR",
+      "ok 7 /native-dj/master-channel-routing-PCM-persistence-cleanup",
+      "ok 8 /native-dj/four-pedals-legacy-fifth-migration",
+      "ok 9 /native-dj/push-to-talk-PCM-keyboard-loss-lifecycle"
+    ],
+    "bad_outcomes": []
+  },
+  "latest_final_visual_provenance": {
+    "prompt6-four-pedals-idle.png": {
+      "path": "build/prompt6-acceptance/evidence/screens/prompt6-four-pedals-idle.png",
+      "sha256": "8c3db9ed44adfda24acf39c2e5c20f3dbcc51be99e28eaf35ecedd878ad8ad4f",
+      "mtime_utc": "2026-10-09T02:49:19.147873+00:00",
+      "from_run": "latest65.92s explicitDISPLAY199 full9"
+    },
+    "prompt6-push-to-talk-held.png": {
+      "path": "build/prompt6-acceptance/evidence/screens/prompt6-push-to-talk-held.png",
+      "sha256": "9be5d1771bd524f7af5ea9e8ec7a3f6532c3fa2f01f7a51c11b1757e5beabd07",
+      "mtime_utc": "2026-10-09T02:49:32.125226+00:00",
+      "from_run": "latest65.92s explicitDISPLAY199 full9"
+    }
+  },
+  "scope6_complete": true,
+  "cleanup": {
+    "utc": "2026-10-09T02:50:41.516680+00:00",
+    "responsible": "/root",
+    "status": "COMPLETE",
+    "owned_resources": {
+      "Xvfb196_197": "already absent when resumed02:19; verified earlier",
+      "Xvfb198_exec92567": "naturally timeout124, gone02:41",
+      "Xvfb199_old_exec11631": "CTRL-C exit0; hostabsence verified before restart",
+      "Xvfb199_final_exec58909": "CTRL-C exit0; hostabsence independently verified"
+    },
+    "host199_ps_exit": 1,
+    "host199_ps_output": "",
+    "scope": "Only session-owned display and private test fixtures. No unrelated display/Pulse service termination."
+  },
+  "final_visual_audits": {
+    "status": "PASS",
+    "pdf_ui_at_utc": "2026-10-09 02:50:29 UTC",
+    "root_review": "PASS",
+    "latest_idle_utc": "2026-10-09T02:49:19.147873+00:00",
+    "latest_held_utc": "2026-10-09T02:49:32.125226+00:00",
+    "source_figures_match": true
+  },
+  "latest_data_core_audit": {
+    "at_utc": "2026-10-09 02:50:53 UTC",
+    "status": "PASS exactTAP9/PCM/before-after-current9 at audit"
+  },
+  "post_test_default_binary_observation": {
+    "observed_at_utc": "2026-10-09 02:55:41 UTC",
+    "path": "build/radios",
+    "sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "mtime_utc": "2026-10-09T02:52:11.489118+00:00",
+    "tested_default_sha256": "b1578bb7c6c97e8667848ade86c4aa8cb615b067d4ea62a264077bff8013726e",
+    "changed_after_verified_test": true,
+    "writer_attribution": "RESOLVED authorized PROMPT12/root atomicinstall after P5release; verifiedroot02:54:36",
+    "effect_on_scope6_acceptance": "Does not change dated stable9 test proof or current unchanged8 source/private-test-binary evidence"
+  },
+  "current_source_eight_hashes_equal": true,
+  "current_default_installation": {
+    "writer": "PROMPT12/root after P5 serialrelease",
+    "installed_at_utc": "2026-10-09 02:52:11 UTC",
+    "sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "status": "VERIFIED PASS",
+    "proof": "build/prompt6-acceptance/evidence/final-current-default-verification.json",
+    "proof_at_utc": "2026-10-09 02:54:36 UTC",
+    "receipt": "docs/prompt-12/review/default-install-receipt.json",
+    "receipt_sha256": "10abc23851b7271d50ed991005be61a189635718194193dc6cb65905bce07e9d",
+    "p6_primary_source_release_install_current_match": true,
+    "dated_previous_b157_test_proof_retained": true
+  },
+  "current_default_verification": {
+    "utc": "2026-10-09T02:54:36.156811+00:00",
+    "responsible": "/root prompt6 independent read-only verification",
+    "status": "PASS",
+    "default_writer": "external prompt12/root after P5 release/new canonical claim",
+    "installed_utc": "2026-10-09T02:52:11.505831+00:00",
+    "installed_sha256": "2d3805e97cbdc563433479db9edffbe254208aa9d07a765a23094ac1ebcc69a4",
+    "receipt": "docs/prompt-12/review/default-install-receipt.json",
+    "receipt_sha256": "10abc23851b7271d50ed991005be61a189635718194193dc6cb65905bce07e9d",
+    "candidate_equals_installed": true,
+    "old_b157_backup_verified": true,
+    "release_manifest_hash_verified": true,
+    "primary_sources_identical_release_install_current": {
+      "src/ui/dj.c": "ed2f057567351a538dbec7c784b3842bee657f176a54c592691bb50d28f7a432",
+      "assets/themes/dj-pedals.css": "62cfad924cba73f2775da379d01c3462b0cef69c0db894339b69870aa2018f00",
+      "src/ui/audio_ui.c": "af0be83991051ed2911dde3ca6cadd228df3171af05d53c2605d8628fb45eb0f",
+      "src/audio/engine.c": "491ffd84f9f484634ef76e4e3b8ac3f9d6b906fc9eebbe30b592ad86c902901d"
+    },
+    "dated_dj_test_manifest": "build/prompt6-acceptance/evidence/final-ack-test-after.json",
+    "scope": "Current installed Release contains exact accepted P6 production source/CSS. Earlier nine-file run proof remains immutable and dated; this installation happened later. No claim whole repository tests passed."
+  }
+}

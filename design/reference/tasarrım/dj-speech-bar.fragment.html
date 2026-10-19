@@ -1,0 +1,45 @@
+<section class="ops-card dj-speech-card dj-speech-bar" aria-labelledby="speech-card-title">
+  <div class="dj-speech-main-row">
+    <header class="dj-speech-heading">
+      <h2 id="speech-card-title">Konuşma · Canlı kaynak</h2>
+      <span class="ops-badge">Taslak</span>
+    </header>
+
+    <div class="dj-speech-source">
+      <label for="speech-source">Tercih edilen kaynak</label>
+      <select id="speech-source">
+        <option value="microphone">Mikrofon</option>
+        <option value="remote">Dış bağlantı</option>
+        <option value="bed">Müzik yatağı</option>
+      </select>
+    </div>
+
+    <div class="dj-speech-bed">
+      <label for="speech-bed">Müzik yatağı <output for="speech-bed" data-speech-bed-value>−18 dB</output></label>
+      <input id="speech-bed" type="range" min="-36" max="0" step="1" value="-18">
+    </div>
+
+    <label class="ops-check dj-speech-ducking" for="speech-ducking">
+      <input id="speech-ducking" type="checkbox" checked>
+      <span>Konuşmada müziği kıs</span>
+    </label>
+
+    <div class="dj-speech-rehearsal">
+      <div class="dj-speech-rehearsal-clock">
+        <span id="speech-rehearsal-label">Prova süresi</span>
+        <output data-rehearsal-time aria-labelledby="speech-rehearsal-label">00:00</output>
+      </div>
+      <button type="button" data-rehearsal-toggle>Prova başlat</button>
+      <button type="button" data-rehearsal-reset aria-label="Prova süresini sıfırla">↺</button>
+    </div>
+  </div>
+
+  <div class="dj-speech-status-row">
+    <dl class="dj-speech-status" aria-label="Gerçek konuşma durumu">
+      <div><dt>Aktif mikrofon / kaynak</dt><dd>Veri bekleniyor</dd></div>
+      <div><dt>Yayın çıkışı</dt><dd>—</dd></div>
+      <div><dt>Konuşma süresi</dt><dd>—:—</dd></div>
+    </dl>
+    <p class="dj-speech-note">Prova sayacı mikrofonu veya yayın çıkışını açmaz.</p>
+  </div>
+</section>
