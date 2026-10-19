@@ -40,12 +40,18 @@ const gchar *radios_storage_role_label(RadioSStorageRole role);
 gboolean radios_storage_settings_load(const gchar *project_root, RadioSStorageSettings *out, GError **error);
 gboolean radios_storage_settings_save(const gchar *project_root, const RadioSStorageSettings *settings, GError **error);
 
-/* Shared path rule: absolute, simplified (no .. // or trailing /), valid UTF-8
- * without control characters, not the root directory. */
+/* Shared path rule (identical in tools/radios_database.py): an absolute drive
+ * ("D:\\Radyo") or UNC ("\\\\server\\share\\Radyo") path in canonical form
+ * (backslashes, upper-case drive letter, no ".", "..", doubled or trailing
+ * separator), valid Windows names only, valid UTF-8 without control
+ * characters, not a root; at most 240 UTF-16 units unless Windows long-path
+ * support is enabled. */
 gboolean radios_storage_path_check_syntax(const gchar *path, GError **error);
 
-/* The folder rules: absolute, simplified, existing, writable, no symbolic link
- * in the path, outside the project's source and config folders. With
+/* The folder rules: the path rule above, an existing directory that is not a
+ * link (symbolic link or junction) and equals its physical path (no link,
+ * 8.3 short name, subst or mapped drive on the way), readable and writable
+ * (probed), outside the project's source and config folders. With
  * require_marker the RadioS marker for this role has to be present too. */
 gboolean radios_storage_directory_check(const gchar *project_root, RadioSStorageRole role,
                                         const gchar *directory, gboolean require_marker, GError **error);
@@ -65,8 +71,10 @@ gchar *radios_storage_current_dir(const RadioSConfig *config, RadioSStorageRole 
  * (owned) about a folder that fell back to its default. */
 gchar *radios_storage_notice(const RadioSConfig *config);
 
-/* Bytes free/total on the volume holding directory (-1 when unknown), and the
- * bytes of regular files below it (symbolic links are not followed). */
+/* Bytes free (for this user, quota-aware) and total on the volume holding
+ * directory (-1 when unknown, e.g. a missing path or a drive that is not
+ * ready), and the bytes of regular files below it (links and junctions are
+ * not followed). */
 gint64 radios_storage_free_bytes(const gchar *directory);
 gint64 radios_storage_total_bytes(const gchar *directory);
 gint64 radios_storage_tree_bytes(const gchar *directory);

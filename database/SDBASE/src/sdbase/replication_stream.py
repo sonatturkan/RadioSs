@@ -11,19 +11,17 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import hmac
 from http.server import BaseHTTPRequestHandler
 import ipaddress
 import json
+import logging
 import math
 import os
 from pathlib import Path
 import re
-import shutil
 import ssl
-import tempfile
 import threading
 import time
 from urllib.error import HTTPError, URLError
@@ -31,6 +29,7 @@ from urllib.parse import quote, unquote, urlsplit
 from urllib.request import (HTTPRedirectHandler, HTTPSHandler, Request,
                             build_opener)
 
+from . import _platform
 from .api_server import BoundedHTTPServer
 from .backup import (_digest_file, _fsync_dir, _open_regular, _safe_source)
 from .replication import (_asset_path, _identity, _json_unique,
@@ -46,6 +45,7 @@ _MIB = 1024 * 1024
 _MANIFEST_MAX = 4 * _MIB
 _BODY_MAX = 4096
 _CHUNK = 256 * 1024
+_log = logging.getLogger(__name__)
 
 
 class StreamProtocolError(StoreError):
@@ -112,21 +112,27 @@ def _current_source(store: Store, expected: dict) -> dict:
 
 
 def _private_directory(path: Path, marker: dict) -> Path:
-    if path.is_symlink():
+    if _platform.is_link(path):
         raise StreamProtocolError("replication transport directory must not be a symlink")
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if not path.is_dir():
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _platform.mkdir_private(path)       # owner-only DACL (Linux: mkdir 0700)
+    except FileExistsError:
+        pass
+    if _platform.is_link(path) or not path.is_dir():
         raise StreamProtocolError("replication transport path is not a directory")
     marker_path = _safe_source(path, "owner.json")
     if marker_path.exists():
-        if _json_unique(marker_path.read_bytes()) != marker:
+        if _json_unique(_platform.read_bytes_shared(marker_path)) != marker:
             raise StreamProtocolError("replication transport directory belongs to a different node")
     elif any(path.iterdir()):
         raise StreamProtocolError("existing transport directory has no SDBASE owner marker")
     else:
         _atomic_json(marker_path, marker)
-        os.chmod(marker_path, 0o600)
-    os.chmod(path, 0o700)
+        if _platform.acl_supported(marker_path):
+            _platform.make_private(marker_path)                 # Linux: chmod 0600
+    if _platform.acl_supported(path):
+        _platform.make_private(path, directory=True)            # Linux: chmod 0700
     return path
 
 
@@ -143,10 +149,10 @@ class _BatchCache:
         self.root = _private_directory(store.root / (store.journal.name + ".replication-stream-cache"),
             {"format": PROTOCOL + "-sender-cache", "store_id": self.identity["source_store_id"],
              "node_id": self.identity["source_node_id"]})
-        self.lease_fd = os.open(_safe_source(self.root, "server.lock"),
-            os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0), 0o600)
+        self.lease_fd = _platform.open_fd(_safe_source(self.root, "server.lock"),
+                                          os.O_RDWR | os.O_CREAT, 0o600, nofollow=True)
         try:
-            fcntl.flock(self.lease_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(self.lease_fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             os.close(self.lease_fd)
             self.lease_fd = None
@@ -159,8 +165,7 @@ class _BatchCache:
         try:
             self._load_and_sweep()
         except BaseException:
-            fcntl.flock(self.lease_fd, fcntl.LOCK_UN)
-            os.close(self.lease_fd)
+            _platform.unlock_and_close(self.lease_fd)
             self.lease_fd = None
             raise
 
@@ -168,7 +173,7 @@ class _BatchCache:
         for path in self.root.iterdir():
             if path.name in {"owner.json", "server.lock"}:
                 continue
-            if path.is_symlink() or not path.is_dir():
+            if _platform.is_link(path) or not path.is_dir():
                 raise StreamProtocolError("unexpected or linked component in sender cache")
             if _HEX.fullmatch(path.name):
                 try:
@@ -177,7 +182,7 @@ class _BatchCache:
                     created = datetime.fromisoformat(manifest["created_at"]).timestamp()
                     if any(manifest.get(key) != value for key, value in self.identity.items()) or \
                             size > self.max_batch_bytes or time.time() - created >= self.ttl:
-                        shutil.rmtree(path)
+                        _platform.rmtree(path)
                         continue
                     self.entries[path.name] = {"path": path, "manifest": manifest, "size": size,
                                                "touched": time.monotonic() - max(0, time.time() - created),
@@ -185,9 +190,9 @@ class _BatchCache:
                 except (StoreError, OSError, ValueError, KeyError):
                     # Every UUID/hash directory under this verified owner marker
                     # is a transport cache artifact, never the database itself.
-                    shutil.rmtree(path)
+                    _platform.rmtree(path)
             elif re.fullmatch(r"\.[0-9a-f]{64}\.[A-Za-z0-9_-]+\.partial", path.name):
-                shutil.rmtree(path)  # Killed builder, no sealed batch to serve.
+                _platform.rmtree(path)  # Killed builder, no sealed batch to serve.
             else:
                 raise StreamProtocolError("unrecognized sender cache directory")
         self.sweep()
@@ -199,7 +204,17 @@ class _BatchCache:
         if entry["active"]:
             entry["delete"] = True
             return
-        shutil.rmtree(entry["path"])
+        try:
+            _platform.rmtree(entry["path"])
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            # A scanner/indexer still holds a file past the retry budget. Keep
+            # the entry unservable and let sweep() retry: an exception here
+            # would stop serve_forever (service_actions) or block capacity.
+            entry["delete"] = True
+            _log.warning("replication cache batch %s not removed yet: %s", identifier, exc)
+            return
         self.entries.pop(identifier, None)
 
     def sweep(self):
@@ -209,7 +224,10 @@ class _BatchCache:
                 if entry["delete"] or now - entry["touched"] >= self.ttl:
                     self._remove(identifier)
             while len(self.entries) > self.max_cached_batches or sum(row["size"] for row in self.entries.values()) > self.max_cache_bytes:
-                victims = [(row["touched"], identifier) for identifier, row in self.entries.items() if not row["active"]]
+                # Entries already marked for deletion failed removal: picking
+                # them again would never make progress.
+                victims = [(row["touched"], identifier) for identifier, row in self.entries.items()
+                           if not row["active"] and not row["delete"]]
                 if not victims:
                     break
                 self._remove(min(victims)[1])
@@ -309,7 +327,8 @@ class _BatchCache:
             with self.lock:
                 while len(self.entries) >= self.max_cached_batches or \
                         sum(row["size"] for row in self.entries.values()) + estimated > self.max_cache_bytes:
-                    victims = [(row["touched"], key) for key, row in self.entries.items() if not row["active"]]
+                    victims = [(row["touched"], key) for key, row in self.entries.items()
+                               if not row["active"] and not row["delete"]]
                     if not victims:
                         raise StreamUnavailable("replication transfer cache is at its bounded capacity")
                     self._remove(min(victims)[1])
@@ -323,7 +342,7 @@ class _BatchCache:
             _root, manifest, _records = _read_shipment(target)
             actual_size = sum(row["size_bytes"] for row in manifest["files"]) + len(_json_bytes(manifest)) + 65
             if actual_size > budget:
-                shutil.rmtree(target)
+                _platform.rmtree(target, ignore_errors=True)  # finally retries; never mask
                 raise StreamProtocolError("actual shipment exceeds its total byte budget")
             with self.lock:
                 self.entries[identifier] = {"path": target, "manifest": manifest, "size": actual_size,
@@ -334,7 +353,8 @@ class _BatchCache:
             with self.lock:
                 self.building.discard(identifier)
                 if target.is_dir() and identifier not in self.entries:
-                    shutil.rmtree(target)
+                    # Never mask the build error; the next listener start sweeps it.
+                    _platform.rmtree(target, ignore_errors=True)
             self.build_slot.release()
 
     @contextmanager
@@ -370,8 +390,7 @@ class _BatchCache:
             for identifier in list(self.entries):
                 self._remove(identifier)
             if self.lease_fd is not None:
-                fcntl.flock(self.lease_fd, fcntl.LOCK_UN)
-                os.close(self.lease_fd)
+                _platform.unlock_and_close(self.lease_fd)
                 self.lease_fd = None
 
 
@@ -461,7 +480,9 @@ def _handler(cache: _BatchCache, token: str):
             except Conflict as exc:
                 self._send(409, {"error": "replication_history_conflict", "detail": str(exc)})
             except (StoreError, OSError, ValueError, KeyError, TypeError) as exc:
-                if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+                # Windows reports a client that went away as WSAECONNABORTED
+                # (ConnectionAbortedError) as well as reset/broken pipe.
+                if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
                     self.close_connection = True
                 else:
                     self._send(422, {"error": "replication_invalid_request", "detail": str(exc)})
@@ -595,11 +616,12 @@ def _database_path(value: Store | str | Path) -> Path:
     if isinstance(value, Store):
         return value.journal
     path = Path(value).expanduser()
-    return path.resolve() if path.suffix == ".sdb" else (path / "RadioS.sdb").resolve()
+    return path.resolve() if path.suffix.lower() == ".sdb" else (path / "RadioS.sdb").resolve()
 
 
 def _workspace(database: Path) -> Path:
-    meta = _json_unique(_safe_source(database.parent, database.name + ".meta").read_bytes())
+    # Unlocked reader: share-delete, so a concurrent meta replace never fails.
+    meta = _json_unique(_platform.read_bytes_shared(_safe_source(database.parent, database.name + ".meta")))
     identifier, _timeline, _epoch = _identity(meta)
     if meta.get("node_role") != "standby" or not isinstance(meta.get("replication"), dict):
         raise StreamProtocolError("replication follower path must name an initialized standby")
@@ -610,16 +632,15 @@ def _workspace(database: Path) -> Path:
 @contextmanager
 def _follower_lock(workspace: Path, name="follower.lock"):
     lock_path = _safe_source(workspace, name)
-    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    fd = _platform.open_fd(lock_path, os.O_RDWR | os.O_CREAT, 0o600, nofollow=True)
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             raise StreamUnavailable("another continuous follower owns this standby") from exc
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+        _platform.unlock_and_close(fd)
 
 
 def _open_or_resume(value: Store | Path, workspace: Path) -> Store:
@@ -680,12 +701,12 @@ def _download(client: _Client, identifier: str, incoming: Path, file: dict) -> d
     if target.exists():
         if _digest_file(target) == (file["sha256"], file["size_bytes"]):
             return {"downloaded_bytes": 0, "resumed_bytes": file["size_bytes"]}
-        target.unlink()  # Only this owned incoming workspace is changed.
+        _platform.unlink(target)  # Only this owned incoming workspace is changed.
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = _safe_source(incoming, file["path"] + ".part")
     offset = partial.stat().st_size if partial.exists() else 0
     if offset > file["size_bytes"]:
-        partial.unlink()
+        _platform.unlink(partial)
         offset = 0
     path = f"/replication/v1/batches/{identifier}/files/{quote(file['path'], safe='')}"
     downloaded = 0
@@ -698,7 +719,7 @@ def _download(client: _Client, identifier: str, incoming: Path, file: dict) -> d
                     response.headers.get("Content-Encoding", "identity") != "identity" or \
                     offset and response.headers.get("Content-Range") != f"bytes {offset}-{file['size_bytes']-1}/{file['size_bytes']}":
                 raise StreamProtocolError("replication file response has an invalid length, ETag or resume range")
-            fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            fd = _platform.open_fd(partial, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600, nofollow=True)
             with os.fdopen(fd, "ab") as output:
                 try:
                     while downloaded < expected:
@@ -715,9 +736,9 @@ def _download(client: _Client, identifier: str, incoming: Path, file: dict) -> d
     elif not partial.exists():
         partial.touch(mode=0o600)  # A committed zero-byte managed object.
     if _digest_file(partial) != (file["sha256"], file["size_bytes"]):
-        partial.unlink()
+        _platform.unlink(partial)
         raise StreamProtocolError("downloaded replication file SHA-256 or size differs from its sealed manifest")
-    os.replace(partial, target)
+    _platform.replace(partial, target)
     _fsync_dir(target.parent)
     return {"downloaded_bytes": downloaded, "resumed_bytes": offset}
 
@@ -779,22 +800,28 @@ def follow_once(standby: Store | str | Path, url: str, *, token: str,
         manifest, identifier = _validate_offer(offer, identity, after, previous, budget, previous_time)
         incoming = _safe_source(workspace, "incoming")
         state_path = _safe_source(workspace, "state.json")
-        existing = _json_unique(state_path.read_bytes()) if state_path.exists() else None
+        existing = _json_unique(_platform.read_bytes_shared(state_path)) if state_path.exists() else None
         transfer = {"format": PROTOCOL, "batch_id": identifier, "manifest_sha256": offer["manifest_sha256"],
                     "source_url": client.url, "after_sequence": after}
         if existing != transfer:
             if incoming.exists():
-                shutil.rmtree(incoming)
-            incoming.mkdir(mode=0o700)
+                try:
+                    _platform.rmtree(incoming)
+                except PermissionError as exc:
+                    # Antivirus/indexer still holds a previous batch file:
+                    # transient, follow_forever backs off and retries.
+                    raise StreamUnavailable("previous incoming batch is still in use; retrying") from exc
+            _platform.mkdir_private(incoming)
             _atomic_json(state_path, transfer)
         elif not incoming.is_dir():
             raise StreamProtocolError("cached transfer metadata has no incoming directory")
         encoded = _json_bytes(manifest)
         _atomic_json(incoming / "manifest.json", manifest)
         hash_path = _safe_source(incoming, "manifest.sha256")
-        with hash_path.open("w", encoding="ascii") as stream:
-            os.chmod(hash_path, 0o600)
-            stream.write(hashlib.sha256(encoded).hexdigest() + "\n")
+        # Binary: exactly "<hex>\n" on every host (text mode would write CRLF).
+        # The file inherits the private DACL of the incoming directory.
+        with hash_path.open("wb") as stream:
+            stream.write((hashlib.sha256(encoded).hexdigest() + "\n").encode("ascii"))
             stream.flush()
             os.fsync(stream.fileno())
         totals = {"downloaded_bytes": 0, "resumed_bytes": 0}
@@ -809,8 +836,10 @@ def follow_once(standby: Store | str | Path, url: str, *, token: str,
             client.json(f"/replication/v1/batches/{identifier}", method="DELETE", max_bytes=16384)
         except StreamUnavailable:
             pass  # TTL will release the cache; replay is already durable.
-        shutil.rmtree(incoming)
-        state_path.unlink(missing_ok=True)
+        # The replay is durable: a cleanup still blocked by a scanner must not
+        # report this batch as failed (the next round removes the leftover).
+        _platform.rmtree(incoming, ignore_errors=True)
+        _platform.unlink(state_path, missing_ok=True)
         result.update(totals)
         result["lag_transactions"] = max(0, source_status["sequence"] - result["sequence"])
         result["caught_up"] = result["lag_transactions"] == 0

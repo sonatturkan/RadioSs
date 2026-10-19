@@ -83,7 +83,7 @@ resolve_inside_root(const gchar *root, const gchar *value, GError **error)
     }
     if (!radios_path_is_inside(root, physical)) {
         g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
-                    "Sembolik bağlantı RadioS dışına çıkıyor: %s", value);
+                    "Bağlantı (sembolik bağlantı veya junction) RadioS dışına çıkıyor: %s", value);
         goto done;
     }
     {

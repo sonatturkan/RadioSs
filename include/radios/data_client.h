@@ -34,7 +34,9 @@ typedef enum {
 GQuark radios_data_client_error_quark(void);
 
 /* Owns copies of configuration/identity fields. Reads only the project-local
- * 0600 credentials file. An explicitly configured token environment variable
+ * private credentials file (config\credentials.json: regular file, no link,
+ * owned by the current Windows user, owner-only ACL — the Windows form of
+ * 0600). An explicitly configured token environment variable
  * overrides the user token, with validation. Tokens have no public getter. */
 RadioSDataClient *radios_data_client_new(const RadioSConfig *config, GError **error);
 RadioSDataClient *radios_data_client_ref(RadioSDataClient *client);

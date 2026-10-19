@@ -347,6 +347,8 @@ def _safe_component(text, fallback):
     """A valid Windows file or folder name (at most 150 characters) for package text:
     control characters dropped, ``<>:"/\\|?*`` replaced by ``_``, surrounding dots and
     spaces stripped, reserved device names (``CON``, ``NUL.mp3``) prefixed."""
+    if not _platform.component_valid(fallback):          # e.g. built from a container name
+        fallback = _platform.sanitize_component(fallback, "_")
     return _platform.sanitize_component(text, fallback)
 
 

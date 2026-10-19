@@ -7,7 +7,7 @@ G_BEGIN_DECLS
 
 /* Ayarlar › Kütüphane analizi: how the background library analysis (missing
  * BPM grids, loudness, automatic AutoDJ IN/OUT points) runs. The workstation
- * file config/library-analysis.ini holds the choices (0600, atomic
+ * file config/library-analysis.ini holds the choices (private owner-only ACL, atomic
  * replacement, links rejected); they belong to this computer, not the station
  * database, because the useful number of parallel workers depends on its
  * processor. */

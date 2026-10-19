@@ -38,12 +38,17 @@ RadioSAudioOutput *radios_audio_engine_output_acquire(RadioSAudioEngine *engine,
 RadioSAudioOutput *radios_audio_output_ref(RadioSAudioOutput *output);
 void radios_audio_output_unref(RadioSAudioOutput *output);
 
-/* WAV PCM16 stereo 48 kHz. Absolute path required, existing files are never
- * overwritten. Worker opens/writes/finalizes asynchronously. RIFF size limit
- * is 4 GiB; reaching it fails with a valid partial WAV. */
+/* WAV PCM16 stereo 48 kHz. A drive-absolute or UNC Windows path is required
+ * (no alternate data streams, device names or components ending in a dot or
+ * space); existing files are never overwritten. The file is created with an
+ * owner-only ACL and may be read or deleted by others while it is recorded.
+ * Worker opens/writes/finalizes asynchronously. RIFF size limit is 4 GiB;
+ * reaching it (or a full disk / the FAT32 file size limit) fails with a valid
+ * partial WAV. */
 gboolean radios_audio_output_start_record(RadioSAudioOutput *output,
     const gchar *path, GError **error);
 /* Real HTTP(S) PUT/raw MP3 source upload, compatible with Icecast 2.4 mounts.
+ * https verifies the server against the Windows certificate store.
  * URL must have a nonempty mount path and no embedded credentials/query.
  * bitrate_kbps: 64, 96, 128, 160, 192, 256 or 320. No reconnect is automatic.
  * bytes_written counts libcurl-submitted network payload, not listener proof. */
