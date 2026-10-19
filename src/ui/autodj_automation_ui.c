@@ -242,8 +242,10 @@ static gboolean designer_draw(GtkWidget *area, cairo_t *cr, gpointer data)
         if (tone_used(preset)) draw_curve(cr, &tone, x0, y0, width, height, curve_colors[CURVE_TONE], 2, page->curve == CURVE_TONE);
         if (effect_here) draw_curve(cr, &mix, x0, y0, width, height, curve_colors[CURVE_EFFECT], 2, page->curve == CURVE_EFFECT);
         draw_curve(cr, &volume, x0, y0, width, height, curve_colors[CURVE_VOLUME], 2.5, page->curve == CURVE_VOLUME);
-        cairo_set_source_rgb(cr, .86, .91, .93); cairo_move_to(cr, x0 + 6, y0 + 14); cairo_set_font_size(cr, 12);
-        cairo_show_text(cr, side ? "Giren parça" : "Çıkan parça");
+        /* Pango with the registered Inter face: the cairo toy font API picks
+         * one GDI face on Windows (Arial) and never sees the design font. */
+        cairo_set_source_rgb(cr, .86, .91, .93); cairo_move_to(cr, x0 + 6, y0 + 14);
+        radios_ui_cairo_show_text(cr, side ? "Giren parça" : "Çıkan parça", 12, PANGO_WEIGHT_NORMAL, FALSE);
     }
     if (page->play_source) {
         gdouble x0, y0, width, height; lane_geometry(area, 0, &x0, &y0, &width, &height);
@@ -840,6 +842,15 @@ static void enabled_toggled(GtkWidget *widget, gpointer data)
     designed_render(page); if (page->hooks.kind_distributions) kinds_render(page);
     commit(page);
 }
+/* The preview timer touches the designer and the play button: stop it when
+ * the page is destroyed, not only when the last reference to the page goes
+ * (a referenced page outlives its destroyed children). */
+static void page_destroyed(GtkWidget *widget, gpointer data)
+{
+    (void)widget; AutomationPage *page = data;
+    if (page->play_source) { g_source_remove(page->play_source); page->play_source = 0; }
+    page->play_progress = 0; page->dragging = FALSE;
+}
 static void page_free(gpointer data)
 {
     AutomationPage *page = data;
@@ -1168,6 +1179,7 @@ GtkWidget *radios_autodj_automation_new(RadioSViewContext *ctx, const RadioSAuto
     page->status = named(radios_ui_label("", "error"), "status");
     gtk_box_pack_start(GTK_BOX(page->root), page->status, FALSE, FALSE, 0);
     g_object_set_data_full(G_OBJECT(page->root), "radios-autodj-automation", page, page_free);
+    g_signal_connect(page->root, "destroy", G_CALLBACK(page_destroyed), page);
     gtk_widget_show_all(page->root);
     chips_render(page); fields_render(page); kinds_render(page); schedule_render(page); schedule_form_render(page);
     designed_render(page);

@@ -34,6 +34,23 @@ advert_data_free(gpointer data)
     g_free(state);
 }
 
+/* Members of service records. A missing, null or mistyped member counts as
+ * absent: json_object_get_*_member() raise criticals for a missing member and
+ * read an object or array node as a scalar. */
+static JsonObject *
+object_member(JsonObject *object, const gchar *name)
+{
+    JsonNode *node = object != NULL ? json_object_get_member(object, name) : NULL;
+    return node != NULL && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL;
+}
+
+static JsonArray *
+array_member(JsonObject *object, const gchar *name)
+{
+    JsonNode *node = object != NULL ? json_object_get_member(object, name) : NULL;
+    return node != NULL && JSON_NODE_HOLDS_ARRAY(node) ? json_node_get_array(node) : NULL;
+}
+
 static void
 style(GtkWidget *widget, const gchar *name)
 {
@@ -371,18 +388,18 @@ campaign_editor_record(RadioSViewContext *ctx,JsonObject *record,GtkWidget *page
     if(record != NULL){
         g_object_set_data_full(G_OBJECT(dialog),"advert-record",json_object_ref(record),(GDestroyNotify)json_object_unref);
         gtk_entry_set_text(GTK_ENTRY(find_field(form,"advert-campaign-name")),radios_json_string(record,"name",""));
-        JsonObject *saved=json_object_has_member(record,"desktop_fields")?json_object_get_object_member(record,"desktop_fields"):NULL;
+        JsonObject *saved=object_member(record,"desktop_fields");
         if(saved != NULL){
             const gchar *ids[]={"client","owner","reference","start","end","target","spot","version","slot","competition"};
             const gchar *keys[]={"advertiser","owner","reference","start_date","end_date","target_hint","spot_title","version_label","slot","competition"};
             for(guint i=0;i<G_N_ELEMENTS(ids);++i){gchar *id=g_strdup_printf("advert-campaign-%s",ids[i]);gtk_entry_set_text(GTK_ENTRY(find_field(form,id)),radios_json_string(saved,keys[i],""));g_free(id);}
             const gchar *ids_number[]={"duration","count","capacity","intro","outro","announcement","price"};
             const gchar *keys_number[]={"duration_seconds","planned_count","capacity_seconds","intro_seconds","outro_seconds","announcement_seconds","price"};
-            for(guint i=0;i<G_N_ELEMENTS(ids_number);++i){gchar *id=g_strdup_printf("advert-campaign-%s",ids_number[i]);gtk_spin_button_set_value(GTK_SPIN_BUTTON(find_field(form,id)),json_object_get_double_member(saved,keys_number[i]));g_free(id);}
+            for(guint i=0;i<G_N_ELEMENTS(ids_number);++i){gchar *id=g_strdup_printf("advert-campaign-%s",ids_number[i]);gtk_spin_button_set_value(GTK_SPIN_BUTTON(find_field(form,id)),json_object_get_double_member_with_default(saved,keys_number[i],0.0));g_free(id);}
             const gchar *currency=radios_json_string(saved,"currency","TRY");gtk_combo_box_set_active(GTK_COMBO_BOX(find_field(form,"advert-campaign-currency")),g_str_equal(currency,"EUR")?1:g_str_equal(currency,"USD")?2:0);
             gtk_combo_box_set_active(GTK_COMBO_BOX(find_field(form,"advert-campaign-position")),(gint)radios_json_int(saved,"position",0));
             gtk_combo_box_set_active(GTK_COMBO_BOX(find_field(form,"advert-campaign-fallback")),(gint)radios_json_int(saved,"fallback",0));
-            gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(find_field(form,"advert-campaign-skip-empty")),json_object_get_boolean_member(saved,"skip_empty"));
+            gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(find_field(form,"advert-campaign-skip-empty")),json_object_get_boolean_member_with_default(saved,"skip_empty",FALSE));
             gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(find_field(form,"advert-campaign-contact"))),radios_json_string(saved,"contact",""),-1);
         }
         JsonNode *spots_node=json_object_get_member(record,"spots");JsonArray *spots=spots_node&&JSON_NODE_HOLDS_ARRAY(spots_node)?json_node_get_array(spots_node):NULL;gboolean approved_spot=FALSE;
@@ -439,7 +456,7 @@ version_editor(GtkButton *button,gpointer data)
     g_object_set_data(G_OBJECT(dialog),"advert-page",state->page);
     g_object_set_data_full(G_OBJECT(dialog),"advert-record",json_object_ref(record),(GDestroyNotify)json_object_unref);
     g_signal_connect_object(state->page,"destroy",G_CALLBACK(gtk_widget_destroy),dialog,G_CONNECT_SWAPPED);
-    JsonObject *saved=json_object_has_member(record,"desktop_fields")?json_object_get_object_member(record,"desktop_fields"):NULL;
+    JsonObject *saved=object_member(record,"desktop_fields");
     GtkWidget *fields=field_grid();
     GtkWidget *name=radios_ui_entry(NULL);
     form_field(fields,0,"Sürüm adı","advert-v-name",name);gtk_entry_set_max_length(GTK_ENTRY(name),80);
@@ -491,7 +508,7 @@ campaign_selection(GtkTreeSelection *selection,gpointer data)
     gboolean editable=draft||g_str_equal(status,"approved")||g_str_equal(status,"active")||g_str_equal(status,"paused");
     gtk_widget_set_sensitive(state->actions[0],editable&&json_object_has_member(record,"desktop_fields"));gtk_widget_set_sensitive(state->actions[1],draft);gtk_widget_set_sensitive(state->actions[2],editable);
     for(guint i=0;i<4;++i){g_object_set_data_full(G_OBJECT(state->actions[i]),"advert-record",json_object_ref(record),(GDestroyNotify)json_object_unref);gtk_widget_set_tooltip_text(state->actions[i],i==3?"Araç bölümünden gerçek planı olan bir kuşak seçin.":NULL);}
-    JsonObject *fields=json_object_has_member(record,"desktop_fields")?json_object_get_object_member(record,"desktop_fields"):NULL;
+    JsonObject *fields=object_member(record,"desktop_fields");
     const gchar *text_keys[]={"advertiser","reference","target_hint"};
     for(guint i=0;i<3;++i)gtk_label_set_text(GTK_LABEL(state->facts[i]),fields != NULL?radios_json_string(fields,text_keys[i],"—"):i==0?radios_json_string(record,"advertiser_name","—"):"—");
     set_number_label(state->facts[3],fields != NULL?radios_json_int(fields,"planned_count",0):0,"kampanya hedefi");
@@ -500,10 +517,10 @@ campaign_selection(GtkTreeSelection *selection,gpointer data)
     gtk_label_set_text(GTK_LABEL(state->facts[5]),binding&&JSON_NODE_HOLDS_OBJECT(binding)?"İçe alınmış sürüm bağı var · kuşakta yeniden doğrulanır":"Doğrulanmış ses bağı yok");
     gtk_label_set_text(GTK_LABEL(state->facts[6]),"Yerleşim ve yerel tüketim raporda ayrı gösterilir");
     if(fields != NULL){
-        gchar number[G_ASCII_DTOSTR_BUF_SIZE];g_ascii_dtostr(number,sizeof number,json_object_get_double_member(fields,"price"));gchar *price=g_strdup_printf("%s %s",number,radios_json_string(fields,"currency","TRY"));gtk_label_set_text(GTK_LABEL(state->advanced[0]),price);g_free(price);
+        gchar number[G_ASCII_DTOSTR_BUF_SIZE];g_ascii_dtostr(number,sizeof number,json_object_get_double_member_with_default(fields,"price",0.0));gchar *price=g_strdup_printf("%s %s",number,radios_json_string(fields,"currency","TRY"));gtk_label_set_text(GTK_LABEL(state->advanced[0]),price);g_free(price);
         gtk_label_set_text(GTK_LABEL(state->advanced[1]),radios_json_string(fields,"contact",""));set_number_label(state->advanced[2],radios_json_int(fields,"capacity_seconds",0),"sn");
         gchar *times=g_strdup_printf("%" G_GINT64_FORMAT " / %" G_GINT64_FORMAT " / %" G_GINT64_FORMAT " sn",radios_json_int(fields,"intro_seconds",0),radios_json_int(fields,"outro_seconds",0),radios_json_int(fields,"announcement_seconds",0));gtk_label_set_text(GTK_LABEL(state->advanced[3]),times);g_free(times);
-        gtk_label_set_text(GTK_LABEL(state->advanced[4]),radios_json_string(fields,"competition",""));gtk_label_set_text(GTK_LABEL(state->advanced[5]),json_object_get_boolean_member(fields,"skip_empty")?"Boş kuşakta jingle atlanır":"Boş kuşak davranışı tanımlı");
+        gtk_label_set_text(GTK_LABEL(state->advanced[4]),radios_json_string(fields,"competition",""));gtk_label_set_text(GTK_LABEL(state->advanced[5]),json_object_get_boolean_member_with_default(fields,"skip_empty",FALSE)?"Boş kuşakta jingle atlanır":"Boş kuşak davranışı tanımlı");
         gchar *version=g_strdup_printf("%s · taslak sürüm · medya doğrulanmadı",radios_json_string(fields,"version_label",""));gtk_label_set_text(GTK_LABEL(state->versions),version);g_free(version);
     }
     radios_advert_views_select(state->workflow, record);
@@ -519,7 +536,7 @@ campaign_filter(GtkEditable *entry,gpointer data)
     gtk_list_store_clear(state->store);guint shown=0,drafts=0,approved=0;
     const gchar *status_filter=state->filter?gtk_combo_box_get_active_id(GTK_COMBO_BOX(state->filter)):"";
     for(guint i=0;i<state->records->len;++i){JsonObject *record=g_ptr_array_index(state->records,i);
-        JsonObject *fields=json_object_has_member(record,"desktop_fields")?json_object_get_object_member(record,"desktop_fields"):NULL;
+        JsonObject *fields=object_member(record,"desktop_fields");
         const gchar *record_status=radios_json_string(record,"status","");drafts+=g_str_equal(record_status,"draft");approved+=g_str_equal(record_status,"approved");
         gchar *text=g_strdup_printf("%s %s %s",radios_json_string(record,"name",""),radios_json_string(record,"advertiser_name",""),radios_json_string(fields,"spot_title",""));gchar *folded=g_utf8_casefold(text,-1);g_free(text);
         gboolean match=(*query=='\0'||strstr(folded,query)!=NULL)&&(!status_filter||!*status_filter||g_str_equal(status_filter,record_status));g_free(folded);if(!match)continue;++shown;
@@ -557,7 +574,7 @@ campaign_action_loaded(RadioSViewContext *ctx,GtkWidget *page,JsonNode *result,c
     AdvertData *state=g_object_get_data(G_OBJECT(page),"advert-data");CampaignActionLoad *load=data;state->action_loading=FALSE;
     campaign_selection(gtk_tree_view_get_selection(GTK_TREE_VIEW(state->view)),state);
     if(error||!result||!JSON_NODE_HOLDS_OBJECT(result)){if(ctx->notify)ctx->notify(ctx->notify_data,error?error->message:"Kampanya okunamadı.");radios_advert_page_refresh(ctx,page);return;}
-    JsonObject *record=json_object_get_object_member(json_node_get_object(result),"campaign");
+    JsonObject *record=object_member(json_node_get_object(result),"campaign");
     if(!record||!state->selected||!g_str_equal(load->campaign_id,radios_json_string(state->selected,"_id","")))return;
     guint action_id=load->action_id;
     if(action_id==1){campaign_editor_record(ctx,record,page);return;}
@@ -585,8 +602,8 @@ advert_loaded(RadioSViewContext *ctx,GtkWidget *page,JsonNode *result,const GErr
 {
     (void)unused;AdvertData *state=g_object_get_data(G_OBJECT(page),"advert-data");
     if(error != NULL || result == NULL || !JSON_NODE_HOLDS_OBJECT(result)){if(ctx->notify != NULL)ctx->notify(ctx->notify_data,error != NULL?error->message:"Kampanyalar okunamadı.");return;}
-    JsonArray *records=json_object_get_array_member(json_node_get_object(result),"records");g_ptr_array_set_size(state->records,0);
-    for(guint i=0;records != NULL&&i<json_array_get_length(records);++i)g_ptr_array_add(state->records,json_object_ref(json_array_get_object_element(records,i)));
+    JsonArray *records=array_member(json_node_get_object(result),"records");g_ptr_array_set_size(state->records,0);
+    for(guint i=0;records != NULL&&i<json_array_get_length(records);++i){JsonNode *node=json_array_get_element(records,i);if(JSON_NODE_HOLDS_OBJECT(node))g_ptr_array_add(state->records,json_object_ref(json_node_get_object(node)));}
     campaign_filter(GTK_EDITABLE(state->search),state);
 }
 

@@ -40,8 +40,11 @@ static void render(Prerequisites *p)
     const gchar *state = radios_json_string(version, "status", ""), *life = radios_json_string(item, "lifecycle", "");
     gtk_widget_set_sensitive(p->buttons[0], enabled && (g_str_equal(state, "draft") || g_str_equal(state, "review")));
     gtk_widget_set_sensitive(p->buttons[1], enabled && (g_str_equal(life, "draft") || g_str_equal(life, "archived") || g_str_equal(life, "withdrawn")));
+    /* json_node_get_boolean() would read an object or array node as a value. */
     JsonNode *eligible = association ? json_object_get_member(association, "eligible") : NULL;
-    gtk_widget_set_sensitive(p->buttons[2], enabled && eligible && !json_node_get_boolean(eligible));
+    gboolean eligible_known = eligible && (JSON_NODE_HOLDS_VALUE(eligible) || JSON_NODE_HOLDS_NULL(eligible));
+    gboolean is_eligible = eligible && JSON_NODE_HOLDS_VALUE(eligible) && json_node_get_boolean(eligible);
+    gtk_widget_set_sensitive(p->buttons[2], enabled && eligible_known && !is_eligible);
     gtk_widget_set_sensitive(p->buttons[3], enabled);
     gtk_widget_set_sensitive(p->buttons[4], !p->busy);
     JsonArray *outputs = p->records ? array(json_node_get_object(p->records), "outputs") : NULL;
@@ -50,7 +53,7 @@ static void render(Prerequisites *p)
     if (!record) { gtk_label_set_text(GTK_LABEL(p->summary), "Kaydedilmiş programda doğrulanmış medya bağı bulunamadı."); return; }
     GString *summary = g_string_new(NULL);
     g_string_append_printf(summary, "%s\nSürüm: %s · İçerik: %s · İstasyon uygunluğu: %s", radios_json_string(item, "title", ""), state, life,
-                           eligible && json_node_get_boolean(eligible) ? "Uygun" : "Uygun değil");
+                           is_eligible ? "Uygun" : "Uygun değil");
     JsonArray *grants = array(record, "rights");
     for (guint i = 0; grants && i < MIN(json_array_get_length(grants), 12u); ++i) {
         JsonObject *grant = json_array_get_object_element(grants, i);

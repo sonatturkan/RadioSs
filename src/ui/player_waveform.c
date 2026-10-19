@@ -3,6 +3,7 @@
 #include "radios/media_ui.h"
 #include "radios/editors.h"
 #include "radios/audio.h"
+#include "radios/widgets.h"
 #include <math.h>
 #include <string.h>
 
@@ -792,7 +793,7 @@ static void inspect_open(PlayerWaveform *wave)
 static void draw_text(GtkWidget *widget, cairo_t *cr, const gchar *text, gdouble x, gdouble y, gint width)
 {
     PangoLayout *layout = gtk_widget_create_pango_layout(widget, text);
-    PangoFontDescription *font = pango_font_description_from_string("Sans 8");
+    PangoFontDescription *font = radios_ui_drawn_font_new(8.0 * 96.0 / 72.0, PANGO_WEIGHT_NORMAL);   /* 8 pt at 96 dpi */
     pango_layout_set_font_description(layout, font); pango_font_description_free(font);
     if (width > 0) { pango_layout_set_width(layout, width * PANGO_SCALE); pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END); }
     cairo_move_to(cr, x, y); pango_cairo_show_layout(cr, layout); g_object_unref(layout);
