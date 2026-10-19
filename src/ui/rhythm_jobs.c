@@ -3,6 +3,7 @@
 #include "radios/programme_model.h"
 #include "radios/autodj_marker_jobs.h"
 #include "radios/library_analysis.h"
+#include "radios/platform.h"
 #include <string.h>
 
 typedef enum { RHYTHM_ENSURE, RHYTHM_ANALYZE, RHYTHM_SAVE, RHYTHM_LIBRARY } RhythmKind;
@@ -143,7 +144,10 @@ static JsonNode *rhythm_sync(RadioSDataClient *client, const gchar *media_id, gb
     if (ensure && radios_media_analysis_complete(analysis_of(object))) return detail;
     const gchar *path = radios_json_string(version, "managed_path", ""), *sha = radios_json_string(version, "sha256", "");
     RadioSMediaAnalysis *analysis = NULL; GError *local = NULL;
-    if (g_path_is_absolute(path) && g_str_equal(radios_json_string(json_object_get_object_member(object, "media"), "station_id", ""), radios_data_client_station_id(client)))
+    /* Fully qualified paths only (drive or UNC): g_path_is_absolute() also
+     * accepts a drive-relative path such as "\objects\a.flac", which Windows
+     * resolves against the current drive of the process. */
+    if (radios_path_is_absolute(path) && g_str_equal(radios_json_string(json_object_get_object_member(object, "media"), "station_id", ""), radios_data_client_station_id(client)))
         analysis = radios_media_analyze(path, NULL, cancel, &local);
     else g_set_error_literal(&local, G_IO_ERROR, G_IO_ERROR_PERMISSION_DENIED, "Doğrulanmış istasyon medyası gerekli.");
     if (analysis && !g_str_equal(analysis->sha256, sha))

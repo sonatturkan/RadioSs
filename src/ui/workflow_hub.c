@@ -640,8 +640,8 @@ static void download_result(GtkButton *button, gpointer data)
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Aktarım dosyasını kaydet", hub->ctx->parent, GTK_FILE_CHOOSER_ACTION_SAVE,
         "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL); named(dialog, "workflow-download-dialog");
     gtk_window_set_modal(GTK_WINDOW(dialog), TRUE); gtk_window_set_destroy_with_parent(GTK_WINDOW(dialog), TRUE); gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE);
-    gchar *filename = g_strdup(radios_json_string(record, "filename", radios_json_string(download, "filename", "radios-aktarim.txt")));
-    for (gchar *letter = filename; *letter; ++letter) if (*letter == '/' || *letter == '\\' || (guchar)*letter < 32) *letter = '_';
+    radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(dialog), hub->ctx);
+    gchar *filename = radios_ui_file_name_suggestion(radios_json_string(record, "filename", radios_json_string(download, "filename", "radios-aktarim.txt")), "radios-aktarim.txt");
     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), filename); g_free(filename);
     Download *job = g_new0(Download, 1); g_weak_ref_init(&job->hub, hub->root); job->content = g_strdup(content);
     g_object_set_data_full(G_OBJECT(dialog), "workflow-download", job, download_free); g_signal_connect(dialog, "response", G_CALLBACK(downloaded), job);
