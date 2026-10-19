@@ -267,7 +267,10 @@ snapshot_apply(Editor *editor, Snapshot *snapshot)
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(editor->flag), snapshot->flag);
     if (editor->kind == RADIOS_EDITOR_TRANSITION) {
         for (guint i = 0; i < 2; ++i) {
-            if (snapshot->files[i] != NULL)
+            /* A saved draft stores "" for "no file": selecting "" would select
+             * the process working directory (for a Start-menu launch the
+             * program's bin folder) instead of clearing the button. */
+            if (snapshot->files[i] != NULL && *snapshot->files[i] != '\0')
                 gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(editor->files[i]), snapshot->files[i]);
             else
                 gtk_file_chooser_unselect_all(GTK_FILE_CHOOSER(editor->files[i]));
@@ -1239,10 +1242,7 @@ source_new(Editor *editor, guint deck)
     gtk_widget_set_name(editor->files[deck], deck == 0 ? "transition-file-a" : "transition-file-b");
     GtkFileFilter *filter = gtk_file_filter_new();
     gtk_file_filter_set_name(filter, "Ses dosyaları");
-    gtk_file_filter_add_mime_type(filter, "audio/*");
-    static const gchar *const patterns[] = { "*.wav", "*.mp3", "*.ogg", "*.flac", "*.m4a", NULL };
-    for (guint i = 0; patterns[i] != NULL; ++i)
-        gtk_file_filter_add_pattern(filter, patterns[i]);
+    radios_ui_file_filter_add_audio(filter);
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(editor->files[deck]), filter);
     gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(editor->files[deck]), TRUE);
     if (editor->ctx->audio) { gtk_widget_set_sensitive(editor->files[deck], FALSE); gtk_widget_set_tooltip_text(editor->files[deck], "Yerel dosyayı önce medya kütüphanesine içe aktar; doğrulanmış sürümü seç."); }

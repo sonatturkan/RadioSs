@@ -175,16 +175,17 @@ static gboolean job_current(EventJob *job, gboolean preparing, GError **error)
     RadioSViewContext *ctx = job->service->ctx;
     RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
     if (!engine) return fail(error, G_IO_ERROR_NOT_INITIALIZED, "Event ses motoru hazır değil.");
-    RadioSAudioSnapshot audio; RadioSAudioRunSnapshot run;
-    radios_audio_engine_snapshot(engine, &audio);
+    /* The engine snapshot is ~260 KiB: keep it off the (GTK main) thread stack. */
+    RadioSAudioSnapshot *audio = g_new0(RadioSAudioSnapshot, 1); RadioSAudioRunSnapshot run;
+    radios_audio_engine_snapshot(engine, audio);
     radios_audio_engine_player_runner_snapshot(engine, job->source.source, &run);
     RadioSViewContext *source_ctx = radios_player_workspace_source_context(job->workspace, job->source.source);
     gboolean valid = radios_playout_ui_intent(source_ctx) == job->source_intent && run.epoch == job->source_epoch;
     if (!valid) fail(error, G_IO_ERROR_CANCELLED, "Event'in oynatıcı sahipliği veya yayın isteği değişti; yeni ses korundu.");
-    if (valid && audio.loss_epoch != job->loss_epoch)
+    if (valid && audio->loss_epoch != job->loss_epoch)
         valid = fail(error, G_IO_ERROR_CANCELLED, "Ses çıkışı bağlantısı değişti; bekleyen Event veya devam geçişini yeniden başlatın.");
     if (valid && preparing) {
-        guint source = job->source.source; const RadioSAudioDeckSnapshot *state = &audio.decks[source]; gint owner = -2;
+        guint source = job->source.source; const RadioSAudioDeckSnapshot *state = &audio->decks[source]; gint owner = -2;
         if (state->generation != job->generations[source] || state->state != RADIOS_AUDIO_EMPTY ||
             !state->main_routed || state->output_bus != RADIOS_AUDIO_BUS_MAIN || state->external_bound ||
             radios_audio_engine_deck_runner_owner(engine, source, &owner))
@@ -194,11 +195,11 @@ static gboolean job_current(EventJob *job, gboolean preparing, GError **error)
         radios_player_scope_execution_busy(execution(job), &job->source.scope))
         valid = fail(error, G_IO_ERROR_BUSY, "Event hazırlanırken kaynakta başka bir hazırlık başlatıldı; o istek korundu.");
     if (valid && job->step == EVENT_CONTINUING &&
-        (run.state != RADIOS_AUDIO_RUN_FINISHED || audio.decks[job->source.source].generation != job->finished_generation ||
-         audio.decks[job->source.source].state != RADIOS_AUDIO_EMPTY))
+        (run.state != RADIOS_AUDIO_RUN_FINISHED || audio->decks[job->source.source].generation != job->finished_generation ||
+         audio->decks[job->source.source].state != RADIOS_AUDIO_EMPTY))
         valid = fail(error, G_IO_ERROR_CANCELLED, "Event tamamlandıktan sonra kaynak değişti; devam geçişi iptal edildi.");
-    if (valid) valid = target_current(job, engine, &audio, TRUE, error);
-    radios_audio_engine_unref(engine); return valid;
+    if (valid) valid = target_current(job, engine, audio, TRUE, error);
+    g_free(audio); radios_audio_engine_unref(engine); return valid;
 }
 static gboolean scope_guard(RadioSViewContext *ctx, const RadioSAutomationScope *scope,
     guint source, gpointer value, GError **error)
@@ -252,14 +253,15 @@ static void materialized(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *p
 }
 static RadioSAudioRunTerminal final_terminal(RadioSAudioEngine *engine, EventJob *job, const RadioSAudioRunSnapshot *run)
 {
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = radios_audio_engine_player_runner_receipts(engine, job->source.source, receipts, G_N_ELEMENTS(receipts));
-    for (guint i = count; i > 0; --i) {
+    /* RADIOS_AUDIO_RUN_MAX_RECEIPTS receipts are ~110 KiB: heap, not stack. */
+    RadioSAudioRunReceipt *receipts = g_new(RadioSAudioRunReceipt, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
+    guint count = radios_audio_engine_player_runner_receipts(engine, job->source.source, receipts, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
+    RadioSAudioRunTerminal terminal = RADIOS_AUDIO_RUN_TERMINAL_NONE;
+    for (guint i = MIN(count, RADIOS_AUDIO_RUN_MAX_RECEIPTS); i > 0; --i) {
         const RadioSAudioRunReceipt *receipt = &receipts[i - 1];
-        if (receipt->epoch == job->source_epoch && receipt->index + 1 == run->count)
-            return receipt->terminal;
+        if (receipt->epoch == job->source_epoch && receipt->index + 1 == run->count) { terminal = receipt->terminal; break; }
     }
-    return RADIOS_AUDIO_RUN_TERMINAL_NONE;
+    g_free(receipts); return terminal;
 }
 static void completed_origin_forget(EventService *service, const gchar *origin)
 {
@@ -316,8 +318,9 @@ static gboolean event_tick(gpointer value)
         }
         if (job->step == EVENT_RUNNING) {
             RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(service->ctx); RadioSAudioRunSnapshot run;
-            RadioSAudioSnapshot audio;
-            radios_audio_engine_player_runner_snapshot(engine, i, &run); radios_audio_engine_snapshot(engine, &audio);
+            if (!engine) { job_unref(job); continue; } /* job_current() fails on the next tick */
+            RadioSAudioSnapshot *audio = g_new0(RadioSAudioSnapshot, 1);
+            radios_audio_engine_player_runner_snapshot(engine, i, &run); radios_audio_engine_snapshot(engine, audio);
             if (run.state == RADIOS_AUDIO_RUN_FINISHED) {
                 gboolean owned = FALSE;
                 for (guint deck = 0; deck < 32; ++deck) owned |= run.owned[deck];
@@ -325,12 +328,12 @@ static gboolean event_tick(gpointer value)
                 radios_audio_engine_unref(engine);
                 if (terminal == RADIOS_AUDIO_RUN_TERMINAL_INTERRUPTED || terminal == RADIOS_AUDIO_RUN_TERMINAL_FAILED)
                     job_finish(job, NULL);
-                else if (!owned && audio.decks[i].state == RADIOS_AUDIO_EMPTY && terminal == RADIOS_AUDIO_RUN_TERMINAL_COMPLETE) {
-                    job->finished_generation = audio.decks[i].generation;
+                else if (!owned && audio->decks[i].state == RADIOS_AUDIO_EMPTY && terminal == RADIOS_AUDIO_RUN_TERMINAL_COMPLETE) {
+                    job->finished_generation = audio->decks[i].generation;
                     record_complete(job);
                     if (job->has_target) { job->step = EVENT_CONTINUING; continue_cluster(job); }
                     else job_finish(job, NULL);
-                } else if (!owned && audio.decks[i].state != RADIOS_AUDIO_EMPTY) {
+                } else if (!owned && audio->decks[i].state != RADIOS_AUDIO_EMPTY) {
                     /* Lease release empties this source atomically. A newly
                      * occupied source after release is a manual takeover. */
                     job_finish(job, NULL);
@@ -341,6 +344,7 @@ static gboolean event_tick(gpointer value)
                 radios_audio_engine_unref(engine);
                 if (run.state == RADIOS_AUDIO_RUN_IDLE || run.state == RADIOS_AUDIO_RUN_ERROR) job_finish(job, NULL);
             }
+            g_free(audio);
         }
         job_unref(job);
     }
@@ -359,23 +363,24 @@ static EventJob *job_new(RadioSViewContext *ctx, GtkWidget *owner, guint request
     EventJob *job = g_new0(EventJob, 1); job->refs = 1; job->service = service_ref(service); job->workspace = ctx->players;
     job->client = radios_data_client_acquire(ctx); g_weak_ref_init(&job->owner, owner);
     job->global_intent = radios_playout_ui_intent(ctx);
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx); RadioSAudioSnapshot audio;
+    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
     if (!engine || !job->client) {
         if (engine) radios_audio_engine_unref(engine);
         fail(error, G_IO_ERROR_NOT_INITIALIZED, "Event ses motoru veya veri oturumu hazır değil."); job_unref(job); return NULL;
     }
-    radios_audio_engine_snapshot(engine, &audio); job->loss_epoch = audio.loss_epoch;
+    RadioSAudioSnapshot *audio = g_new0(RadioSAudioSnapshot, 1); /* ~260 KiB: heap, not stack */
+    radios_audio_engine_snapshot(engine, audio); job->loss_epoch = audio->loss_epoch;
     const RadioSPlayerTopology *topology = radios_player_workspace_topology(ctx->players);
     guint selected = G_MAXUINT;
     for (guint deck = 0; deck < 32; ++deck) {
         if (requested != G_MAXUINT && requested != deck) continue;
         const RadioSPlayerDefinition *player = radios_player_topology_player_const(topology, deck);
         if (!player || player->cluster_id[0] || service->jobs[deck]) continue;
-        if (deck_idle(job, engine, &audio, deck, NULL)) { selected = deck; break; }
+        if (deck_idle(job, engine, audio, deck, NULL)) { selected = deck; break; }
     }
     if (selected == G_MAXUINT) {
         fail(error, G_IO_ERROR_BUSY, "Event için boş, kümesiz ve MAIN'e atanmış oynatıcı bulunamadı.");
-        radios_audio_engine_unref(engine); job_unref(job); return NULL;
+        g_free(audio); radios_audio_engine_unref(engine); job_unref(job); return NULL;
     }
     RadioSAutomationScope source = {.kind = RADIOS_AUTOMATION_SCOPE_PLAYER, .deck = selected};
     gboolean valid = radios_automation_scope_resolve(topology, &source, &job->source, error);
@@ -389,22 +394,22 @@ static EventJob *job_new(RadioSViewContext *ctx, GtkWidget *owner, guint request
             job->has_target = valid;
         }
         for (guint i = 0; valid && i < job->target.count; ++i)
-            valid = deck_idle(job, engine, &audio, job->target.decks[i], error);
+            valid = deck_idle(job, engine, audio, job->target.decks[i], error);
     }
     if (valid) {
         RadioSAudioRunSnapshot run; radios_audio_engine_player_runner_snapshot(engine, selected, &run);
         job->source_epoch = run.epoch;
         job->source_intent = radios_playout_ui_intent(radios_player_workspace_source_context(job->workspace, selected));
-        job->generations[selected] = audio.decks[selected].generation;
+        job->generations[selected] = audio->decks[selected].generation;
         for (guint i = 0; i < job->target.count; ++i) {
             guint deck = job->target.decks[i]; radios_audio_engine_player_runner_snapshot(engine, deck, &run);
-            job->generations[deck] = audio.decks[deck].generation; job->target_epochs[deck] = run.epoch;
+            job->generations[deck] = audio->decks[deck].generation; job->target_epochs[deck] = run.epoch;
             job->target_intents[deck] = radios_playout_ui_intent(radios_player_workspace_source_context(job->workspace, deck));
         }
         service->jobs[selected] = job;
         job->owner_destroy = g_signal_connect(owner, "destroy", G_CALLBACK(owner_destroyed), job);
     }
-    radios_audio_engine_unref(engine);
+    g_free(audio); radios_audio_engine_unref(engine);
     if (!valid) { job_unref(job); return NULL; }
     return job;
 }

@@ -4,6 +4,13 @@
 #include "radios/widgets.h"
 #include <string.h>
 
+/* The service key entry is limited to 100 characters (gtk_entry_set_max_length
+ * counts characters, not bytes): a buffer for 100 UTF-8 characters of up to 4
+ * bytes each, so a non-ASCII key is never truncated. A truncated copy never
+ * compared equal to the entry, so every tick refreshed the review and a
+ * prepared programme was always refused as "changed". */
+#define SERVICE_KEY_BYTES (100 * 4 + 1)
+
 typedef struct {
     RadioSViewContext *ctx;
     RadioSDocument **document;
@@ -14,7 +21,7 @@ typedef struct {
     guint64 intent;
     gint64 acknowledged_revision;
     gboolean busy, closed;
-    gchar document_id[37], service_key[101];
+    gchar document_id[37], service_key[SERVICE_KEY_BYTES];
 } ProgrammeLifecycle;
 static const gchar *operations[] = {"overview", "submit", "approve", "fork", "prepare", "distribute"};
 static void action(GtkButton *, gpointer);
@@ -47,7 +54,7 @@ static void render(ProgrammeLifecycle *p)
     gboolean blocked = blockers && JSON_NODE_HOLDS_ARRAY(blockers) && json_array_get_length(json_node_get_array(blockers));
     gboolean clean = clean_document(p), current = clean && overview &&
         radios_json_int(overview, "document_revision", 0) == radios_data_document_revision(*p->document);
-    gboolean source_matches = overview && json_object_get_boolean_member(overview, "source_matches");
+    gboolean source_matches = overview && json_object_get_boolean_member_with_default(overview, "source_matches", FALSE);
     gchar *text = g_strdup_printf("Veritabanı taslağı %" G_GINT64_FORMAT " · Plan %s · Sürüm %" G_GINT64_FORMAT " · %s",
         clean ? radios_data_document_revision(*p->document) : 0, radios_json_string(plan, "_id", "—"),
         radios_json_int(revision, "revision_no", 0), state);
@@ -62,7 +69,7 @@ typedef struct {
     guint generation, operation;
     guint64 intent;
     gint64 document_revision;
-    gchar document_id[37], service_key[101];
+    gchar document_id[37], service_key[SERVICE_KEY_BYTES];
 } LifecycleJob;
 static void done(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer value)
 {

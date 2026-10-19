@@ -787,7 +787,10 @@ static void export_open(RadioSAdvertViews *v, const gchar *filename, const gchar
         GTK_FILE_CHOOSER_ACTION_SAVE, "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL);
     g_signal_connect_object(v->page,"destroy",G_CALLBACK(gtk_widget_destroy),dialog,G_CONNECT_SWAPPED);
     named(dialog, "advert-export-dialog"); gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE);
-    gchar *basename = g_path_get_basename(filename); gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), basename); g_free(basename);
+    radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(dialog), v->ctx);
+    /* The service names the file; keep only a valid Windows file name of it. */
+    gchar *basename = g_path_get_basename(filename), *suggested = radios_ui_file_name_suggestion(basename, "RadioS-reklam.csv");
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), suggested); g_free(suggested); g_free(basename);
     g_object_set_data_full(G_OBJECT(dialog), "advert-export-content", g_strdup(content), g_free);
     g_signal_connect(dialog, "response", G_CALLBACK(export_response), v); gtk_widget_show_all(dialog);
 }
