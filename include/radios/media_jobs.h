@@ -12,4 +12,9 @@ GCancellable *radios_media_import_async(RadioSViewContext *ctx, GtkWidget *owner
 GCancellable *radios_media_import_staged_async(RadioSViewContext *ctx, GtkWidget *owner,
     const gchar *source, const gchar *source_root, const gchar *kind, const gchar *title,
     RadioSDataCallback callback, gpointer user, GDestroyNotify destroy);
+/* Identity key of a local media file for de-duplication: the normalized
+ * absolute path (radios_path_normalize) upper-cased per character like the
+ * NTFS ordinal comparison, so "c:\Müzik\a.MP3" and "C:\müzik\A.mp3" give
+ * one key. */
+gchar *radios_media_path_identity(const gchar *path);
 #endif

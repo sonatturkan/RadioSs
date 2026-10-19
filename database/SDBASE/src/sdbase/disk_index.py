@@ -8,9 +8,8 @@ They provide mmap/bisect range reads without a RAM array of all sorted keys.
 from __future__ import annotations
 
 from collections import OrderedDict
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import heapq
 import json
@@ -18,14 +17,13 @@ import math
 import mmap
 import os
 from pathlib import Path
-import shutil
 import stat
 import struct
-import tempfile
 from threading import Lock
 import time
 from uuid import UUID, uuid4
 
+from . import _platform
 from .storage import Conflict, Store, StoreError, _atomic_json, _index_key, _json_bytes
 
 
@@ -83,22 +81,28 @@ def _digest(value):
 
 
 def _fsync_dir(path):
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    _platform.fsync_dir(path)
 
 
 def _regular(path, *, writable=False, create=False):
-    flags = (os.O_RDWR if writable else os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
-    if create:
-        flags |= os.O_CREAT
+    """No-follow, share-delete descriptor of a regular cache file.
+
+    Readers never block the build/recovery that replaces or removes cache files;
+    a new file (the build lock) is created with the private descriptor (0600).
+    """
+    flags = (os.O_RDWR if writable else os.O_RDONLY) | (os.O_CREAT if create else 0)
     try:
-        fd = os.open(path, flags, 0o600)
+        fd = _platform.open_fd(path, flags, 0o600, nofollow=True)
+    except IsADirectoryError as exc:
+        raise DiskIndexUnavailable("disk index component is not a regular file") from exc
     except OSError as exc:
         raise DiskIndexUnavailable("disk index component is absent or unsafe") from exc
-    if not stat.S_ISREG(os.fstat(fd).st_mode):
+    try:
+        regular = stat.S_ISREG(os.fstat(fd).st_mode)
+    except BaseException:
+        os.close(fd)
+        raise
+    if not regular:
         os.close(fd)
         raise DiskIndexUnavailable("disk index component is not a regular file")
     return fd
@@ -106,24 +110,28 @@ def _regular(path, *, writable=False, create=False):
 
 def _root(database):
     database = Path(database)
-    if any(part.is_symlink() for part in (database, *database.parents)):
+    # Symlinks, junctions and mount points are all refused (name-surrogate reparse points).
+    if any(_platform.is_link(part) for part in (database, *database.parents)):
         raise DiskIndexUnavailable("disk index source must not contain symlinks")
     root = database.with_name(database.name + ".indexes")
-    if root.is_symlink():
+    if _platform.is_link(root):
         raise DiskIndexUnavailable("disk index cache root must not be a symlink")
     return root
 
 
 def _safe(root, relative):
-    parts = Path(relative).parts
-    if Path(relative).is_absolute() or not parts or any(part in {"", ".", ".."} for part in parts):
-        raise DiskIndexUnavailable("unsafe disk index component path")
+    # One strict '/'-separated parser on every host: no '\', ':', drive or
+    # rooted forms, reserved device names, empty, '.' or '..' components.
+    try:
+        parts = _platform.safe_relative_parts(relative)
+    except ValueError as exc:
+        raise DiskIndexUnavailable("unsafe disk index component path") from exc
     current = root
-    if current.is_symlink():
+    if _platform.is_link(current):
         raise DiskIndexUnavailable("unsafe disk index root")
     for part in parts:
         current = current / part
-        if current.is_symlink():
+        if _platform.is_link(current):
             raise DiskIndexUnavailable("disk index path must not contain symlinks")
     return current
 
@@ -139,7 +147,7 @@ def _source_lock(store, *, timeout):
         deadline = start + timeout
         while True:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
                 break
             except BlockingIOError:
                 if time.monotonic() >= deadline:
@@ -148,7 +156,7 @@ def _source_lock(store, *, timeout):
         yield
     finally:
         if fd >= 0:
-            os.close(fd)
+            _platform.unlock_and_close(fd)
         store._mutex.release()
 
 
@@ -157,12 +165,12 @@ def _job_lock(root, *, create=False):
     fd = _regular(root / ".build.lock", writable=create, create=create)
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             raise DiskIndexError("another disk index build/recovery job is active") from exc
         yield
     finally:
-        os.close(fd)
+        _platform.unlock_and_close(fd)
 
 
 class _Budget:
@@ -255,21 +263,23 @@ def _build_one(view, collection, name, stage, budget, chunk_rows):
         following = []
         for offset in range(0, len(runs), 32):
             path = stage / f".{stem}.merge-{level}-{offset}"
-            with path.open("xb") as stream:
-                for _normal, _identity, line in _merge_rows(runs[offset:offset + 32]):
+            # closing(): a failed write must release the run files at once, or the
+            # stage cleanup cannot delete them (open files are not deletable).
+            with path.open("xb") as stream, closing(_merge_rows(runs[offset:offset + 32])) as rows:
+                for _normal, _identity, line in rows:
                     budget.write(stream, line)
                 stream.flush(); os.fsync(stream.fileno())
             following.append(path)
-            for old in runs[offset:offset + 32]: old.unlink()
+            for old in runs[offset:offset + 32]: _platform.unlink(old)
         runs = following; level += 1
     data_path = stage / f"{stem}.keys"
     offsets_path = stage / f"{stem}.offsets"
     data_hash = hashlib.sha256(); offsets_hash = hashlib.sha256()
     offset = written = key_count = 0; previous = None
-    with data_path.open("xb") as data, offsets_path.open("xb") as offsets:
+    with data_path.open("xb") as data, offsets_path.open("xb") as offsets, closing(_merge_rows(runs)) as rows:
         header = _HEADER.pack(_MAGIC, count, data_size)
         budget.write(offsets, header); offsets_hash.update(header)
-        for normalized, identity, line in _merge_rows(runs):
+        for normalized, identity, line in rows:
             encoded = _OFFSET.pack(offset); budget.write(offsets, encoded); offsets_hash.update(encoded)
             budget.write(data, line); data_hash.update(line)
             offset += len(line); written += 1
@@ -277,7 +287,7 @@ def _build_one(view, collection, name, stage, budget, chunk_rows):
                 key_count += 1; previous = normalized
         encoded = _OFFSET.pack(offset); budget.write(offsets, encoded); offsets_hash.update(encoded)
         for stream in (data, offsets): stream.flush(); os.fsync(stream.fileno())
-    for path in runs: path.unlink()
+    for path in runs: _platform.unlink(path)
     if written != count or offset != data_size or spec.unique and key_count != count:
         raise DiskIndexError("disk index build inventory/uniqueness differs from source")
     return {"collection": collection, "index": name, "spec": _spec(spec),
@@ -321,12 +331,12 @@ def rebuild_disk_indexes(store: Store, *, collections=None, index_names=None,
         wanted[collection] = sorted(set(names))
     with _source_lock(store, timeout=lock_timeout):
         store._assert_writable_locked(); store._reload_locked()
-        root = _root(store.journal); root.mkdir(mode=0o700, exist_ok=True)
+        root = _root(store.journal); _platform.mkdir_private(root, exist_ok=True)
     budget = _Budget(max_rows, max_bytes)
     run_id = str(uuid4()); stage = root / f".build-{run_id}"
     published = False
     with _job_lock(root, create=True), store.read_snapshot(selected) as view:
-        stage.mkdir(mode=0o700)
+        _platform.mkdir_private(stage)
         try:
             marker = {"format": _BUILD_FORMAT, "run_id": run_id, "store_id": view.store_id,
                       "schema_version": view.schema_version, "created_at": datetime.now(timezone.utc).isoformat(), "phase": "building"}
@@ -353,14 +363,16 @@ def rebuild_disk_indexes(store: Store, *, collections=None, index_names=None,
                     if store._collection_sequences.get(collection, 0) != group["collection_generation"] or \
                             _spec(store.index_specs[collection][name]) != group["spec"]:
                         raise Conflict("disk index source collection/spec changed during build")
-                os.rename(stage, root / run_id); published = True
+                # Never replaces: a concurrent publication of the same id raises FileExistsError.
+                _platform.rename_noreplace(stage, root / run_id); published = True
                 _atomic_json(root / "manifest.json", envelope); _fsync_dir(root)
             return {"format": _FORMAT, "build_id": run_id, "store_id": view.store_id,
                     "source_sequence": view.sequence, "indexes": len(groups), "indexed_rows": budget.rows,
                     "bytes_written": budget.bytes, "manifest_sha256": envelope["sha256"],
                     "cache_root": str(root), "publication": "current primary collection generations verified"}
         finally:
-            if not published and stage.exists(): shutil.rmtree(stage)
+            # Never mask the build error; recover_disk_index_builds removes a leftover stage.
+            if not published and stage.exists(): _platform.rmtree(stage, ignore_errors=True)
 
 
 def _manifest(root):
@@ -390,7 +402,7 @@ def _manifest(root):
                 if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "size_bytes"} or \
                         type(entry["size_bytes"]) is not int or entry["size_bytes"] < 0 or \
                         not isinstance(entry["sha256"], str) or len(entry["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in entry["sha256"]) or \
-                        Path(entry["path"]).parts[0] != payload["build_id"]:
+                        _platform.safe_relative_parts(entry["path"])[0] != payload["build_id"]:
                     raise ValueError
                 _safe(root, entry["path"])
             if any(type(group[field]) is not int or group[field] < 0 for field in
@@ -413,7 +425,7 @@ def _verify(fd, entry):
             _VERIFIED.move_to_end(identity); return 0
     digest = hashlib.sha256(); read = 0
     while read < info.st_size:
-        chunk = os.pread(fd, min(1024 * 1024, info.st_size - read), read)
+        chunk = _platform.pread(fd, min(1024 * 1024, info.st_size - read), read)
         if not chunk: raise DiskIndexUnavailable("disk index file became truncated")
         digest.update(chunk); read += len(chunk)
     final = os.fstat(fd)
@@ -615,6 +627,22 @@ def inspect_disk_indexes(store: Store) -> dict:
                 "build_id": payload["build_id"], "manifest_sha256": sha, "cache_root": str(root), "indexes": rows}
 
 
+def _remove_build(candidate):
+    """Delete a build directory, its build.json marker last.
+
+    Windows cannot delete a file that a reader still maps; removing the marker
+    last keeps a partially removed build recognisable for the next recovery.
+    """
+    for child in sorted(candidate.iterdir(), key=lambda path: path.name):
+        if child.name == "build.json":
+            continue
+        if not _platform.is_link(child) and child.is_dir():
+            _platform.rmtree(child)
+        else:
+            _platform.unlink(child, missing_ok=True)
+    _platform.rmtree(candidate)
+
+
 def recover_disk_index_builds(store: Store, *, cleanup=False, lock_timeout=30.0) -> dict:
     """Inspect/remove idle marked stages and obsolete builds, never active files."""
     if type(cleanup) is not bool:
@@ -644,7 +672,7 @@ def recover_disk_index_builds(store: Store, *, cleanup=False, lock_timeout=30.0)
         eligible = []; removed = []; skipped = []
         for candidate in sorted(root.iterdir()):
             if candidate.name in {"manifest.json", ".build.lock", active}: continue
-            if candidate.is_symlink() or not candidate.is_dir():
+            if _platform.is_link(candidate) or not candidate.is_dir():
                 skipped.append(candidate.name); continue
             try:
                 fd = _regular(candidate / "build.json")
@@ -661,7 +689,13 @@ def recover_disk_index_builds(store: Store, *, cleanup=False, lock_timeout=30.0)
                 continue
             eligible.append(candidate.name)
             if cleanup:
-                shutil.rmtree(candidate); removed.append(candidate.name)
+                try:
+                    _remove_build(candidate)
+                except PermissionError:
+                    # A live ReadSnapshot (this or another process) still maps the
+                    # obsolete build; its marker is kept, so a later run retries.
+                    skipped.append(candidate.name); continue
+                removed.append(candidate.name)
         if removed: _fsync_dir(root)
         return {"active_build": False, "active_build_id": active, "eligible": eligible, "removed": removed, "skipped": skipped}
     finally:

@@ -214,7 +214,10 @@ guint radios_programme_leaf_content_count(JsonObject *leaf)
     guint count = 1;
     JsonArray *hints = array(leaf, "planned_jingles");
     for (guint i = 0; hints && i < json_array_get_length(hints); ++i) {
-        JsonObject *hint = json_array_get_object_element(hints, i);
+        /* A malformed (non-object) hint counts as nothing instead of raising
+         * a json-glib critical. */
+        JsonNode *node = json_array_get_element(hints, i);
+        JsonObject *hint = node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL;
         if (g_str_equal(text(hint, "placement"), "overlay")) ++count;
     }
     return count;

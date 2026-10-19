@@ -7,8 +7,10 @@ G_BEGIN_DECLS
 
 /* Workstation files that live directly in <project>/config (for example
  * media-archive.ini and storage.ini). The config directory must exist and
- * stay inside the project. File links are rejected; reads are bounded;
- * writes replace the file atomically with 0600 permissions. */
+ * stay inside the project (Windows path rules). Links (symbolic links and
+ * junctions) are rejected; names must be valid Windows file names; reads are
+ * bounded; writes replace the file atomically and create it private
+ * (owner-only ACL, the Windows form of 0600). */
 
 /* A missing file succeeds with *contents == NULL. Otherwise *contents is a
  * NUL-terminated, valid UTF-8 copy owned by the caller. */

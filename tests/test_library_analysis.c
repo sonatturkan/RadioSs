@@ -1,10 +1,10 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/library_analysis.h"
 
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <string.h>
+
+#include "radios_test_support.h"
 
 /* Ayarlar › Kütüphane analizi, core part: the settings file
  * (config/library-analysis.ini), the parallel runner both library scans use
@@ -12,21 +12,6 @@
  * with a non-ASCII name and an empty config directory. */
 typedef struct { gchar *base, *root, *config; } Fixture;
 
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) {
-        g_assert_cmpint(g_remove(path), ==, 0);
-        return;
-    }
-    GDir *directory = g_dir_open(path, 0, NULL);
-    g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory))) {
-        gchar *child = g_build_filename(path, name, NULL);
-        remove_tree(child); g_free(child);
-    }
-    g_dir_close(directory); g_assert_cmpint(g_rmdir(path), ==, 0);
-}
 static void setup(Fixture *fixture, gconstpointer data)
 {
     (void)data;
@@ -40,7 +25,7 @@ static void setup(Fixture *fixture, gconstpointer data)
 static void teardown(Fixture *fixture, gconstpointer data)
 {
     (void)data;
-    remove_tree(fixture->base);
+    rt_remove_tree(fixture->base);
     g_free(fixture->base); g_free(fixture->root); g_free(fixture->config);
 }
 
@@ -95,8 +80,7 @@ static void roundtrip(Fixture *fixture, gconstpointer data)
     RadioSLibraryAnalysisSettings current; radios_library_analysis_settings_current(fixture->root, &current);
     g_assert_cmpuint(current.workers, ==, 7);
     gchar *file = g_build_filename(fixture->config, "library-analysis.ini", NULL);
-    GStatBuf info; g_assert_cmpint(g_stat(file, &info), ==, 0);
-    g_assert_cmpuint(info.st_mode & 0777, ==, 0600);
+    rt_assert_private_file(file);
     g_free(file);
     /* An invalid proposal is rejected and the stored file stays. */
     RadioSLibraryAnalysisSettings bad = {0, TRUE, 20, 10};

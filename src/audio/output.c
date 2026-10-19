@@ -1,13 +1,10 @@
-#define _POSIX_C_SOURCE 200809L
 #include "audio_internal.h"
+#include "radios/platform.h"
 #include <curl/curl.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/channel_layout.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 
 #define QUEUE_FRAMES (48000u * 5u)
 #define WAV_MAX_FRAMES ((G_MAXUINT32 - 36u) / 4u)
@@ -47,6 +44,15 @@ typedef struct {
 
 static gboolean fail(GError **error, RadioSAudioError code, const gchar *message)
 { g_set_error_literal(error, RADIOS_AUDIO_ERROR_DOMAIN, code, message); return FALSE; }
+/* Overwrites a secret before it is freed: volatile stores cannot be dropped by
+ * the optimiser the way a memset() right before g_free() can. */
+static void wipe(gchar *secret)
+{
+    if (!secret) return;
+    volatile gchar *bytes = secret;
+    for (gsize i = 0, length = strlen(secret); i < length; ++i) bytes[i] = 0;
+}
+static void wipe_free(gchar *secret) { wipe(secret); g_free(secret); }
 static gboolean active_state(RadioSAudioOutputState state)
 { return state == RADIOS_AUDIO_OUTPUT_STARTING || state == RADIOS_AUDIO_OUTPUT_ACTIVE || state == RADIOS_AUDIO_OUTPUT_STOPPING; }
 static void activate(RadioSAudioOutput *output)
@@ -112,43 +118,74 @@ static void wav_header(guint8 header[44], guint64 frames)
 static gboolean write_all(gint fd, const guint8 *data, gsize bytes)
 {
     while (bytes) {
-        ssize_t written = write(fd, data, bytes);
-        if (written < 0 && errno == EINTR) continue;
-        if (written <= 0) return FALSE;
+        int written = _write(fd, data, (unsigned int)MIN(bytes, (gsize)0x40000000));
+        if (written <= 0) { if (!written) errno = EIO; return FALSE; }
         data += written; bytes -= (gsize)written;
     }
     return TRUE;
 }
+#define RECORD_BLOCK_FRAMES 4096u
 static gboolean record_run(RadioSAudioOutput *output, const gchar *path, gchar error[256])
 {
-    gint fd = open(path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0600);
-    if (fd < 0) { g_snprintf(error, 256, "WAV could not be created: %s", g_strerror(errno)); return FALSE; }
-    guint8 header[44], bytes[4096 * 4]; gfloat pcm[4096 * 2]; guint64 total = 0;
+    /* CREATE_NEW: an existing file (or link) is never overwritten. Mode 0600 =
+     * owner-only ACL; the handle is binary, non-inheritable and shares read and
+     * delete, so the growing file can be inspected while it is recorded. */
+    gint fd = radios_fs_open(path, RADIOS_O_CREAT | RADIOS_O_EXCL | RADIOS_O_WRONLY | RADIOS_O_BINARY | RADIOS_O_CLOEXEC, 0600);
+    if (fd < 0) {
+        gint code = errno;
+        g_snprintf(error, 256, "WAV could not be created: %s%s", g_strerror(code), code == EACCES ?
+            " (Windows Güvenliği › Denetimli klasör erişimi RadioS'u engelliyor olabilir)" : "");
+        return FALSE;
+    }
+    guint8 header[44], *bytes = g_new(guint8, RECORD_BLOCK_FRAMES * 4); gfloat *pcm = g_new(gfloat, RECORD_BLOCK_FRAMES * 2);
+    guint64 total = 0;
     wav_header(header, 0); gboolean okay = write_all(fd, header, sizeof header);
     if (!okay) g_strlcpy(error, "WAV header write failed", 256);
     if (okay) activate(output);
     while (okay) {
-        guint count = take(output, pcm, 4096, 1, NULL); if (!count) break;
+        guint count = take(output, pcm, RECORD_BLOCK_FRAMES, 1, NULL); if (!count) break;
         if (total + count > WAV_MAX_FRAMES) { g_strlcpy(error, "WAV reached the 4 GiB RIFF size limit", 256); okay = FALSE; break; }
         for (guint i = 0; i < count * 2; ++i) {
             gfloat value = isfinite(pcm[i]) ? CLAMP(pcm[i], -1, 1) : 0;
             gint16 sample = (gint16)lrintf(value * (value < 0 ? 32768.0f : 32767.0f));
             le16(bytes + i * 2, (guint16)sample);
         }
-        if (!write_all(fd, bytes, count * 4)) { g_strlcpy(error, "WAV PCM write failed", 256); okay = FALSE; break; }
+        if (!write_all(fd, bytes, (gsize)count * 4)) { g_strlcpy(error, "WAV PCM write failed", 256); okay = FALSE; break; }
         total += count; atomic_store(&output->processed, total); atomic_store(&output->bytes, total * 4);
     }
+    g_free(bytes); g_free(pcm);
+    /* The header is rewritten with the real length even after a failed write
+     * (disk full, FAT32 4 GiB file limit), so a valid partial WAV remains. */
     wav_header(header, total);
-    gboolean finalized = lseek(fd, 0, SEEK_SET) == 0 && write_all(fd, header, sizeof header) && fsync(fd) == 0;
-    if (close(fd) != 0) finalized = FALSE;
+    gboolean finalized = radios_fd_seek(fd, 0, SEEK_SET) == 0 && write_all(fd, header, sizeof header) && radios_fd_sync(fd) == 0;
+    if (_close(fd) != 0) finalized = FALSE;
     g_mutex_lock(&output->mutex); output->snapshot.recording_finalized = finalized; g_mutex_unlock(&output->mutex);
     if (!finalized) { g_strlcpy(error, "WAV finalization failed", 256); okay = FALSE; }
     return okay;
 }
-static gboolean encoder_open(Encoder *encoder, RadioSAudioOutput *output, guint bitrate)
+/* The encoder is fed planar float. Prefer LAME; another MP3 encoder (for
+ * example Media Foundation's mp3_mf, which takes only 16-bit input) is used
+ * only when it accepts that input. */
+static gboolean encoder_accepts_fltp(const AVCodec *codec)
+{
+    const void *formats = NULL; int count = 0;
+    if (avcodec_get_supported_config(NULL, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, &formats, &count) < 0) return FALSE;
+    if (!formats) return TRUE;   /* no restriction declared */
+    for (int i = 0; i < count; ++i) if (((const enum AVSampleFormat *)formats)[i] == AV_SAMPLE_FMT_FLTP) return TRUE;
+    return FALSE;
+}
+static const AVCodec *mp3_encoder(void)
 {
     const AVCodec *codec = avcodec_find_encoder_by_name("libmp3lame");
-    if (!codec) codec = avcodec_find_encoder(AV_CODEC_ID_MP3);
+    if (codec && encoder_accepts_fltp(codec)) return codec;
+    void *iterator = NULL;
+    while ((codec = av_codec_iterate(&iterator)))
+        if (av_codec_is_encoder(codec) && codec->id == AV_CODEC_ID_MP3 && encoder_accepts_fltp(codec)) return codec;
+    return NULL;
+}
+static gboolean encoder_open(Encoder *encoder, RadioSAudioOutput *output, guint bitrate)
+{
+    const AVCodec *codec = mp3_encoder();
     if (!codec) return FALSE;
     encoder->output = output; encoder->codec = avcodec_alloc_context3(codec);
     if (!encoder->codec) return FALSE;
@@ -229,7 +266,10 @@ static void curl_common(CURL *curl, const gchar *url, const gchar *username, con
 {
     curl_easy_setopt(curl, CURLOPT_URL, url); curl_easy_setopt(curl, CURLOPT_USERNAME, username);
     curl_easy_setopt(curl, CURLOPT_PASSWORD, password); curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https"); curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    /* https mounts trust the Windows certificate store, so a relocated
+     * installation never depends on a CA bundle path baked into libcurl. */
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, (long)CURLSSLOPT_NATIVE_CA);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L); curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "RadioS native C output");
@@ -308,7 +348,7 @@ static gboolean shoutcast_run(RadioSAudioOutput *output, const gchar *password, 
     gchar *login = output->protocol == RADIOS_STREAM_SHOUTCAST2 ? g_strdup_printf("%s:#%u\r\n", password, output->stream_id) :
         g_strdup_printf("%s\r\n", password);
     gboolean sent = g_output_stream_write_all(out, login, strlen(login), NULL, NULL, NULL);
-    memset(login, 0, strlen(login)); g_free(login);
+    wipe_free(login);
     gchar reply[256] = ""; gsize length = 0;
     while (sent && length < sizeof reply - 1) {
         gchar c = 0; gssize got = g_input_stream_read(in, &c, 1, NULL, NULL);
@@ -359,8 +399,7 @@ static gpointer output_worker(gpointer data)
         atomic_store(&output->accepting, FALSE); atomic_store(&output->stopping, TRUE);
         while (atomic_load(&output->pushing)) g_thread_yield();
         if (atomic_load(&output->overrun)) { okay = FALSE; g_strlcpy(error, "MAIN PCM queue overrun; output stopped", sizeof error); }
-        g_free(target); g_free(username);
-        if (password) { memset(password, 0, strlen(password)); g_free(password); }
+        g_free(target); g_free(username); wipe_free(password);
         g_mutex_lock(&output->mutex);
         output->snapshot.state = okay ? RADIOS_AUDIO_OUTPUT_STOPPED : RADIOS_AUDIO_OUTPUT_FAILED;
         g_strlcpy(output->snapshot.error, error, sizeof output->snapshot.error);
@@ -389,12 +428,12 @@ static gpointer metadata_worker(gpointer data)
             gchar *sid = version2 ? g_strdup_printf("sid=%u&", stream_id) : g_strdup("");
             gchar *url = g_strdup_printf("http://%s:%u/admin.cgi?%smode=updinfo&pass=%s&song=%s", host, port, sid, pass, song);
             curl_easy_setopt(curl, CURLOPT_URL, url); curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http");
-            curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 5000L);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 5000L);
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
             /* SHOUTcast 1 only accepts admin requests from browser-like agents. */
             curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (RadioS)");
             result = curl_easy_perform(curl); curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-            memset(url, 0, strlen(url)); g_free(url); g_free(sid); curl_free(song); curl_free(pass); curl_easy_cleanup(curl);
+            wipe_free(url); g_free(sid); curl_free(song); wipe(pass); curl_free(pass); curl_easy_cleanup(curl);
         } else if (curl && (uri = g_uri_parse(target, G_URI_FLAGS_NONE, NULL)) == NULL) {
             /* The mount URL was validated when the stream started; never dereference a failed parse. */
             result = CURLE_URL_MALFORMAT; curl_easy_cleanup(curl);
@@ -422,8 +461,7 @@ static gpointer metadata_worker(gpointer data)
             }
         }
         g_mutex_unlock(&output->mutex);
-        g_free(target); g_free(username); g_free(title); g_free(host);
-        if (password) { memset(password, 0, strlen(password)); g_free(password); }
+        g_free(target); g_free(username); g_free(title); g_free(host); wipe_free(password);
     }
     return NULL;
 }
@@ -468,7 +506,7 @@ void radios_audio_output_unref(RadioSAudioOutput *output)
     if (!output || !g_atomic_ref_count_dec(&output->refs)) return;
     radios_audio_output_shutdown_internal(output); g_free(output->target); g_free(output->username);
     g_free(output->host); g_free(output->station); g_free(output->genre); g_free(output->description); g_free(output->website);
-    if (output->password) { memset(output->password, 0, strlen(output->password)); g_free(output->password); }
+    wipe_free(output->password);
     g_free(output->samples); g_cond_clear(&output->condition); g_mutex_clear(&output->mutex); g_free(output);
 }
 static gboolean start(RadioSAudioOutput *output, RadioSAudioOutputKind kind, const gchar *target,
@@ -482,8 +520,7 @@ static gboolean start(RadioSAudioOutput *output, RadioSAudioOutputKind kind, con
             closing ? "Audio engine output has closed" : "Output is already active or stopping");
     }
     while (atomic_load(&output->pushing)) g_thread_yield();
-    g_free(output->target); g_free(output->username);
-    if (output->password) { memset(output->password, 0, strlen(output->password)); g_free(output->password); }
+    g_free(output->target); g_free(output->username); wipe_free(output->password);
     output->target = g_strdup(target); output->username = g_strdup(username); output->password = g_strdup(password); output->bitrate = bitrate;
     output->server = server != NULL; output->protocol = server ? server->protocol : RADIOS_STREAM_ICECAST;
     output->public_listing = server && server->public_listing;
@@ -501,11 +538,33 @@ static gboolean start(RadioSAudioOutput *output, RadioSAudioOutputKind kind, con
     atomic_store(&output->stop_time, 0); atomic_store(&output->stopping, FALSE); atomic_store(&output->accepting, TRUE);
     output->requested = TRUE; g_cond_broadcast(&output->condition); g_mutex_unlock(&output->mutex); return TRUE;
 }
+/* A local file path on Windows: drive-absolute or UNC, never a device path
+ * ("\\?\..." or "\\.\..."), and every component a valid Windows name: no ':'
+ * alternate data stream, reserved device name (CON, NUL, COM1...) or name
+ * ending in a dot/space that Win32 would silently strip. */
+static gboolean local_path_valid(const gchar *path)
+{
+    if (!path || !radios_path_is_absolute(path)) return FALSE;
+    gchar **parts = radios_path_split(path);
+    guint skip = g_ascii_isalpha(path[0]) && path[1] == ':' ? 1 : 2;   /* "C:" or "server", "share" */
+    gboolean valid = g_strv_length(parts) > skip;
+    for (guint i = skip; valid && parts[i]; ++i) valid = radios_path_component_valid(parts[i]);
+    g_strfreev(parts); return valid;
+}
 gboolean radios_audio_output_start_record(RadioSAudioOutput *output, const gchar *path, GError **error)
 {
-    if (!path || !g_path_is_absolute(path) || strlen(path) > 4096 || !g_utf8_validate(path, -1, NULL))
+    /* "X:\..." or "\\server\share\..." only: "\foo" (current drive) and
+     * "C:foo" (drive-relative) depend on process state. */
+    if (!path || !radios_path_is_absolute(path) || strlen(path) > 4096 || !g_utf8_validate(path, -1, NULL))
         return fail(error, RADIOS_AUDIO_ERROR_INVALID, "Recording requires an absolute UTF-8 path up to 4096 bytes");
-    return start(output, RADIOS_AUDIO_OUTPUT_RECORD, path, NULL, NULL, 0, NULL, error);
+    gchar *normalized = radios_path_normalize(path);
+    if (!local_path_valid(normalized) || strlen(normalized) > 4096) {
+        g_free(normalized);
+        return fail(error, RADIOS_AUDIO_ERROR_INVALID, "Kayıt dosyası yolu Windows'ta geçersiz (alternatif veri akışı, "
+            "aygıt adı veya nokta/boşlukla biten bileşen).");
+    }
+    gboolean started = start(output, RADIOS_AUDIO_OUTPUT_RECORD, normalized, NULL, NULL, 0, NULL, error);
+    g_free(normalized); return started;
 }
 gboolean radios_audio_output_start_stream(RadioSAudioOutput *output, const gchar *url,
     const gchar *username, const gchar *password, guint bitrate, GError **error)

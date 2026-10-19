@@ -8,8 +8,9 @@ they do not authorize playback or claim that any programme has aired.
 from __future__ import annotations
 
 import re
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfoNotFoundError
 
+from . import _platform
 from .storage import StoreError
 
 
@@ -315,7 +316,9 @@ def validate_calendar(config, station_id, state, *, persisted=False, previous=No
     if "timezone" in config:
         zone = _text(config["timezone"], "calendar timezone", 100, True)
         try:
-            ZoneInfo(zone)
+            # Exact-case IANA key: Windows tzdata lookups ignore case and trailing
+            # dots/spaces, which would otherwise persist non-canonical keys.
+            _platform.canonical_timezone(zone)
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise StoreError("calendar timezone must be a known IANA timezone") from exc
     previous = previous or {}

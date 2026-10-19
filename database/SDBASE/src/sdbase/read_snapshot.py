@@ -164,13 +164,23 @@ class ReadSnapshot:
     def close(self) -> None:
         """Release retained old record bodies and derived ordered keys."""
         if not self._closed:
-            for reader in getattr(self, "_disk_readers", {}).values():
-                reader.close()
-            getattr(self, "_disk_readers", {}).clear()
+            # Close every disk reader even if one fails: a mapped index file
+            # left open cannot be deleted or replaced on Windows, so a single
+            # failure must not leak the other mappings.
+            failure = None
+            readers = getattr(self, "_disk_readers", {})
+            for reader in readers.values():
+                try:
+                    reader.close()
+                except Exception as exc:
+                    failure = failure or exc
+            readers.clear()
             self._records.clear()
             self._indices.clear()
             self._ordered_indices.clear()
             self._closed = True
+            if failure is not None:
+                raise failure
 
     def __enter__(self) -> ReadSnapshot:
         self._check()

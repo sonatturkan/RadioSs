@@ -5,6 +5,7 @@
 #include "radios/automation_policy.h"
 #include "radios/automation_calendar_plan.h"
 #include "radios/transition_preset.h"
+#include "radios/platform.h"
 #include <math.h>
 #include <string.h>
 
@@ -306,8 +307,13 @@ static RadioSPlayoutEntry *entry_from_row(JsonObject *row, const RadioSPlayoutRe
     }
     for (guint i = 0; i < 64; ++i) if (!g_ascii_isxdigit(sha[i])) { fail(error, "Medya SHA değeri geçersiz."); return NULL; }
     const gchar *managed = str(version, "managed_path", "");
-    gchar *path = g_canonicalize_filename(managed, NULL), *root = g_strdup_printf("%s.objects%c", request->database_file, G_DIR_SEPARATOR);
-    gboolean contained = g_path_is_absolute(managed) && g_str_has_prefix(path, root); g_free(root);
+    /* Strictly below "<database>.objects", compared like Windows paths: ".." resolved,
+     * either separator, ordinal case-insensitive; "\foo", "C:foo" and device paths
+     * are not absolute. */
+    gchar *objects = g_strconcat(request->database_file, ".objects", NULL);
+    gchar *path = radios_path_normalize(managed), *root = radios_path_normalize(objects); g_free(objects);
+    gboolean contained = radios_path_is_absolute(managed) && path && root &&
+        radios_path_is_inside(root, path) && !radios_path_equal(root, path); g_free(root);
     if (!contained) { g_free(path); fail(error, "Medya yönetilen istasyon arşivinin dışında."); return NULL; }
     if (marks && (!g_str_equal(str(marks, "station_id", ""), request->station_id) || !g_str_equal(str(marks, "version_id", ""), vid) ||
         !g_str_equal(str(marks, "media_file_id", ""), fid) || !g_str_equal(str(marks, "media_sha256", ""), sha) ||

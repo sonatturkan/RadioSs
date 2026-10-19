@@ -2,9 +2,10 @@
 
 Records live in an append-only, checksummed journal. A checkpoint contains a
 complete point-in-time image; every journal frame after it has a monotonic
-sequence number. Linux advisory locks serialize processes, and fsync makes an
-acknowledged commit durable on a filesystem that honors fsync. This is SDBASE's
-own storage format and query API; it does not execute SQL.
+sequence number. OS byte-range locks (LockFileEx on the shared RadioS lock
+region) serialize processes, and FlushFileBuffers makes an acknowledged commit
+durable on a filesystem that honors it. This is SDBASE's own storage format and
+query API; it does not execute SQL.
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import json
 import os
@@ -22,8 +22,10 @@ from pathlib import Path
 import struct
 import threading
 import time
-from typing import Any, Callable, Iterable, Iterator, Mapping
+from typing import Any, BinaryIO, Callable, Iterable, Iterator, Mapping
 from uuid import UUID, uuid4
+
+from . import _platform
 
 
 _MAX_FRAME = 32 * 1024 * 1024
@@ -118,6 +120,30 @@ def _json_bytes(value: Any) -> bytes:
                       separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+_OPEN_MODES = {"rb": os.O_RDONLY, "r+b": os.O_RDWR, "ab": os.O_WRONLY | os.O_CREAT | os.O_APPEND}
+
+
+def _open_shared(path: Path, mode: str) -> BinaryIO:
+    """Binary stream whose handle shares READ|WRITE|DELETE.
+
+    Python's ``open()`` never grants FILE_SHARE_DELETE on Windows, so a reader
+    would make a concurrent atomic replace (checkpoint, metadata, online
+    maintenance of the journal) fail.  Engine opens go through the shim
+    instead; the bytes are untouched (binary, no newline translation).
+    """
+    descriptor = _platform.open_fd(path, _OPEN_MODES[mode], 0o666)
+    try:
+        return os.fdopen(descriptor, mode)
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _read_shared(path: Path) -> bytes:
+    with _open_shared(path, "rb") as stream:
+        return stream.read()
+
+
 def _atomic_json(path: Path, value: Any) -> None:
     temp = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
@@ -125,14 +151,13 @@ def _atomic_json(path: Path, value: Any) -> None:
             stream.write(_json_bytes(value))
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temp, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        _platform.replace(temp, path)
+        _platform.fsync_dir(path.parent)
     finally:
-        temp.unlink(missing_ok=True)
+        # Never mask the original error: an antivirus scanner may still hold
+        # the temporary file for a moment after a failed publication.
+        if os.path.lexists(temp):
+            _platform.unlink_quietly(temp)
 
 
 def _frame(value: Mapping[str, Any]) -> bytes:
@@ -158,7 +183,7 @@ class Store:
                  schema_version: int = 1, read_only: bool = False,
                  lock_timeout: float | None = 30.0):
         requested = Path(root).resolve()
-        if requested.suffix == ".sdb":
+        if requested.suffix.lower() == ".sdb":
             self.root = requested.parent
             self.journal = requested
         else:
@@ -197,7 +222,7 @@ class Store:
         self._checkpoint_stamp = None
         if read_only:
             if not self.journal.is_file() or not self.meta_file.is_file() or \
-                    not self.lock_file.is_file() or any(path.is_symlink() for path in
+                    not self.lock_file.is_file() or any(_platform.is_link(path) for path in
                                                        (self.journal, self.meta_file,
                                                         self.checkpoint_file, self.lock_file)):
                 raise StoreError("read-only database needs existing journal, metadata and lock")
@@ -233,15 +258,18 @@ class Store:
             self.metrics.increment("lock_timeouts")
             raise LockTimeout("database process lock wait timed out")
         try:
-            with self.lock_file.open("rb") as lock:
-                mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+            # A new handle per acquisition: LockFileEx locks belong to the handle,
+            # so other Store objects of this process conflict like other processes.
+            lock = _platform.open_fd(self.lock_file, os.O_RDONLY)
+            try:
+                mode = _platform.LOCK_EX if exclusive else _platform.LOCK_SH
                 if self.lock_timeout is None:
-                    fcntl.flock(lock.fileno(), mode)
+                    _platform.flock(lock, mode)
                 else:
                     deadline = start + self.lock_timeout
                     while True:
                         try:
-                            fcntl.flock(lock.fileno(), mode | fcntl.LOCK_NB)
+                            _platform.flock(lock, mode | _platform.LOCK_NB)
                             break
                         except BlockingIOError:
                             remaining = deadline - time.monotonic()
@@ -253,13 +281,15 @@ class Store:
                 try:
                     yield
                 finally:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+                    _platform.flock(lock, _platform.LOCK_UN)
+            finally:
+                os.close(lock)
         finally:
             self._mutex.release()
 
     def _meta(self) -> dict:
         try:
-            meta = json.loads(self.meta_file.read_text(encoding="utf-8"))
+            meta = json.loads(_read_shared(self.meta_file).decode("utf-8"))
         except (OSError, ValueError) as exc:
             raise Corruption("store metadata is unreadable") from exc
         if not isinstance(meta, dict) or meta.get("format") != _FORMAT or \
@@ -304,7 +334,7 @@ class Store:
         if not self.checkpoint_file.exists():
             return 0, {}, {}, {}, {}
         try:
-            envelope = json.loads(self.checkpoint_file.read_text(encoding="utf-8"))
+            envelope = json.loads(_read_shared(self.checkpoint_file).decode("utf-8"))
             payload = envelope["payload"]
             if hashlib.sha256(_json_bytes(payload)).hexdigest() != envelope["sha256"]:
                 raise Corruption("checkpoint checksum mismatch")
@@ -427,7 +457,7 @@ class Store:
             self._generation = meta["generation"]
             self._checkpoint_stamp = checkpoint_stamp
             self._rebuild_indexes()
-        with self.journal.open("r+b" if repair_tail else "rb") as stream:
+        with _open_shared(self.journal, "r+b" if repair_tail else "rb") as stream:
             stream.seek(self._offset)
             while True:
                 frame_start = stream.tell()
@@ -560,7 +590,7 @@ class Store:
                        "collection_sequences": self._collection_sequences}
             _atomic_json(self.checkpoint_file, {
                 "payload": payload, "sha256": hashlib.sha256(_json_bytes(payload)).hexdigest()})
-            with self.journal.open("r+b") as stream:
+            with _open_shared(self.journal, "r+b") as stream:
                 stream.truncate(0)
                 stream.flush()
                 os.fsync(stream.fileno())
@@ -741,7 +771,7 @@ class Transaction:
                    "transaction_id": transaction_id, "actor": self.actor,
                    "committed_at": committed_at, "operations": prepared}
             frame = _frame(txn)
-            with store.journal.open("ab") as stream:
+            with _open_shared(store.journal, "ab") as stream:
                 stream.write(frame)
                 stream.flush()
                 os.fsync(stream.fileno())

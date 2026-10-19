@@ -1,11 +1,7 @@
-#define _POSIX_C_SOURCE 200809L
 #include "radios/audio_decoder.h"
-#include <errno.h>
-#include <fcntl.h>
+#include "radios/platform.h"
 #include <math.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/error.h>
@@ -16,11 +12,17 @@
 #define MAX_OUTPUT_BUFFER_FRAMES (48000 * 10)
 #define MAX_PACKET_BYTES (4 * 1024 * 1024)
 #define MAX_TIMELINE_FRAMES (G_GUINT64_CONSTANT(48000) * 86400)
+#define HASH_BLOCK_BYTES 65536
+/* FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_RECALL_ON_OPEN and
+ * FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS (winnt.h): the data is not on this
+ * computer (OneDrive Files On-Demand placeholder, HSM). Reading it would block
+ * the deck worker for a download that cannot be cancelled. */
+#define REMOTE_DATA_ATTRIBUTES (0x00001000u | 0x00040000u | 0x00400000u)
 
 struct RadioSAudioDecoder {
     gchar *path;
     gint fd, stream_index;
-    struct stat identity;
+    RadioSFileInfo identity;
     gint64 io_position;
     GCancellable *active_cancel;
     AVIOContext *io;
@@ -53,36 +55,36 @@ static gboolean check_cancel(RadioSAudioDecoder *decoder, GError **error)
     if (!decoder->active_cancel || !g_cancellable_is_cancelled(decoder->active_cancel)) return TRUE;
     return fail(error, RADIOS_AUDIO_DECODER_ERROR_CANCELLED, "Ses çözme işlemi iptal edildi.");
 }
-static gboolean same_file(const struct stat *a, const struct stat *b)
+/* Same file with the same content: volume, 128-bit file id, size and
+ * LastWriteTime. ChangeTime is deliberately not compared: on Windows it moves
+ * with every attribute change (backup software clearing the archive bit,
+ * OneDrive pin state, indexer flags), which would fail a playing deck. */
+static gboolean same_file(const RadioSFileInfo *a, const RadioSFileInfo *b)
 {
-    return a->st_dev == b->st_dev && a->st_ino == b->st_ino && a->st_size == b->st_size &&
-        a->st_mtim.tv_sec == b->st_mtim.tv_sec && a->st_mtim.tv_nsec == b->st_mtim.tv_nsec &&
-        a->st_ctim.tv_sec == b->st_ctim.tv_sec && a->st_ctim.tv_nsec == b->st_ctim.tv_nsec;
+    return a->device == b->device && a->inode == b->inode && a->inode_high == b->inode_high &&
+        a->size == b->size && a->mtime_ns == b->mtime_ns;
 }
 static gboolean unchanged(RadioSAudioDecoder *decoder, GError **error)
 {
-    struct stat fd_stat, name_stat;
-    if (fstat(decoder->fd, &fd_stat) != 0 || lstat(decoder->path, &name_stat) != 0 ||
-        !S_ISREG(fd_stat.st_mode) || !S_ISREG(name_stat.st_mode) ||
-        !same_file(&decoder->identity, &fd_stat) || !same_file(&decoder->identity, &name_stat))
+    RadioSFileInfo fd_info, name_info;
+    if (radios_fd_stat(decoder->fd, &fd_info) != 0 || radios_fs_stat(decoder->path, FALSE, &name_info) != 0 ||
+        fd_info.type != RADIOS_FILE_TYPE_REGULAR || name_info.type != RADIOS_FILE_TYPE_REGULAR ||
+        !same_file(&decoder->identity, &fd_info) || !same_file(&decoder->identity, &name_info))
         return fail(error, RADIOS_AUDIO_DECODER_ERROR_CHANGED, "Doğrulanmış ses dosyası değişti veya değiştirildi.");
     return TRUE;
 }
-static gint open_local(const gchar *path)
+/* A local file path on Windows: drive-absolute or UNC, never a device path
+ * ("\\?\..." or "\\.\..."), and every component a valid Windows name: no ':'
+ * alternate data stream, reserved device name (CON, NUL, COM1...) or name
+ * ending in a dot/space that Win32 would silently strip. */
+static gboolean local_path_valid(const gchar *path)
 {
-    gchar *directory = g_path_get_dirname(path), *name = g_path_get_basename(path);
-    gchar **parts = g_strsplit(directory, "/", -1);
-    gint parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC), fd = -1;
-    for (guint i = 0; parent >= 0 && parts[i]; ++i) {
-        if (!*parts[i]) continue;
-        gint next = openat(parent, parts[i], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        gint saved = errno; close(parent); parent = next; errno = saved;
-    }
-    if (parent >= 0) {
-        fd = openat(parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
-        gint saved = errno; close(parent); errno = saved;
-    }
-    g_strfreev(parts); g_free(directory); g_free(name); return fd;
+    if (!path || !radios_path_is_absolute(path)) return FALSE;
+    gchar **parts = radios_path_split(path);
+    guint skip = g_ascii_isalpha(path[0]) && path[1] == ':' ? 1 : 2;   /* "C:" or "server", "share" */
+    gboolean valid = g_strv_length(parts) > skip;
+    for (guint i = skip; valid && parts[i]; ++i) valid = radios_path_component_valid(parts[i]);
+    g_strfreev(parts); return valid;
 }
 static gboolean hash_valid(const gchar *sha)
 {
@@ -92,15 +94,17 @@ static gboolean hash_valid(const gchar *sha)
 }
 static gboolean verify_hash(RadioSAudioDecoder *decoder, const gchar *sha, GError **error)
 {
-    GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256); guchar block[65536]; gint64 offset = 0;
-    while (offset < decoder->identity.st_size) {
-        if (!check_cancel(decoder, error)) { g_checksum_free(sum); return FALSE; }
-        ssize_t count = pread(decoder->fd, block, (size_t)MIN((gint64)sizeof block,
-            (gint64)decoder->identity.st_size - offset), offset);
-        if (count < 0 && errno == EINTR) continue;
-        if (count <= 0) { g_checksum_free(sum); return fail(error, RADIOS_AUDIO_DECODER_ERROR_IO, "Ses dosyasının tamamı okunamadı."); }
+    GChecksum *sum = g_checksum_new(G_CHECKSUM_SHA256); guchar *block = g_malloc(HASH_BLOCK_BYTES); gint64 offset = 0;
+    gboolean read_all = TRUE;
+    while (offset < decoder->identity.size) {
+        if (!check_cancel(decoder, error)) { g_free(block); g_checksum_free(sum); return FALSE; }
+        gssize count = radios_fd_pread(decoder->fd, block, (gsize)MIN((gint64)HASH_BLOCK_BYTES,
+            decoder->identity.size - offset), offset);
+        if (count <= 0) { read_all = FALSE; break; }
         g_checksum_update(sum, block, (gsize)count); offset += count;
     }
+    g_free(block);
+    if (!read_all) { g_checksum_free(sum); return fail(error, RADIOS_AUDIO_DECODER_ERROR_IO, "Ses dosyasının tamamı okunamadı."); }
     gboolean matches = !g_ascii_strcasecmp(g_checksum_get_string(sum), sha); g_checksum_free(sum);
     if (!matches) return fail(error, RADIOS_AUDIO_DECODER_ERROR_HASH, "Ses dosyasının SHA-256 özeti kayıtla uyuşmuyor.");
     return unchanged(decoder, error);
@@ -109,21 +113,21 @@ static int local_read(void *opaque, uint8_t *buffer, int requested)
 {
     RadioSAudioDecoder *decoder = opaque;
     if (decoder->active_cancel && g_cancellable_is_cancelled(decoder->active_cancel)) return AVERROR_EXIT;
-    if (decoder->io_position >= decoder->identity.st_size) return AVERROR_EOF;
-    requested = (int)MIN((gint64)requested, (gint64)decoder->identity.st_size - decoder->io_position);
-    ssize_t count;
-    do count = pread(decoder->fd, buffer, (size_t)requested, decoder->io_position); while (count < 0 && errno == EINTR);
-    if (count < 0) return AVERROR(errno);
+    if (decoder->io_position >= decoder->identity.size) return AVERROR_EOF;
+    requested = (int)MIN((gint64)requested, decoder->identity.size - decoder->io_position);
+    gssize count = radios_fd_pread(decoder->fd, buffer, (gsize)requested, decoder->io_position);
+    /* AVERROR(0) would read as "0 bytes"; the platform always sets errno. */
+    if (count < 0) return AVERROR(errno ? errno : EIO);
     if (!count) return AVERROR_INVALIDDATA;
     decoder->io_position += count; return (int)count;
 }
 static int64_t local_seek(void *opaque, int64_t offset, int whence)
 {
     RadioSAudioDecoder *decoder = opaque; whence &= ~AVSEEK_FORCE;
-    if (whence == AVSEEK_SIZE) return decoder->identity.st_size;
+    if (whence == AVSEEK_SIZE) return decoder->identity.size;
     gint64 base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? decoder->io_position :
-        whence == SEEK_END ? decoder->identity.st_size : -1;
-    if (base < 0 || offset < -base || offset > decoder->identity.st_size - base) return AVERROR(EINVAL);
+        whence == SEEK_END ? decoder->identity.size : -1;
+    if (base < 0 || offset < -base || offset > decoder->identity.size - base) return AVERROR(EINVAL);
     decoder->io_position = base + offset; return decoder->io_position;
 }
 static int interrupted(void *opaque)
@@ -138,9 +142,9 @@ static int deny_external(AVFormatContext *format, AVIOContext **io, const char *
  * Packet-aligned raw MP3/ADTS truncation has no independently declared end. */
 static gboolean container_complete(RadioSAudioDecoder *decoder, GError **error)
 {
-    const gchar *name = decoder->format->iformat->name; gint64 length = decoder->identity.st_size;
+    const gchar *name = decoder->format->iformat->name; gint64 length = decoder->identity.size;
     guchar header[27];
-    if (!strcmp(name, "wav") && pread(decoder->fd, header, 12, 0) == 12 && !memcmp(header, "RIFF", 4)) {
+    if (!strcmp(name, "wav") && radios_fd_pread(decoder->fd, header, 12, 0) == 12 && !memcmp(header, "RIFF", 4)) {
         guint32 length_declared = (guint32)header[4] | (guint32)header[5] << 8 | (guint32)header[6] << 16 | (guint32)header[7] << 24;
         if ((guint64)length_declared + 8 > (guint64)length) return av_fail(error, AVERROR_INVALIDDATA);
     }
@@ -148,10 +152,10 @@ static gboolean container_complete(RadioSAudioDecoder *decoder, GError **error)
         gint64 offset = 0; gboolean eos = FALSE;
         while (offset < length) {
             if (!check_cancel(decoder, error)) return FALSE;
-            if (length - offset < 27 || pread(decoder->fd, header, 27, offset) != 27 || memcmp(header, "OggS", 4) || header[4])
+            if (length - offset < 27 || radios_fd_pread(decoder->fd, header, 27, offset) != 27 || memcmp(header, "OggS", 4) || header[4])
                 return av_fail(error, AVERROR_INVALIDDATA);
             guchar lengths[255]; guint count = header[26], bytes = 27 + count;
-            if (pread(decoder->fd, lengths, count, offset + 27) != (ssize_t)count) return av_fail(error, AVERROR_INVALIDDATA);
+            if (radios_fd_pread(decoder->fd, lengths, count, offset + 27) != (gssize)count) return av_fail(error, AVERROR_INVALIDDATA);
             for (guint i = 0; i < count; ++i) bytes += lengths[i];
             if ((gint64)bytes > length - offset) return av_fail(error, AVERROR_INVALIDDATA);
             eos = (header[5] & 4) != 0; offset += bytes;
@@ -162,10 +166,10 @@ static gboolean container_complete(RadioSAudioDecoder *decoder, GError **error)
         gint64 offset = 0;
         while (offset < length) {
             if (!check_cancel(decoder, error)) return FALSE;
-            if (length - offset < 8 || pread(decoder->fd, header, 8, offset) != 8) return av_fail(error, AVERROR_INVALIDDATA);
+            if (length - offset < 8 || radios_fd_pread(decoder->fd, header, 8, offset) != 8) return av_fail(error, AVERROR_INVALIDDATA);
             guint64 bytes = (guint64)header[0] << 24 | (guint64)header[1] << 16 | (guint64)header[2] << 8 | header[3]; guint minimum = 8;
             if (bytes == 1) {
-                if (length - offset < 16 || pread(decoder->fd, header + 8, 8, offset + 8) != 8) return av_fail(error, AVERROR_INVALIDDATA);
+                if (length - offset < 16 || radios_fd_pread(decoder->fd, header + 8, 8, offset + 8) != 8) return av_fail(error, AVERROR_INVALIDDATA);
                 bytes = 0; for (guint i = 8; i < 16; ++i) bytes = bytes << 8 | header[i]; minimum = 16;
             } else if (!bytes) bytes = (guint64)(length - offset);
             if (bytes < minimum || bytes > (guint64)(length - offset)) return av_fail(error, AVERROR_INVALIDDATA);
@@ -340,18 +344,36 @@ RadioSAudioDecoder *radios_audio_decoder_open(const gchar *path, const gchar *ex
         fail(error, RADIOS_AUDIO_DECODER_ERROR_INVALID, "Yerel dosya yolu ve 64 haneli SHA-256 özeti gerekli."); return NULL;
     }
     RadioSAudioDecoder *decoder = g_new0(RadioSAudioDecoder, 1); decoder->fd = -1;
-    decoder->path = g_canonicalize_filename(path, NULL); decoder->active_cancel = cancellable;
+    decoder->path = radios_path_normalize(path); decoder->active_cancel = cancellable;
     if (!check_cancel(decoder, error)) goto failed;
-    struct stat before;
-    if (lstat(decoder->path, &before) != 0 || !S_ISREG(before.st_mode)) {
+    if (!local_path_valid(decoder->path)) {
+        fail(error, RADIOS_AUDIO_DECODER_ERROR_INVALID, "Ses dosyası yolu Windows'ta geçerli bir yerel dosya yolu değil "
+            "(alternatif veri akışı, aygıt adı veya nokta/boşlukla biten bileşen)."); goto failed;
+    }
+    RadioSFileInfo before;
+    if (radios_fs_stat(decoder->path, FALSE, &before) != 0 || before.type != RADIOS_FILE_TYPE_REGULAR) {
         fail(error, RADIOS_AUDIO_DECODER_ERROR_INVALID, "Ses kaynağı normal yerel dosya olmalı; sembolik bağlantı/aygıt/kuyruk kabul edilmez."); goto failed;
     }
-    if (before.st_size <= 0 || (guint64)before.st_size > MAX_FILE_BYTES) {
+    if (before.attributes & REMOTE_DATA_ATTRIBUTES) {
+        fail(error, RADIOS_AUDIO_DECODER_ERROR_IO, "Dosya yalnızca bulutta (OneDrive); önce bu bilgisayara indirin."); goto failed;
+    }
+    if (before.size <= 0 || (guint64)before.size > MAX_FILE_BYTES) {
         fail(error, RADIOS_AUDIO_DECODER_ERROR_LIMIT, "Ses dosyası boş veya 2 GiB sınırını aşıyor."); goto failed;
     }
-    decoder->fd = open_local(decoder->path);
-    if (decoder->fd < 0) { fail(error, RADIOS_AUDIO_DECODER_ERROR_IO, "Ses dosyası açılamadı; tüm yol bileşenleri normal dizin olmalı."); goto failed; }
-    if (fstat(decoder->fd, &decoder->identity) != 0 || !same_file(&before, &decoder->identity)) {
+    /* Every component is opened without following a link (descriptor-relative
+     * walk from the drive or share root). The handle shares read, write and
+     * delete: another program may replace or delete the file, which the next
+     * read/seek reports as CHANGED. */
+    decoder->fd = radios_fs_open_nofollow_path(decoder->path, RADIOS_O_RDONLY | RADIOS_O_BINARY | RADIOS_O_CLOEXEC, 0);
+    if (decoder->fd < 0) {
+        gint code = errno;
+        fail(error, RADIOS_AUDIO_DECODER_ERROR_IO, code == EBUSY ?
+            "Ses dosyası başka bir uygulama tarafından kilitlenmiş; o uygulamayı kapatıp yeniden deneyin." : code == ELOOP ?
+            "Ses dosyası açılamadı; yol bir bağlantı (junction/sembolik bağlantı) içeriyor, tüm yol bileşenleri normal dizin olmalı." :
+            "Ses dosyası açılamadı; tüm yol bileşenleri normal dizin olmalı."); goto failed;
+    }
+    if (radios_fd_stat(decoder->fd, &decoder->identity) != 0 || decoder->identity.type != RADIOS_FILE_TYPE_REGULAR ||
+        !same_file(&before, &decoder->identity)) {
         fail(error, RADIOS_AUDIO_DECODER_ERROR_CHANGED, "Ses dosyası açılırken değişti."); goto failed;
     }
     if (!verify_hash(decoder, expected_sha256, error) || !open_stream(decoder, error) || !fill_buffer(decoder, error) ||
@@ -424,6 +446,6 @@ guint64 radios_audio_decoder_position_frames(const RadioSAudioDecoder *decoder)
 void radios_audio_decoder_close(RadioSAudioDecoder *decoder)
 {
     if (!decoder) return;
-    close_stream(decoder); if (decoder->fd >= 0) close(decoder->fd);
+    close_stream(decoder); if (decoder->fd >= 0) _close(decoder->fd);
     g_free(decoder->buffer); g_free(decoder->path); g_free(decoder);
 }

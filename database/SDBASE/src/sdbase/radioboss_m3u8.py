@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from . import _platform
 from .storage import StoreError
 
 
@@ -46,7 +47,10 @@ def _read(path: str | Path) -> bytes:
     try:
         if not source.is_file() or source.stat().st_size > MAX_BYTES:
             raise RadioBOSSPlaylistError("source is absent or exceeds 2 MiB")
-        raw = source.read_bytes()
+        # Exact bytes, bounded even if the file grows after the size check; the
+        # share-delete reader never blocks RadioBOSS or the GUI replacing it.
+        with _platform.open_read(source) as stream:
+            raw = stream.read(MAX_BYTES + 1)
     except OSError as exc:
         raise RadioBOSSPlaylistError("playlist cannot be read") from exc
     if len(raw) > MAX_BYTES or b"\x00" in raw:

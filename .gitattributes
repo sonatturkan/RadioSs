@@ -1,0 +1,46 @@
+# Line endings (DECISIONS D13). The repository is LF. Git for Windows defaults to
+# core.autocrlf=true: without this file a checkout on Windows would turn byte-exact
+# inputs into CRLF (SDBASE source digest of database/SDBASE/src/**/*.py, the
+# design/reference inventory, JSON inventories, package manifests) and change their hashes.
+* text=auto eol=lf
+
+# cmd.exe mis-parses labels and line continuations in LF-only batch files.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files: never converted, never diffed or merged as text.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.wav binary
+*.mp3 binary
+*.flac binary
+*.ogg binary
+*.opus binary
+*.m4a binary
+*.f32 binary
+*.zip binary
+*.whl binary
+*.gz binary
+*.xz binary
+*.7z binary
+*.exe binary
+*.dll binary
+*.pyd binary
+*.res binary
+*.sdb binary
+*.sqlite binary
+*.db binary
+
+# Time zone data (TZif files and their tables) must stay byte-identical to the
+# pinned tzdata wheel they were extracted from.
+runtime/python/Lib/tzdata/zoneinfo/** binary
+runtime/share/zoneinfo/** binary

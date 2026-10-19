@@ -17,6 +17,8 @@ from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from . import _platform
+
 
 _KINDS = frozenset({"audio", "live", "stream", "macro", "wait", "marker", "ad_break", "chain"})
 _SOUND = frozenset({"audio", "live", "stream"})
@@ -71,9 +73,11 @@ def _day(value: Any) -> date | None:
 
 
 def _zone(value: str) -> ZoneInfo | None:
+    # Exact-case IANA keys only: Windows file lookups in the bundled tzdata would
+    # also accept "europe/istanbul" or "Europe/Istanbul " and silently persist them.
     try:
-        return ZoneInfo(value)
-    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        return ZoneInfo(_platform.canonical_timezone(value))
+    except (ZoneInfoNotFoundError, TypeError, ValueError, OSError):
         return None
 
 

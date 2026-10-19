@@ -1,44 +1,60 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/config.h"
+#include "radios/platform.h"
 #include "radios/storage_locations.h"
 
 #include <errno.h>
 #include <gio/gio.h>
-#include <glib/gstdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 
 G_DEFINE_QUARK(radios-config-error-quark, radios_config_error)
 
+/* Bound for the root-discovery walk: no Windows path has more components
+ * than this (32767 UTF-16 units), so a non-converging dirname can never hang. */
+#define WALK_LIMIT 4096u
+
+/* Every component below the project root must be a valid Windows name: no
+ * reserved device (NUL, CON, ...), alternate stream (":"), wildcard or
+ * trailing dot/space, which Win32 would silently reinterpret. */
 static gboolean
-path_is_inside(const gchar *root, const gchar *path)
+components_valid(const gchar *root, const gchar *path)
 {
-    gsize length = strlen(root);
-    return g_str_equal(root, path) ||
-           (g_str_has_prefix(path, root) &&
-            (length == 1 || path[length] == G_DIR_SEPARATOR));
+    gsize root_length = strlen(root);
+    gboolean valid = TRUE;
+    gchar **parts;
+    if (strlen(path) < root_length)
+        return FALSE;
+    parts = radios_path_split(path + root_length);
+    for (gsize i = 0; parts[i] != NULL && valid; ++i)
+        valid = radios_path_component_valid(parts[i]);
+    g_strfreev(parts);
+    return valid;
 }
 
 /* Existing prefixes are resolved physically so even a missing destination
- * below a symlink cannot redirect a configured path outside RadioS. */
+ * below a link (symbolic link or junction) cannot redirect a configured path
+ * outside RadioS. */
 static gchar *
 resolve_inside_root(const gchar *root, const gchar *value, GError **error)
 {
     gchar *normalized = g_canonicalize_filename(value, root);
-    gchar *existing = g_strdup(normalized);
+    gchar *existing = NULL;
     gchar *physical = NULL;
     gchar *resolved = NULL;
-    struct stat info;
+    RadioSFileInfo info;
 
-    if (!path_is_inside(root, normalized)) {
+    if (normalized == NULL || !radios_path_is_inside(root, normalized)) {
         g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
                     "Yapılandırma yolu RadioS dışına çıkıyor: %s", value);
         goto done;
     }
+    if (!components_valid(root, normalized)) {
+        g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
+                    "Yapılandırma yolu Windows'ta geçersiz bir ad içeriyor: %s", value);
+        goto done;
+    }
 
-    while (g_lstat(existing, &info) != 0) {
+    existing = g_strdup(normalized);
+    while (radios_fs_stat(existing, FALSE, &info) != 0) {
         gchar *parent;
         if (errno != ENOENT) {
             g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_IO,
@@ -47,7 +63,9 @@ resolve_inside_root(const gchar *root, const gchar *value, GError **error)
             goto done;
         }
         parent = g_path_get_dirname(existing);
-        if (g_str_equal(parent, existing)) {
+        /* The root itself exists, so the walk ends inside it; a vanished root
+         * (or a dirname that stops converging) is an error, never a loop. */
+        if (g_str_equal(parent, existing) || !radios_path_is_inside(root, parent)) {
             g_free(parent);
             g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_IO,
                         "Yolun mevcut üst dizini bulunamadı: %s", value);
@@ -57,26 +75,37 @@ resolve_inside_root(const gchar *root, const gchar *value, GError **error)
         existing = parent;
     }
 
-    physical = realpath(existing, NULL);
+    physical = radios_fs_realpath(existing, NULL);
     if (physical == NULL) {
         g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_IO,
                     "Yol çözülemedi: %s (%s)", existing, g_strerror(errno));
         goto done;
     }
-    if (!path_is_inside(root, physical)) {
+    if (!radios_path_is_inside(root, physical)) {
         g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
                     "Sembolik bağlantı RadioS dışına çıkıyor: %s", value);
         goto done;
     }
-    if (strlen(normalized) == strlen(existing))
-        resolved = g_strdup(physical);
-    else
-        resolved = g_strconcat(physical, normalized + strlen(existing), NULL);
+    {
+        /* Append the missing tail to the physical prefix.  A drive root
+         * already ends with its separator; a subst or mapped prefix may
+         * resolve to a longer physical path, so the separator is explicit. */
+        const gchar *suffix = normalized + strlen(existing);
+        gsize physical_length = strlen(physical);
+        while (G_IS_DIR_SEPARATOR(*suffix))
+            ++suffix;
+        if (*suffix == '\0')
+            resolved = g_strdup(physical);
+        else
+            resolved = g_strconcat(physical,
+                                   physical_length > 0 && G_IS_DIR_SEPARATOR(physical[physical_length - 1]) ?
+                                   "" : G_DIR_SEPARATOR_S, suffix, NULL);
+    }
 
 done:
     g_free(normalized);
     g_free(existing);
-    free(physical);
+    g_free(physical);
     return resolved;
 }
 
@@ -99,19 +128,21 @@ static gchar *
 find_from_directory(const gchar *directory)
 {
     gchar *candidate = g_strdup(directory);
-    while (candidate != NULL) {
+    for (guint step = 0; candidate != NULL && step < WALK_LIMIT; ++step) {
         gchar *parent;
         if (has_root_markers(candidate))
             return candidate;
         parent = g_path_get_dirname(candidate);
-        if (g_str_equal(candidate, parent)) {
+        /* "C:\" and "\\server\share" are fixpoints of the walk. */
+        if (g_str_equal(candidate, parent) || radios_path_is_root(candidate) ||
+            !radios_path_is_absolute(parent)) {
             g_free(parent);
-            g_free(candidate);
-            return NULL;
+            break;
         }
         g_free(candidate);
         candidate = parent;
     }
+    g_free(candidate);
     return NULL;
 }
 
@@ -130,35 +161,33 @@ radios_project_root_find(const gchar *explicit_root,
                                 "RadioS proje kökü boş olamaz.");
             return NULL;
         }
-        physical = realpath(explicit_root, NULL);
+        physical = radios_fs_realpath(explicit_root, NULL);
         if (physical == NULL || !has_root_markers(physical)) {
             g_set_error(error, RADIOS_CONFIG_ERROR,
                         RADIOS_CONFIG_ERROR_INVALID,
                         "Geçerli RadioS proje kökü değil: %s", explicit_root);
-            free(physical);
+            g_free(physical);
             return NULL;
         }
-        found = g_strdup(physical);
-        free(physical);
-        return found;
+        return physical;
     }
 
     if (executable_path != NULL) {
-        physical = realpath(executable_path, NULL);
+        physical = radios_fs_realpath(executable_path, NULL);
         if (physical != NULL) {
             directory = g_path_get_dirname(physical);
             found = find_from_directory(directory);
             g_free(directory);
-            free(physical);
+            g_free(physical);
         }
     }
     if (found == NULL) {
         directory = g_get_current_dir();
-        physical = realpath(directory, NULL);
+        physical = directory != NULL ? radios_fs_realpath(directory, NULL) : NULL;
         g_free(directory);
         if (physical != NULL) {
             found = find_from_directory(physical);
-            free(physical);
+            g_free(physical);
         }
     }
     if (found == NULL)
@@ -214,16 +243,15 @@ read_path(GKeyFile *file, const gchar *root, const gchar *group,
 {
     gchar *value = required_string(file, group, key, error);
     gchar *resolved;
-    struct stat info;
+    RadioSFileInfo info;
     if (value == NULL)
         return FALSE;
     resolved = resolve_inside_root(root, value, error);
     g_free(value);
     if (resolved == NULL)
         return FALSE;
-    if (g_stat(resolved, &info) == 0 &&
-        ((directory && !S_ISDIR(info.st_mode)) ||
-         (!directory && !S_ISREG(info.st_mode)))) {
+    if (radios_fs_stat(resolved, TRUE, &info) == 0 &&
+        info.type != (directory ? RADIOS_FILE_TYPE_DIRECTORY : RADIOS_FILE_TYPE_REGULAR)) {
         g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
                     "Yapılandırma [%s] %s yanlış dosya türüne işaret ediyor.",
                     group, key);
@@ -232,6 +260,137 @@ read_path(GKeyFile *file, const gchar *root, const gchar *group,
     }
     *out = resolved;
     return TRUE;
+}
+
+/* [database] python_command (DECISIONS D4, identical to
+ * tools/radios_platform.py resolve_python):
+ *  - a value with '\', '/' or ':' is a path: absolute ("C:\...", UNC) or
+ *    relative to the project root (never to the CWD), naming an .exe; a
+ *    configured interpreter that is missing fails closed at spawn time
+ *    (radios_config_python_executable), it is never replaced by another one;
+ *  - empty is rejected by required_string(); the shipped default names
+ *    python3/python[.exe] mean the bundled runtime
+ *    <root>\runtime\python\python.exe, else <root>\python\python.exe
+ *    (installed layout: <prefix>\bin\RadioS.exe next to <prefix>\python);
+ *  - any other bare name is invalid: PATH, py.exe and the Microsoft Store
+ *    "python3" alias are never consulted. */
+static gboolean
+python_default_name(const gchar *value)
+{
+    static const gchar *const names[] = {"python3", "python", "python3.exe", "python.exe"};
+    for (guint i = 0; i < G_N_ELEMENTS(names); ++i)
+        if (g_ascii_strcasecmp(value, names[i]) == 0)
+            return TRUE;
+    return FALSE;
+}
+
+static gboolean
+regular_file(const gchar *path)
+{
+    RadioSFileInfo info;
+    return radios_fs_stat(path, TRUE, &info) == 0 && info.type == RADIOS_FILE_TYPE_REGULAR;
+}
+
+static gchar *
+resolve_python_command(const gchar *root, const gchar *value, GError **error)
+{
+    if (strpbrk(value, "\\/:") != NULL) {
+        gchar *candidate;
+        if (radios_path_is_absolute(value)) {
+            candidate = radios_path_normalize(value);
+        } else if (strchr(value, ':') != NULL || G_IS_DIR_SEPARATOR(value[0])) {
+            g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
+                        "python_command mutlak bir yol (örn. C:\\RadioS\\runtime\\python\\python.exe) "
+                        "ya da proje köküne göre göreli bir yol olmalı: %s", value);
+            return NULL;
+        } else {
+            gchar *native = radios_path_from_portable(value);
+            gchar *joined = g_build_filename(root, native, NULL);
+            candidate = radios_path_normalize(joined);
+            g_free(joined);
+            g_free(native);
+        }
+        gsize length = candidate != NULL ? strlen(candidate) : 0;
+        if (length < 5 || g_ascii_strcasecmp(candidate + length - 4, ".exe") != 0 ||
+            G_IS_DIR_SEPARATOR(candidate[length - 5])) {
+            g_free(candidate);
+            g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
+                        "python_command bir Python yorumlayıcısının .exe dosyasını göstermeli: %s", value);
+            return NULL;
+        }
+        return candidate;
+    }
+    if (!python_default_name(value)) {
+        g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_INVALID,
+                    "python_command, python.exe dosyasının yolu ya da varsayılan \"python3\" olmalı: %s", value);
+        return NULL;
+    }
+    {
+        gchar *bundled = g_build_filename(root, "runtime", "python", "python.exe", NULL);
+        gchar *packaged;
+        if (regular_file(bundled))
+            return bundled;
+        packaged = g_build_filename(root, "python", "python.exe", NULL);
+        if (regular_file(packaged)) {
+            g_free(bundled);
+            return packaged;
+        }
+        g_free(packaged);
+        /* Missing runtime: keep the documented location so the spawn fails
+         * closed with a clear message instead of searching PATH. */
+        return bundled;
+    }
+}
+
+gchar *
+radios_config_python_executable(const RadioSConfig *config, GError **error)
+{
+    const gchar *command = config != NULL ? config->python_command : NULL;
+    if (command == NULL || !radios_path_is_absolute(command)) {
+        g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_FILENAME,
+                    "Python yorumlayıcısının yolu mutlak bir Windows yolu olmalı: %s",
+                    command != NULL ? command : "(yok)");
+        return NULL;
+    }
+    if (!regular_file(command)) {
+        g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                    "Python çalışma ortamı bulunamadı: %s (config\\radios.ini [database] python_command)",
+                    command);
+        return NULL;
+    }
+    return g_strdup(command);
+}
+
+gchar **
+radios_config_python_argv(const RadioSConfig *config, const gchar *script,
+                          const gchar *const *arguments, GError **error)
+{
+    static const gchar *const flags[] = {RADIOS_PYTHON_FLAGS};
+    gchar *python;
+    GPtrArray *argv;
+    g_return_val_if_fail(script != NULL, NULL);
+    python = radios_config_python_executable(config, error);
+    if (python == NULL)
+        return NULL;
+    argv = g_ptr_array_new();
+    g_ptr_array_add(argv, python);
+    for (guint i = 0; i < G_N_ELEMENTS(flags); ++i)
+        g_ptr_array_add(argv, g_strdup(flags[i]));
+    g_ptr_array_add(argv, g_strdup(script));
+    for (gsize i = 0; arguments != NULL && arguments[i] != NULL; ++i)
+        g_ptr_array_add(argv, g_strdup(arguments[i]));
+    g_ptr_array_add(argv, NULL);
+    return (gchar **)g_ptr_array_free(argv, FALSE);
+}
+
+const gchar *const *
+radios_config_python_environment_overrides(void)
+{
+    static const gchar *const overrides[] = {
+        "PYTHONUTF8=1", "PYTHONDONTWRITEBYTECODE=1", "PYTHONIOENCODING=utf-8",
+        "PYTHONHOME", "PYTHONPATH", NULL
+    };
+    return overrides;
 }
 
 gboolean
@@ -377,7 +536,7 @@ radios_config_load(const gchar *project_root, const gchar *config_path,
     gint version = 0;
     gchar *selected = NULL;
     gboolean success = FALSE;
-    struct stat info;
+    RadioSFileInfo info;
 
     g_return_val_if_fail(out != NULL, FALSE);
     file = g_key_file_new();
@@ -395,7 +554,7 @@ radios_config_load(const gchar *project_root, const gchar *config_path,
     else {
         gchar *local_path = g_build_filename(config.project_root, "config",
                                              "radios.ini", NULL);
-        gint status = g_lstat(local_path, &info);
+        gint status = radios_fs_stat(local_path, FALSE, &info);
         if (status != 0 && errno != ENOENT) {
             g_set_error(error, RADIOS_CONFIG_ERROR, RADIOS_CONFIG_ERROR_IO,
                         "Yerel yapılandırma dosyası incelenemedi: %s (%s)",
@@ -475,9 +634,15 @@ radios_config_load(const gchar *project_root, const gchar *config_path,
                             "service_url, kullanıcı bilgisi olmadan geçerli bir HTTP(S) servis adresi olmalı.");
         goto done;
     }
-    config.python_command = required_string(file, "database", "python_command", error);
-    if (config.python_command == NULL)
-        goto done;
+    {
+        gchar *python_value = required_string(file, "database", "python_command", error);
+        if (python_value == NULL)
+            goto done;
+        config.python_command = resolve_python_command(config.project_root, python_value, error);
+        g_free(python_value);
+        if (config.python_command == NULL)
+            goto done;
+    }
     config.token_environment = required_string(file, "database", "token_environment", error);
     if (config.token_environment == NULL)
         goto done;

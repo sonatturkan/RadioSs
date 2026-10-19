@@ -3,7 +3,7 @@
 #include <glib/gstdio.h>
 #include <math.h>
 #include <string.h>
-#include <sys/stat.h>
+#include "radios_test_support.h"
 
 #ifndef RADIOS_TEST_PROJECT_ROOT
 #define RADIOS_TEST_PROJECT_ROOT "."
@@ -21,7 +21,7 @@ static gchar *wave(const gchar *path, gboolean source_a)
     append32(bytes, 48000); append32(bytes, 192000); append16(bytes, 4); append16(bytes, 16);
     g_byte_array_append(bytes, (const guint8 *)"data", 4); append32(bytes, frames * 4);
     for (guint i = 0; i < frames; ++i) { append16(bytes, source_a ? 8192 : 0); append16(bytes, source_a ? 0 : 4096); }
-    g_assert_true(g_file_set_contents(path, (const gchar *)bytes->data, bytes->len, NULL)); g_assert_cmpint(g_chmod(path, 0600), ==, 0);
+    g_assert_true(g_file_set_contents(path, (const gchar *)bytes->data, bytes->len, NULL)); rt_make_private(path);
     gchar *sha = g_compute_checksum_for_data(G_CHECKSUM_SHA256, bytes->data, bytes->len); g_byte_array_unref(bytes); return sha;
 }
 static void setup(Fixture *f, gconstpointer unused)
@@ -49,7 +49,7 @@ static void pcm(Fixture *f, gconstpointer unused)
     g_assert_true(radios_audio_transition_plan(&s, &plan, NULL)); g_assert_cmpuint(plan.frames, ==, 216000);
     gchar *path = NULL, *sha = NULL; guint64 frames = 0; GError *error = NULL;
     g_assert_true(radios_audio_transition_prepare(&s, f->directory, NULL, &path, &sha, &frames, &error)); g_assert_no_error(error);
-    struct stat st; g_assert_cmpint(g_stat(path, &st), ==, 0); g_assert_cmpint(st.st_mode & 0777, ==, 0600); g_assert_cmpuint(st.st_size, ==, frames * 8 + 44);
+    rt_assert_private_file(path); g_assert_cmpint(rt_file_size(path), ==, (gint64)(frames * 8 + 44));
     RadioSAudioDecoder *d = radios_audio_decoder_open(path, sha, NULL, &error); g_assert_no_error(error); g_assert_nonnull(d); gfloat sample[2];
     const guint64 positions[] = {24000, 72000, 120000};
     for (guint i = 0; i < G_N_ELEMENTS(positions); ++i) {

@@ -13,6 +13,7 @@ from pathlib import Path
 import stat
 from typing import Any, Sequence
 
+from . import _platform
 from .ops_archive import ArchiveError, verify_archive_chain
 from .storage import Store, StoreError
 
@@ -30,7 +31,7 @@ def _limit(value: int | None, name: str) -> int | None:
 
 def _file_info(path: Path, *, optional: bool = False) -> dict:
     try:
-        if path.is_symlink():
+        if _platform.is_link_like(path):
             return {"bytes": None, "status": "unsafe_type"}
         info = os.stat(path, follow_symlinks=False)
         if not stat.S_ISREG(info.st_mode):
@@ -112,10 +113,10 @@ def inspect_store_health(store: Store, *,
         retired_unique_keys = sum(len(values) for indexes in store._retired_unique_keys.values()
                                   for values in indexes.values())
 
+    # GetDiskFreeSpaceExW: volume size and bytes available to this user
+    # (quota-aware).
     try:
-        filesystem = os.statvfs(store.root)
-        free_bytes = filesystem.f_bavail * filesystem.f_frsize
-        total_bytes = filesystem.f_blocks * filesystem.f_frsize
+        total_bytes, free_bytes = _platform.disk_usage(store.root)
     except OSError:
         free_bytes = total_bytes = None
 

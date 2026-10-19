@@ -3,8 +3,8 @@
 if(BUILD_TESTING AND RADIOS_GUI_TESTS)
     add_executable(test_library_analysis_ui tests/test_library_analysis_ui.c)
     target_link_libraries(test_library_analysis_ui PRIVATE radios_ui radios_warnings)
-    add_test(NAME native_library_analysis COMMAND test_library_analysis_ui)
+    radios_add_gui_test(NAME native_library_analysis COMMAND test_library_analysis_ui)
     set_tests_properties(native_library_analysis PROPERTIES TIMEOUT 120
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        ENVIRONMENT "G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+        ENVIRONMENT "G_DEBUG=fatal-warnings")
 endif()

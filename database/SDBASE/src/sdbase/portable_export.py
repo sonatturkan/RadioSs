@@ -16,13 +16,12 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
-import tempfile
 from threading import Lock
-from typing import Any, Mapping
+from typing import Any, Mapping, TextIO
 
-from .backup import BackupError, _destination, _publish_absent
+from . import _platform
+from .backup import BackupError, _create_private, _destination, _publish_absent
 from .identity import Forbidden, Principal
 from .schema import REFERENCES, REQUIRED
 from .storage import Store, StoreError
@@ -53,17 +52,34 @@ def _canonical(value: Any) -> bytes:
 
 
 def _fsync_dir(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    _platform.fsync_dir(path)
+
+
+def _open_text(path: Path) -> TextIO:
+    """UTF-8 reader without newline translation over a no-follow regular file."""
+    descriptor = _platform.open_regular(path)
     try:
-        os.fsync(descriptor)
-    finally:
+        return open(descriptor, "r", encoding="utf-8", newline="")
+    except BaseException:
         os.close(descriptor)
+        raise
+
+
+def _create_private_text(path: Path) -> TextIO:
+    """New owner-only UTF-8 text file without newline translation."""
+    descriptor = _platform.open_fd(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                                   nofollow=True, private=True)
+    try:
+        return open(descriptor, "w", encoding="utf-8", newline="")
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 def _digest(path: Path) -> dict:
     result = hashlib.sha256()
     size = 0
-    with path.open("rb") as stream:
+    with os.fdopen(_platform.open_regular(path), "rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             result.update(block)
             size += len(block)
@@ -145,8 +161,7 @@ def _snapshot(store: Store, principal: Principal) -> tuple[dict, dict, dict]:
 
 
 def _write_bytes(path: Path, value: bytes) -> dict:
-    with path.open("xb") as stream:
-        os.chmod(path, 0o600)
+    with _create_private(path) as stream:
         stream.write(value)
         stream.flush()
         os.fsync(stream.fileno())
@@ -160,8 +175,7 @@ def _write_collection(stage: Path, name: str, records: dict) -> dict:
     if any(not isinstance(field, str) for field in fields):
         raise PortableExportError("record field names must be text")
     json_path = stage / "collections" / f"{name}.jsonl"
-    with json_path.open("xb") as stream:
-        os.chmod(json_path, 0o600)
+    with _create_private(json_path) as stream:
         for identifier, envelope in entries:
             line = _canonical({"_id": identifier, "_rev": envelope["revision"],
                                "data": envelope["data"]}) + b"\n"
@@ -169,8 +183,8 @@ def _write_collection(stage: Path, name: str, records: dict) -> dict:
         stream.flush()
         os.fsync(stream.fileno())
     csv_path = stage / "collections" / f"{name}.csv"
-    with csv_path.open("x", encoding="utf-8", newline="") as stream:
-        os.chmod(csv_path, 0o600)
+    # newline="" + lineterminator="\n": LF rows on every host (hashed bytes).
+    with _create_private_text(csv_path) as stream:
         writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(["_id", "_rev", *(f"field:{field}" for field in fields)])
         for identifier, envelope in entries:
@@ -234,16 +248,22 @@ def create_portable_export(store: Store, principal: Principal,
         target = _destination(destination)
     except BackupError as exc:
         raise PortableExportError(str(exc)) from exc
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".partial",
-                                  dir=target.parent))
-    os.chmod(stage, 0o700)
+    names = sorted((set(REQUIRED) | set(state) | set(tombstones)) - EXCLUDED)
+    for name in names:
+        if not _NAME.fullmatch(name) or not _platform.component_valid(f"{name}.jsonl") or \
+                not _platform.component_valid(f"{name}.csv"):
+            # Reserved device names (con, nul, com1, ...) cannot be files.
+            raise PortableExportError("collection name is unsafe for a portable filename")
+    if len({name.casefold() for name in names}) != len(names):
+        # NTFS and most package consumers compare names case-insensitively.
+        raise PortableExportError("collection names differ only by letter case")
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".partial",
+                                           dir=target.parent))
     try:
         collection_dir = stage / "collections"
-        collection_dir.mkdir(mode=0o700)
+        _platform.mkdir_private(collection_dir)
         collections = []
-        for name in sorted((set(REQUIRED) | set(state) | set(tombstones)) - EXCLUDED):
-            if not _NAME.fullmatch(name):
-                raise PortableExportError("collection name is unsafe for a portable filename")
+        for name in names:
             collections.append(_write_collection(stage, name, state.get(name, {})))
         media_info = _write_bytes(stage / "media_manifest.json",
                                   _canonical(_media_references(state)) + b"\n")
@@ -282,19 +302,21 @@ def create_portable_export(store: Store, principal: Principal,
                 "excluded_collections": sorted(EXCLUDED),
                 "audio_bytes_included": False}
     finally:
-        if stage.exists():
-            shutil.rmtree(stage)
+        if os.path.lexists(stage):
+            _platform.rmtree(stage, ignore_errors=True)
 
 
 def _package_files(root: Path) -> set[str]:
-    if root.is_symlink() or not root.is_dir():
+    if _platform.is_link(root) or not root.is_dir():
         raise PortableExportError("portable export root is not a regular directory")
     files: set[str] = set()
     directories: set[str] = set()
     for current, subdirs, names in os.walk(root, followlinks=False):
+        # os.walk does not treat a junction as a link: check every directory
+        # before the walk descends into it.
         for name in subdirs:
             path = Path(current) / name
-            if path.is_symlink():
+            if _platform.is_link(path):
                 raise PortableExportError("package contains a symlink directory")
             directories.add(path.relative_to(root).as_posix())
         for name in names:
@@ -339,8 +361,7 @@ def _read_collection(root: Path, entry: Mapping[str, Any]) -> tuple[set[str], li
         prior_limit = csv.field_size_limit()
         csv.field_size_limit(64 * 1024 * 1024)
         try:
-            with json_path.open("r", encoding="utf-8", newline="") as json_stream, \
-                    csv_path.open("r", encoding="utf-8", newline="") as csv_stream:
+            with _open_text(json_path) as json_stream, _open_text(csv_path) as csv_stream:
                 reader = csv.reader(csv_stream, strict=True)
                 if next(reader, None) != ["_id", "_rev", *(f"field:{field}" for field in fields)]:
                     raise PortableExportError(f"CSV header differs: {name}")
@@ -401,8 +422,8 @@ def verify_portable_export(directory: str | Path) -> dict:
     actual_files = _package_files(root)
     for fixed in ("manifest.json", "manifest.sha256"):
         _regular(root / fixed)
-    manifest_bytes = (root / "manifest.json").read_bytes()
-    digest_text = (root / "manifest.sha256").read_bytes()
+    manifest_bytes = _platform.read_bytes_shared(root / "manifest.json")
+    digest_text = _platform.read_bytes_shared(root / "manifest.sha256")
     if digest_text != (hashlib.sha256(manifest_bytes).hexdigest() + "\n").encode("ascii"):
         raise PortableExportError("manifest SHA-256 differs")
     try:
@@ -445,7 +466,7 @@ def verify_portable_export(directory: str | Path) -> dict:
         raise PortableExportError("package has missing or unexpected files")
     media_path = _checked_file(root, manifest.get("media_manifest"), "media_manifest.json")
     try:
-        media_bytes = media_path.read_bytes()
+        media_bytes = _platform.read_bytes_shared(media_path)
         media_doc = json.loads(media_bytes)
     except (UnicodeError, ValueError, OSError) as exc:
         raise PortableExportError("media manifest cannot be read") from exc
@@ -461,7 +482,7 @@ def verify_portable_export(directory: str | Path) -> dict:
         raise PortableExportError("manifest record count differs")
     tombstone_path = _checked_file(root, manifest.get("tombstones"), "tombstones.json")
     try:
-        tombstone_bytes = tombstone_path.read_bytes()
+        tombstone_bytes = _platform.read_bytes_shared(tombstone_path)
         tombstone_doc = json.loads(tombstone_bytes)
     except (UnicodeError, ValueError, OSError) as exc:
         raise PortableExportError("tombstone inventory cannot be read") from exc

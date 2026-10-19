@@ -1,33 +1,15 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/local_ini.h"
 
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#include "radios_test_support.h"
 
 /* Workstation files in <project>/config: media-archive.ini and storage.ini
  * share this reader/writer. The fixture is a temporary project root with a
  * non-ASCII name and an empty config directory. */
 typedef struct { gchar *base, *root, *config; } Fixture;
-
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) {
-        g_assert_cmpint(g_remove(path), ==, 0);
-        return;
-    }
-    GDir *directory = g_dir_open(path, 0, NULL);
-    g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory))) {
-        gchar *child = g_build_filename(path, name, NULL);
-        remove_tree(child); g_free(child);
-    }
-    g_dir_close(directory); g_assert_cmpint(g_rmdir(path), ==, 0);
-}
 
 static void setup(Fixture *fixture, gconstpointer data)
 {
@@ -43,7 +25,7 @@ static void setup(Fixture *fixture, gconstpointer data)
 static void teardown(Fixture *fixture, gconstpointer data)
 {
     (void)data;
-    remove_tree(fixture->base);
+    rt_remove_tree(fixture->base);
     g_free(fixture->base); g_free(fixture->root); g_free(fixture->config);
 }
 
@@ -90,9 +72,9 @@ static void roundtrip(Fixture *fixture, gconstpointer data)
     g_assert_no_error(error);
     g_assert_true(radios_local_ini_read(fixture->root, "x.ini", 4096, &contents, &error));
     g_assert_no_error(error); g_assert_cmpstr(contents, ==, "[a]\nb=Türkçe değer\n"); g_free(contents);
-    gchar *path = g_build_filename(fixture->config, "x.ini", NULL); struct stat info;
-    g_assert_cmpint(lstat(path, &info), ==, 0);
-    g_assert_true(S_ISREG(info.st_mode)); g_assert_cmpuint(info.st_mode & 0777, ==, 0600);
+    gchar *path = g_build_filename(fixture->config, "x.ini", NULL);
+    /* A regular owner-only file, not a link (lstat + S_ISREG + 0600 before). */
+    g_assert_false(rt_is_link(path)); rt_assert_private_file(path);
     /* The atomic replacement leaves no temporary file behind. */
     g_assert_cmpuint(entries_in_config(fixture), ==, 1);
     g_assert_true(radios_local_ini_write(fixture->root, "x.ini", "replaced", &error));
@@ -111,7 +93,11 @@ static void names(Fixture *fixture, gconstpointer data)
 {
     (void)data;
     gchar *long_name = g_strnfill(100, 'a');
-    const gchar *bad[] = {".hidden.ini", "a/b.ini", "", long_name};
+    /* Windows names that would leave config/ or open something else: a
+     * separator, an alternate data stream, reserved device names and the
+     * trailing dot/space the Win32 layer strips silently. */
+    const gchar *bad[] = {".hidden.ini", "a/b.ini", "", long_name,
+                          "a\\b.ini", "x.ini:ads", "con.ini", "NUL", "x.ini.", "x.ini "};
     for (guint i = 0; i < G_N_ELEMENTS(bad); ++i) {
         assert_invalid_read(fixture, bad[i], 4096);
         assert_invalid_write(fixture, bad[i]);
@@ -127,20 +113,27 @@ static void links(Fixture *fixture, gconstpointer data)
     (void)data;
     gchar *target = g_build_filename(fixture->root, "target.ini", NULL);
     gchar *link = g_build_filename(fixture->config, "link.ini", NULL);
+    gchar *directory = g_build_filename(fixture->config, "dir.ini", NULL);
+    /* A directory is not a regular file (checked first: it needs no link privilege). */
+    g_assert_cmpint(g_mkdir(directory, 0700), ==, 0);
+    assert_invalid_read(fixture, "dir.ini", 4096);
+    assert_invalid_write(fixture, "dir.ini");
+    g_assert_cmpuint(entries_in_config(fixture), ==, 1);
     g_assert_true(g_file_set_contents(target, "secret", -1, NULL));
-    g_assert_cmpint(symlink(target, link), ==, 0);
+    gchar *owned[] = {target, link, directory};
+    if (!rt_symlink(target, link, FALSE, NULL)) {
+        for (guint i = 0; i < G_N_ELEMENTS(owned); ++i) g_free(owned[i]);
+        g_test_skip("symbolic links unavailable");
+        return;
+    }
     assert_invalid_read(fixture, "link.ini", 4096);
     assert_invalid_write(fixture, "link.ini");
     gchar *kept = NULL;
     g_assert_true(g_file_get_contents(target, &kept, NULL, NULL));
     g_assert_cmpstr(kept, ==, "secret"); g_free(kept);
-    g_assert_true(g_file_test(link, G_FILE_TEST_IS_SYMLINK));
-    g_assert_cmpuint(entries_in_config(fixture), ==, 1);
-    gchar *directory = g_build_filename(fixture->config, "dir.ini", NULL);
-    g_assert_cmpint(g_mkdir(directory, 0700), ==, 0);
-    assert_invalid_read(fixture, "dir.ini", 4096);
-    assert_invalid_write(fixture, "dir.ini");
-    g_free(target); g_free(link); g_free(directory);
+    g_assert_true(rt_is_link(link));
+    g_assert_cmpuint(entries_in_config(fixture), ==, 2);
+    for (guint i = 0; i < G_N_ELEMENTS(owned); ++i) g_free(owned[i]);
 }
 
 static void limits(Fixture *fixture, gconstpointer data)
@@ -167,7 +160,8 @@ static void config_escape(Fixture *fixture, gconstpointer data)
     gchar *outside = g_dir_make_tmp("radios-local-ini-outside-XXXXXX", &error);
     g_assert_no_error(error);
     g_assert_cmpint(g_rmdir(fixture->config), ==, 0);
-    g_assert_cmpint(symlink(outside, fixture->config), ==, 0);
+    /* Directory link (junction when symbolic links need a privilege). */
+    g_assert_true(rt_symlink(outside, fixture->config, TRUE, &error)); g_assert_no_error(error);
     assert_invalid_read(fixture, "x.ini", 4096);
     assert_invalid_write(fixture, "x.ini");
     GDir *directory = g_dir_open(outside, 0, NULL);

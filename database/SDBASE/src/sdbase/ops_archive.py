@@ -16,12 +16,11 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
-import tempfile
-from typing import Any, Callable, Mapping
+from typing import Any, BinaryIO, Callable, Mapping
 from uuid import UUID
 
+from . import _platform
 from .backup import BackupError, _destination, _fsync_dir, _publish_absent
 from .storage import Store, StoreError
 
@@ -51,16 +50,34 @@ def _object_pairs(pairs: list[tuple[str, Any]]) -> dict:
     return result
 
 
-def _regular(path: Path):
+def _regular(path: Path) -> BinaryIO:
+    # No-follow, binary, share-delete reader: verifying an archive never blocks
+    # an operator (or antivirus) from moving or deleting it.
     try:
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) |
-                             getattr(os, "O_CLOEXEC", 0))
+        descriptor = _platform.os_open(path, os.O_RDONLY, nofollow=True)
+    except OSError as exc:
+        raise ArchiveError(f"cannot read archive component: {path.name}") from exc
+    try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            os.close(descriptor)
             raise ArchiveError(f"archive component is not a regular file: {path.name}")
         return os.fdopen(descriptor, "rb")
     except OSError as exc:
+        os.close(descriptor)
         raise ArchiveError(f"cannot read archive component: {path.name}") from exc
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _create_private(path: Path) -> BinaryIO:
+    """Exclusive create of a private (owner-only DACL) binary file; LF bytes as given."""
+    descriptor = _platform.os_open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                                   nofollow=True, private=True)
+    try:
+        return os.fdopen(descriptor, "wb")
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 def _read_small(path: Path, limit: int = 64 * 1024) -> bytes:
@@ -73,7 +90,7 @@ def _read_small(path: Path, limit: int = 64 * 1024) -> bytes:
 
 def _archive_dir(value: str | Path) -> Path:
     raw = Path(value).expanduser()
-    if raw.is_symlink() or not raw.is_dir():
+    if _platform.is_link_like(raw) or not raw.is_dir():
         raise ArchiveError("archive directory is absent or a symlink")
     root = raw.resolve(strict=True)
     try:
@@ -174,7 +191,8 @@ def _audit_snapshot(store: Store, first: int, through: int | None,
                         data["first_audit_sequence"] > upper:
                     continue
                 reference = _verify_segment(store.root, data)
-                with _safe_source(store.root, reference["path"]).open("rb") as stream:
+                with _platform.open_read(_safe_source(store.root, reference["path"]),
+                                         nofollow=True) as stream:
                     for line in stream:
                         record = json.loads(line)
                         if record["collection"] != "_audit":
@@ -201,8 +219,7 @@ def _write(stage: Path, records: list[dict], max_bytes: int,
     chain = prior_chain
     count = byte_count = 0
     path = stage / "audit.jsonl"
-    with path.open("xb") as stream:
-        os.chmod(path, 0o600)
+    with _create_private(path) as stream:
         for row in records:
             line = _json_bytes(row) + b"\n"
             if len(line) > _MAX_LINE:
@@ -226,8 +243,7 @@ def _write_manifest(stage: Path, body: dict) -> str:
     digest = hashlib.sha256(encoded).hexdigest()
     for name, data in (("manifest.json", encoded),
                        ("manifest.sha256", (digest + "\n").encode("ascii"))):
-        with (stage / name).open("xb") as stream:
-            os.chmod(stage / name, 0o600)
+        with _create_private(stage / name) as stream:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
@@ -261,9 +277,8 @@ def create_archive(store: Store, destination: str | Path, *,
         target = _destination(destination)
     except BackupError as exc:
         raise ArchiveError(str(exc)) from exc
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", dir=target.parent))
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", dir=target.parent))
     try:
-        os.chmod(stage, 0o700)
         count, byte_count, audit_sha, chain = _write(stage, records, max_bytes,
                                                      prior_chain)
         last = first + count - 1
@@ -286,8 +301,10 @@ def create_archive(store: Store, destination: str | Path, *,
         except BackupError as exc:
             raise ArchiveError(str(exc)) from exc
     finally:
+        # Cleanup must not mask the original error; a leftover ".<name>.<hex>"
+        # stage holds no published evidence and can be deleted by the operator.
         if stage.exists():
-            shutil.rmtree(stage)
+            _platform.rmtree(stage, ignore_errors=True)
     return {"path": str(target), "store_id": store_id,
             "first_sequence": first, "last_sequence": last,
             "source_sequence": source_sequence, "record_count": count,

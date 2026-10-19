@@ -1,30 +1,12 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/preferences_storage.h"
 
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#include "radios_test_support.h"
 
 typedef struct { gchar *root, *config, *file; } Fixture;
-
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) {
-        g_assert_cmpint(g_remove(path), ==, 0);
-        return;
-    }
-    GDir *directory = g_dir_open(path, 0, NULL);
-    g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory))) {
-        gchar *child = g_build_filename(path, name, NULL);
-        remove_tree(child); g_free(child);
-    }
-    g_dir_close(directory); g_assert_cmpint(g_rmdir(path), ==, 0);
-}
 
 static void setup(Fixture *fixture, gconstpointer data)
 {
@@ -40,7 +22,7 @@ static void setup(Fixture *fixture, gconstpointer data)
 static void teardown(Fixture *fixture, gconstpointer data)
 {
     (void)data;
-    remove_tree(fixture->root);
+    rt_remove_tree(fixture->root);
     g_free(fixture->root); g_free(fixture->config); g_free(fixture->file);
 }
 
@@ -70,7 +52,8 @@ static void roundtrip(Fixture *fixture, gconstpointer data)
     gchar *sentinel = g_build_filename(fixture->config, "ui-preferences.ini", NULL);
     g_assert_true(g_file_set_contents(sentinel, "existing UI preferences\n", -1, NULL));
     GError *error = NULL;
-    struct stat previous = {0};
+    RtFileId previous = {0};
+    gboolean have_previous = FALSE;
     for (guint rate = 0; rate < 2; ++rate)
         for (guint frames = 64; frames <= 4096; frames *= 2)
             for (guint sound = 0; sound < 3; ++sound)
@@ -78,11 +61,13 @@ static void roundtrip(Fixture *fixture, gconstpointer data)
                     RadioSPreferencesAudio wanted = {rate ? 48000 : 44100, frames, sound, volume}, value = {0};
                     g_assert_true(radios_preferences_audio_save(fixture->root, &wanted, &error));
                     g_assert_no_error(error);
-                    struct stat current;
-                    g_assert_cmpint(g_stat(fixture->file, &current), ==, 0);
-                    g_assert_cmpuint(current.st_mode & 0777, ==, 0600);
-                    if (previous.st_ino) g_assert_true(previous.st_ino != current.st_ino);
-                    previous = current;
+                    rt_assert_private_file(fixture->file);
+                    /* Replaced atomically: every save is a new file, never a rewrite in place. */
+                    RtFileId current = rt_file_id(fixture->file);
+                    if (have_previous)
+                        g_assert_false(previous.volume == current.volume &&
+                                       memcmp(previous.id, current.id, sizeof current.id) == 0);
+                    previous = current; have_previous = TRUE;
                     g_assert_true(radios_preferences_audio_load(fixture->root, &value, &error));
                     g_assert_no_error(error); same(&value, &wanted);
                 }
@@ -176,15 +161,28 @@ static void bounded_utf8(Fixture *fixture, gconstpointer data)
     g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
 }
 
-static void file_links_and_fifo(Fixture *fixture, gconstpointer data)
+static void file_links_and_special(Fixture *fixture, gconstpointer data)
 {
     (void)data;
-    gchar *external = g_build_filename(fixture->root, "external.ini", NULL);
-    g_assert_true(g_file_set_contents(external, "external sentinel\n", -1, NULL));
-    g_assert_cmpint(symlink(external, fixture->file), ==, 0);
     RadioSPreferencesAudio value;
     radios_preferences_audio_default(&value);
     GError *error = NULL;
+    /* Not a regular file: a directory carrying the file's name (Windows has
+     * no FIFOs; this was the mkfifo() case). Needs no link privilege. */
+    g_assert_cmpint(g_mkdir(fixture->file, 0700), ==, 0);
+    g_assert_false(radios_preferences_audio_load(fixture->root, &value, &error));
+    g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
+    g_assert_false(radios_preferences_audio_save(fixture->root, &value, &error));
+    g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
+    g_assert_true(g_file_test(fixture->file, G_FILE_TEST_IS_DIR));
+    g_assert_cmpint(g_rmdir(fixture->file), ==, 0);
+    gchar *external = g_build_filename(fixture->root, "external.ini", NULL);
+    g_assert_true(g_file_set_contents(external, "external sentinel\n", -1, NULL));
+    if (!rt_symlink(external, fixture->file, FALSE, NULL)) {
+        g_free(external);
+        g_test_skip("symbolic links unavailable");
+        return;
+    }
     g_assert_false(radios_preferences_audio_load(fixture->root, &value, &error));
     g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
     g_assert_false(radios_preferences_audio_save(fixture->root, &value, &error));
@@ -192,12 +190,7 @@ static void file_links_and_fifo(Fixture *fixture, gconstpointer data)
     gchar *contents = NULL;
     g_assert_true(g_file_get_contents(external, &contents, NULL, NULL));
     g_assert_cmpstr(contents, ==, "external sentinel\n"); g_free(contents);
-    g_assert_cmpint(g_remove(fixture->file), ==, 0);
-    g_assert_cmpint(mkfifo(fixture->file, 0600), ==, 0);
-    g_assert_false(radios_preferences_audio_load(fixture->root, &value, &error));
-    g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
-    g_assert_false(radios_preferences_audio_save(fixture->root, &value, &error));
-    g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA); g_clear_error(&error);
+    g_assert_true(rt_is_link(fixture->file));
     g_free(external);
 }
 
@@ -208,7 +201,8 @@ static void config_escape(Fixture *fixture, gconstpointer data)
     gchar *outside = g_dir_make_tmp("radios-panel-outside-XXXXXX", &error);
     g_assert_no_error(error);
     g_assert_cmpint(g_rmdir(fixture->config), ==, 0);
-    g_assert_cmpint(symlink(outside, fixture->config), ==, 0);
+    /* Directory link (junction when symbolic links need a privilege). */
+    g_assert_true(rt_symlink(outside, fixture->config, TRUE, &error)); g_assert_no_error(error);
     RadioSPreferencesAudio value;
     radios_preferences_audio_default(&value);
     g_assert_false(radios_preferences_audio_load(fixture->root, &value, &error));
@@ -230,7 +224,7 @@ int main(int argc, char **argv)
     g_test_add("/preferences-audio/reject-invalid-values", Fixture, NULL, setup, invalid_values, teardown);
     g_test_add("/preferences-audio/reject-malformed-file", Fixture, NULL, setup, malformed_files, teardown);
     g_test_add("/preferences-audio/bounded-utf8", Fixture, NULL, setup, bounded_utf8, teardown);
-    g_test_add("/preferences-audio/file-links-fifo", Fixture, NULL, setup, file_links_and_fifo, teardown);
+    g_test_add("/preferences-audio/file-links-fifo", Fixture, NULL, setup, file_links_and_special, teardown);
     g_test_add("/preferences-audio/config-escape", Fixture, NULL, setup, config_escape, teardown);
     return g_test_run();
 }

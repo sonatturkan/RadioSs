@@ -7,19 +7,18 @@ database and its canonical advisory lock must remain reachable for promotion.
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 from http.client import HTTPConnection, HTTPSConnection
 import json
 from math import isfinite
 import os
 from pathlib import Path
-import shutil
 import stat
 import time
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+from . import _platform
 from .backup import _open_regular, _fsync_dir
 from .schema import SCHEMA_VERSION, open_radio_store
 from .storage import Corruption, StoreError, _atomic_json, _json_bytes
@@ -54,7 +53,7 @@ class FailoverPolicy:
 
 def _path(value):
     raw = Path(value).expanduser().absolute()
-    if any(path.is_symlink() for path in (raw, *raw.parents)):
+    if any(_platform.is_link(path) for path in (raw, *raw.parents)):
         raise FailoverError("failover paths must not contain symlinks")
     return raw.resolve()
 
@@ -78,7 +77,8 @@ def _identity(meta):
 class FailoverSupervisor:
     def __init__(self, source_db, standby_db, source_url, state_directory, *, policy=None):
         self.source, self.standby, self.root = map(_path, (source_db, standby_db, state_directory))
-        if self.source.suffix != ".sdb" or self.standby.suffix != ".sdb" or self.source == self.standby or \
+        if self.source.suffix.lower() != ".sdb" or self.standby.suffix.lower() != ".sdb" or \
+                self.source == self.standby or \
                 self.root.is_relative_to(self.source.parent) or self.root.is_relative_to(self.standby.parent):
             raise FailoverError("supervisor needs separate .sdb paths and an independent state directory")
         self.policy = policy or FailoverPolicy()
@@ -87,7 +87,8 @@ class FailoverSupervisor:
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or \
                 parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise FailoverError("primary health URL must be HTTP(S) without credentials/query")
-        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.root.parent.mkdir(parents=True, exist_ok=True)
+        _platform.mkdir_private(self.root, exist_ok=True)
         self.file = self.root / "supervisor.json"
         self.lock = self.root / "supervisor.lock"
         self.config = {"source_database": str(self.source), "standby_database": str(self.standby),
@@ -114,18 +115,18 @@ class FailoverSupervisor:
 
     @contextmanager
     def _job(self):
-        fd = os.open(self.lock, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        fd = _platform.open_fd(self.lock, os.O_CREAT | os.O_RDWR, 0o600, nofollow=True)
         try:
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                 raise FailoverError("unsafe supervisor lock")
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
             except BlockingIOError as exc:
                 raise FailoverError("another supervisor owns this job") from exc
             yield
         finally:
-            os.close(fd)
+            _platform.unlock_and_close(fd)
 
     def _read(self):
         with os.fdopen(_open_regular(self.file), "rb") as stream:
@@ -149,7 +150,13 @@ class FailoverSupervisor:
     def _probe(self, identity):
         parsed = urlsplit(self.url)
         factory = HTTPSConnection if parsed.scheme == "https" else HTTPConnection
-        connection = factory(parsed.hostname, parsed.port, timeout=self.policy.probe_timeout_seconds)
+        host = parsed.hostname
+        if parsed.scheme == "http" and host.lower() == "localhost":
+            # Windows tries ::1 first and needs about 2 s to fall back to the
+            # IPv4 listener, longer than the probe timeout; a healthy primary
+            # would look absent.  Plain HTTP has no name to verify.
+            host = "127.0.0.1"
+        connection = factory(host, parsed.port, timeout=self.policy.probe_timeout_seconds)
         try:
             connection.request("GET", parsed.path.rstrip("/") + "/health", headers={"Connection": "close"})
             response = connection.getresponse()
@@ -175,7 +182,7 @@ class FailoverSupervisor:
         for database in (self.source, self.standby):
             for path in (database, database.with_name(database.name + ".meta"),
                          database.with_name(database.name + ".lock")):
-                if not path.is_file() or path.is_symlink():
+                if not path.is_file() or _platform.is_link(path):
                     raise FailoverError("known database components are unreachable; automatic fencing is refused")
         source_components = [self.source, self.source.with_name(self.source.name + ".meta"),
                              self.source.with_name(self.source.name + ".lock")]
@@ -202,7 +209,8 @@ class FailoverSupervisor:
         for _ in range(self.policy.catchup_max_batches):
             if state["pending_bundle"]:
                 bundle = self.root / state["pending_bundle"]
-                if bundle.parent != self.root or not bundle.name.startswith("shipment-") or bundle.is_symlink():
+                if bundle.parent != self.root or not bundle.name.startswith("shipment-") or \
+                        _platform.is_link(bundle):
                     raise FailoverError("invalid durable supervisor shipment path")
                 try:
                     target = open_radio_store(self.standby)
@@ -211,7 +219,7 @@ class FailoverSupervisor:
                     recover_standby_replay(self.standby, bundle)
                 state["pending_bundle"] = None
                 self._save(state)
-                shutil.rmtree(bundle)
+                _platform.rmtree(bundle)
                 _fsync_dir(self.root)
             target = open_radio_store(self.standby)
             status = replication_status(target)
@@ -329,19 +337,18 @@ class FailoverSupervisor:
     @contextmanager
     def _runner(self):
         """Keep one monitoring process owner, including between probe ticks."""
-        fd = os.open(self.root / "runner.lock", os.O_CREAT | os.O_RDWR |
-                     getattr(os, "O_NOFOLLOW", 0), 0o600)
+        fd = _platform.open_fd(self.root / "runner.lock", os.O_CREAT | os.O_RDWR, 0o600, nofollow=True)
         try:
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                 raise FailoverError("unsafe supervisor runner lock")
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
             except BlockingIOError as exc:
                 raise FailoverError("another monitor owns this supervisor job") from exc
             yield
         finally:
-            os.close(fd)
+            _platform.unlock_and_close(fd)
 
     def watch(self, stop_event):
         """Yield durable decisions with one continuous monitor per job.

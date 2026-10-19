@@ -1,10 +1,10 @@
-#define _POSIX_C_SOURCE 200809L
 #include "radios/audio.h"
 #include "radios/audio_tempo.h"
 #include "radios/audio_runner.h"
 #include <glib/gstdio.h>
 #include <math.h>
 #include <locale.h>
+#include "radios_test_support.h"
 
 typedef struct { gchar *directory, *path, *sha, *media, *version; } TempoFixture;
 static void word(GByteArray *bytes, guint value, guint width)
@@ -74,16 +74,14 @@ static void pitch_preserved(TempoFixture *fixture, gconstpointer unused)
 static void fractional_numeric_locale(TempoFixture *fixture, gconstpointer setting)
 {
     const gchar *name = setting;
-    locale_t numeric_locale = newlocale(LC_NUMERIC_MASK, name, (locale_t)0);
-    /* The Turkish case must exercise a real comma locale, never silently skip. */
-    g_assert_true(numeric_locale != (locale_t)0);
-    locale_t previous_locale = uselocale(numeric_locale);
-    g_assert_true(previous_locale != (locale_t)0);
+    /* Thread-local LC_NUMERIC (UCRT per-thread locale). The Turkish case must
+     * exercise a real comma locale, never silently skip. */
+    RtNumericLocale *previous_locale = rt_numeric_locale_push(name);
+    g_assert_nonnull(previous_locale);
     g_assert_cmpstr(localeconv()->decimal_point, ==, g_str_has_prefix(name, "tr_") ? "," : ".");
     assert_pitch_and_duration(fixture, 0.9375);
     assert_pitch_and_duration(fixture, 1.125);
-    g_assert_true(uselocale(previous_locale) == numeric_locale);
-    freelocale(numeric_locale);
+    rt_numeric_locale_pop(previous_locale);
 }
 static RadioSAudioDeckSnapshot wait_deck(RadioSAudioEngine *engine, guint deck, guint frames)
 {

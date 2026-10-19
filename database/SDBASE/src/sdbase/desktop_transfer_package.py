@@ -18,8 +18,10 @@ import configparser
 from datetime import datetime, timezone
 import hashlib
 import json
+import ntpath
 import os
 from pathlib import Path
+import posixpath
 import re
 import stat
 import threading
@@ -29,6 +31,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 import zipfile
 
 from . import __version__
+from . import _platform
 from . import desktop_api as api
 from . import desktop_media
 from . import desktop_playlist
@@ -79,10 +82,21 @@ SINGLETON_KINDS = frozenset({"playout_policy", "copyright_policy"})
 _KIND_ORDER = ("automation", "automation_calendar", "weekly_programme", "local_event", "live_players", "programme")
 _SENSITIVE = re.compile(r"password|passwd|token|secret|api[_-]?key|authorization|credential|private[_-]?key",
                         re.IGNORECASE)
-_PROTECTED = ("config", "src", "include", "tools", "tests", "docs", "design", "assets", "vendor",
-              "packaging", "cmake", "database/SDBASE")
+# Project folders a package may never be written to or imported into, as path
+# components (joined with the native separator, compared case-insensitively).
+_PROTECTED = (("config",), ("src",), ("include",), ("tools",), ("tests",), ("docs",), ("design",),
+              ("assets",), ("vendor",), ("packaging",), ("cmake",), ("database", "SDBASE"))
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 _FILE_NAME = re.compile(r"[^/\\\x00-\x1f\x7f]{1,197}\.st\Z")
+# Without LongPathsEnabled, Win32 programs (Explorer, players, the RadioS GUI) cannot
+# open longer paths although the NT-path based shim could create them: MAX_PATH - 1
+# for files, the CreateDirectoryW limit (MAX_PATH - 12 - 1) for folders, and the
+# storage-folder rule of core spec 5.5 for chosen folders.
+_MAX_FILE_PATH = 259
+_MAX_DIRECTORY_PATH = 247
+_MAX_CHOSEN_FOLDER = 240
+_NO_ACL_WARNING = ("Hedef disk dosya izinlerini desteklemiyor; paket gizli değil "
+                   "(kayıtlı akış parolaları içerebilir).")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _TURKISH = str.maketrans("çğıöşüÇĞİÖŞÜâîû", "cgiosuCGIOSUaiu")
 _CHUNK = 1024 * 1024
@@ -123,6 +137,7 @@ class _Job:
         self.cancel = threading.Event()
         self.started = time.monotonic()
         self.finished = None
+        self.thread = None
 
     def update(self, progress=None, message=None):
         with _LOCK:
@@ -177,8 +192,30 @@ def _start(job, worker):
         else:
             job.finish("done", "Tamamlandı.", result)
 
-    threading.Thread(target=run, name="radios-transfer-" + job.job_id[:8], daemon=True).start()
+    thread = threading.Thread(target=run, name="radios-transfer-" + job.job_id[:8], daemon=True)
+    job.thread = thread
+    try:
+        thread.start()
+    except BaseException as exc:
+        # No worker (thread limit, interpreter shutdown): the job must not stay
+        # "running" forever and block every later transfer.
+        job.finish("failed", f"Aktarım işi başlatılamadı: {exc}", None)
+        raise
     return job
+
+
+def cancel_running(timeout=5.0):
+    """Service stop path: cancel the running transfer job and wait up to ``timeout``
+    seconds for it to remove its partial files.  True when no job is running any more."""
+    with _LOCK:
+        running = _RUNNING
+    if running is None or running.state != "running":
+        return True
+    running.cancel.set()
+    thread = running.thread
+    if thread is not None and thread is not threading.current_thread():
+        thread.join(max(0.0, float(timeout)))
+    return running.state != "running"
 
 
 def _find(store, principal, station_id, job_id):
@@ -215,47 +252,70 @@ def _json(value):
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=1, allow_nan=False) + "\n").encode("utf-8")
 
 
-def _inside(root, path):
-    return path == root or path.startswith(root.rstrip("/") + "/")
+def _utf16_units(text):
+    return len(text) + sum(1 for char in text if ord(char) > 0xFFFF)
+
+
+def _fits(path, limit):
+    """True when Win32 programs can use ``path`` (always with LongPathsEnabled)."""
+    return _platform.long_paths_enabled() or _utf16_units(str(path)) <= limit
+
+
+def _protected(value):
+    """``value`` is inside one of RadioS's own source or settings folders."""
+    root = os.path.realpath(_PROJECT_ROOT)
+    return any(_platform.is_inside(os.path.join(root, *parts), value) for parts in _PROTECTED)
 
 
 def _directory(value, what):
-    """An absolute, existing, writable, link-free folder outside the project sources."""
+    """An absolute, canonical, existing, writable, link-free folder outside the project
+    sources: the storage-folder rules of core spec 5.5 (``storage_locations.c``)."""
     if not isinstance(value, str) or not value:
         raise StoreError(f"{what} klasörü seçilmedi.")
-    if len(value) > 4000 or any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+    if len(value.encode("utf-8", "surrogatepass")) > 4000 or \
+            any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
         raise StoreError(f"{what} klasör yolu geçersiz.")
-    if not value.startswith("/"):
-        raise StoreError(f"{what} klasör yolu mutlak olmalı (/ ile başlamalı).")
-    if value == "/":
-        raise StoreError("Kök dizin seçilemez.")
-    if "//" in value or os.path.normpath(value) != value:
-        raise StoreError(f"{what} klasör yolu sadeleştirilmiş olmalı (.., // ve sondaki / olmadan).")
+    if not _fits(value, _MAX_CHOSEN_FOLDER):
+        raise StoreError(f"{what} klasör yolu çok uzun; Windows uzun yol desteği kapalıyken en çok "
+                         f"{_MAX_CHOSEN_FOLDER} karakter olabilir.")
+    if not _platform.is_absolute(value):
+        raise StoreError(f"{what} klasör yolu mutlak olmalı (örn. D:\\RadioS\\Paketler).")
+    if not _platform.is_canonical(value):
+        raise StoreError(f"{what} klasör yolu sadeleştirilmiş olmalı (.., \\\\, / ve sondaki \\ olmadan, "
+                         "sürücü harfi büyük).")
+    if _platform.is_root(value):
+        raise StoreError("Sürücü kökü seçilemez.")
     try:
         info = os.lstat(value)
     except FileNotFoundError:
         raise StoreError(f"Klasör bulunamadı: {value}") from None
     except OSError as exc:
         raise StoreError(f"Klasör incelenemedi: {value}") from exc
-    if stat.S_ISLNK(info.st_mode):
-        raise StoreError(f"Klasör sembolik bağlantı olamaz: {value}")
+    if _platform.stat_is_link(info):
+        raise StoreError(f"Klasör sembolik bağlantı veya bağlantı noktası (junction) olamaz: {value}")
     if not stat.S_ISDIR(info.st_mode):
         raise StoreError(f"Seçilen yol bir klasör değil: {value}")
-    if os.path.realpath(value) != value:
-        raise StoreError(f"Klasör yolunda sembolik bağlantı var; gerçek yolu seçin: {value}")
-    if not os.access(value, os.R_OK | os.W_OK | os.X_OK):
+    try:
+        real = os.path.realpath(value)
+    except (OSError, ValueError):
+        real = None
+    # A link, junction or mapped network drive on the way, or an 8.3 short name.
+    if real is None or not _platform.path_equal(real, value):
+        raise StoreError(f"Klasör yolunda bağlantı var; gerçek yolu seçin: {value}")
+    if not _platform.dir_writable(value):
         raise StoreError(f"Klasöre yazma izni yok: {value}")
-    root = os.path.realpath(_PROJECT_ROOT)
-    if any(_inside(os.path.join(root, name), value) for name in _PROTECTED):
+    if _protected(value):
         raise StoreError(f"RadioS'un kendi kaynak veya ayar klasörü seçilemez: {value}")
     return Path(value)
 
 
 def _package(value):
-    if not isinstance(value, str) or not value.startswith("/") or len(value) > 4000 or \
-            any(ord(char) < 0x20 or ord(char) == 0x7F for char in value) or os.path.normpath(value) != value:
+    if not isinstance(value, str) or len(value) > 4000 or \
+            any(ord(char) < 0x20 or ord(char) == 0x7F for char in value) or \
+            not _platform.is_absolute(value) or not _platform.is_canonical(value):
         raise StoreError("Paket yolu mutlak ve sadeleştirilmiş olmalı.")
-    if not value.endswith(".st"):
+    # Explorer may show and keep the extension in capitals.
+    if not value.lower().endswith(".st"):
         raise StoreError("Aktarım paketi .st uzantılı olmalı.")
     try:
         info = os.lstat(value)
@@ -263,12 +323,16 @@ def _package(value):
         raise StoreError(f"Paket bulunamadı: {value}") from None
     except OSError as exc:
         raise StoreError(f"Paket incelenemedi: {value}") from exc
-    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+    if _platform.stat_is_link(info) or not stat.S_ISREG(info.st_mode):
         raise StoreError("Paket normal bir dosya olmalı; bağlantılar kabul edilmez.")
     if info.st_size == 0:
         raise StoreError("Paket dosyası boş.")
-    if not os.access(value, os.R_OK):
-        raise StoreError("Paket dosyası okunamıyor.")
+    # os.access ignores Windows ACLs: open the file to prove it can be read.
+    try:
+        with _platform.open_read(value, nofollow=True):
+            pass
+    except OSError:
+        raise StoreError("Paket dosyası okunamıyor.") from None
     return Path(value)
 
 
@@ -280,11 +344,16 @@ def _slug(name):
 
 
 def _safe_component(text, fallback):
-    clean = "".join(char for char in str(text) if ord(char) >= 0x20 and ord(char) != 0x7F)
-    clean = clean.replace("/", "_").replace("\\", "_").strip().strip(".").strip()
-    if clean in {"", ".", ".."}:
-        clean = fallback
-    return clean[:150]
+    """A valid Windows file or folder name (at most 150 characters) for package text:
+    control characters dropped, ``<>:"/\\|?*`` replaced by ``_``, surrounding dots and
+    spaces stripped, reserved device names (``CON``, ``NUL.mp3``) prefixed."""
+    return _platform.sanitize_component(text, fallback)
+
+
+def _has_name(text):
+    """Something of ``text`` survives _safe_component (not only controls, dots, spaces)."""
+    return any(ord(char) >= 0x20 and ord(char) != 0x7F and char not in " ." and
+               not 0xD800 <= ord(char) <= 0xDFFF for char in str(text))
 
 
 def _redact(value, location=""):
@@ -475,9 +544,13 @@ def export_start(store, principal, station_id, destination_dir, settings="all", 
     if file_name is None:
         file_name = f"RadioS-{_slug(station['name'])}-{datetime.now().strftime('%Y%m%d-%H%M')}.st"
     api._text(file_name, "file_name", 200, True)
-    if not _FILE_NAME.fullmatch(file_name) or file_name.startswith("."):
-        raise StoreError("Paket adı .st ile bitmeli ve klasör ayracı içermemeli.")
+    if not _FILE_NAME.fullmatch(file_name) or file_name.startswith(".") or not _platform.component_valid(file_name):
+        raise StoreError("Paket adı .st ile bitmeli; klasör ayracı, : * ? \" < > | karakterleri ve "
+                         "Windows'a ayrılmış adlar (CON, NUL, COM1 …) içermemeli.")
     target = destination / file_name
+    if not _fits(target, _MAX_FILE_PATH):
+        raise StoreError(f"Paket yolu Windows için çok uzun ({_MAX_FILE_PATH} karakterden fazla); "
+                         "daha kısa bir klasör veya ad seçin.")
     if os.path.lexists(target):
         raise StoreError(f"Aynı adda bir paket zaten var: {target}")
     media_bytes = 0
@@ -592,7 +665,7 @@ def _export_playlists(store, sid, chosen=None, warnings=None):
 def _song_name(row):
     media, library, item = row["media"], row["library"], row["item"]
     source = media.get("source_name")
-    if isinstance(source, str) and _safe_component(source, "") and Path(source).name == source:
+    if isinstance(source, str) and _has_name(source) and Path(source).name == source:
         return _safe_component(source, "parca")
     container = (media.get("technical") or {}).get("container") or "bin"
     base = f"{library['artist']} - {item['title']}" if library.get("artist") else item["title"]
@@ -637,18 +710,43 @@ def _relative_path(value):
 def _export_media(store, sid):
     rows = _media_rows(store, sid)
     # Older imports kept provenance in playlist rows rather than the library.
+    # Locations are Windows paths (imports on this host) or legacy POSIX paths
+    # (databases and packages made on Linux); each kind gets its own common folder.
     locations = {}
     for track in store.scan(desktop_playlist.COLLECTION):
         path = track.get("location")
         if track.get("station_id") == sid and track.get("status") == "active" and \
-                isinstance(path, str) and path.startswith("/") and "\0" not in path:
+                isinstance(path, str) and "\0" not in path and _platform.stored_path_flavour(path):
             locations.setdefault(track.get("media_id"), path)
-    old_paths = [locations[row["library"]["_id"]] for row in rows if row["library"]["_id"] in locations]
-    common = os.path.commonpath([os.path.dirname(path) for path in old_paths]) if old_paths else None
+    grouped = {}
     for row in rows:
         path = locations.get(row["library"]["_id"])
-        if path and common and common != "/" and not row["library"].get("source_relative_path"):
-            row["source_relative_path"] = os.path.relpath(path, common)
+        if path:
+            grouped.setdefault(_platform.stored_path_flavour(path), []).append(path)
+    commons = {}
+    for flavour, paths in grouped.items():
+        module = ntpath if flavour == "windows" else posixpath
+        try:
+            common = module.commonpath([module.dirname(path) for path in paths])
+        except ValueError:          # different drives or shares: no shared folder
+            continue
+        if common and not (_platform.is_root(common) if flavour == "windows" else common == "/"):
+            commons[flavour] = common
+    for row in rows:
+        path = locations.get(row["library"]["_id"])
+        if not path or row["library"].get("source_relative_path"):
+            continue
+        flavour = _platform.stored_path_flavour(path)
+        if flavour not in commons:
+            continue
+        try:
+            if flavour == "windows":
+                relative = ntpath.relpath(path, commons[flavour]).replace("\\", "/")
+            else:
+                relative = posixpath.relpath(path, commons[flavour])
+            row["source_relative_path"] = _relative_path(relative)
+        except (ValueError, StoreError):
+            continue                # an unusable old location keeps the album layout
     rows = _assign_paths(rows)
 
     def strip(records):
@@ -682,6 +780,9 @@ def _song_entry(row, analysis_path):
 def _info(name, stamp, compress):
     info = zipfile.ZipInfo(name, date_time=stamp)
     info.compress_type = compress
+    # Unix "made by" with mode 0644: packages made on Windows and on Linux carry the
+    # same entry metadata (readers ignore it).
+    info.create_system = 3
     info.external_attr = 0o644 << 16
     return info
 
@@ -690,7 +791,8 @@ def _stream_song(zf, info, source, digest, job):
     """Copy one managed object into the package while hashing it."""
     sha = hashlib.sha256()
     size = 0
-    with source.open("rb") as stream, zf.open(info, "w", force_zip64=True) as output:
+    # Share-delete reader: object repair or retention may replace/delete the file meanwhile.
+    with _platform.open_read(source, nofollow=True) as stream, zf.open(info, "w", force_zip64=True) as output:
         for chunk in iter(lambda: stream.read(_CHUNK), b""):
             job.check()
             sha.update(chunk)
@@ -721,9 +823,20 @@ def _run_export(job, store, principal, sid, station, target, plan):
     done = 0
     written, media_bytes = {}, 0
     try:
-        descriptor = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        os.close(descriptor)
-        with zipfile.ZipFile(temp, "w", allowZip64=True) as zf:
+        # The package may carry stream passwords: it is created with the private
+        # owner-only ACL.  FAT/exFAT sticks keep no ACLs (Linux ignored mode 0600
+        # there too): the package is written anyway and the operator is told.
+        private = _platform.acl_supported(target.parent)
+        if not private:
+            warnings.append(_NO_ACL_WARNING)
+        descriptor = _platform.open_fd(temp, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600, private=private)
+        try:
+            raw = os.fdopen(descriptor, "w+b")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        # One handle from creation to close: the private ACL and the bytes stay ours.
+        with raw, zipfile.ZipFile(raw, "w", allowZip64=True) as zf:
             job.update(0, "Ayarlar yazılıyor…")
             settings = []
             for kind, rows in documents.items():
@@ -750,7 +863,7 @@ def _run_export(job, store, principal, sid, station, target, plan):
                 media_key = (digest, row["path"])
                 if media_key not in written:
                     source = media_service.object_path(store, digest)
-                    if source.is_symlink() or not source.is_file():
+                    if _platform.is_link(source) or not source.is_file():
                         warnings.append(f"Medya dosyası eksik, paket dışı bırakıldı: {row['item']['title']}")
                         done += 1
                         continue
@@ -787,18 +900,16 @@ def _run_export(job, store, principal, sid, station, target, plan):
                         "settings": settings, "media": {"count": len(table), "bytes": media_bytes},
                         "redacted": redacted}
             zf.writestr(_info("bilgiler/manifest.json", stamp, zipfile.ZIP_DEFLATED), _json(manifest))
+        # Durable bytes before the name appears (NTFS journals the rename itself).
+        _platform.fsync_file(temp)
         job.check()
-        os.replace(temp, target)
         try:
-            fd = os.open(target.parent, os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-        except OSError:
-            pass
+            # Never overwrite a file that appeared under the name since export_start.
+            _platform.rename_noreplace(temp, target)
+        except FileExistsError:
+            raise StoreError(f"Aynı adda bir paket zaten var: {target}") from None
     finally:
-        temp.unlink(missing_ok=True)
+        _platform.unlink_quietly(temp)
     job.update(100, "Paket yazıldı.")
     return {"package_path": str(target), "bytes": target.stat().st_size, "settings": settings,
             "media": {"count": len(table), "bytes": media_bytes}, "redacted": redacted,
@@ -816,14 +927,38 @@ def _read_json(zf, name, what):
         raise StoreError(f"Paketteki {what} okunamadı ({name}).") from exc
 
 
+class _PackageReader(zipfile.ZipFile):
+    """ZipFile over a share-delete handle (the operator may move or delete the package
+    in Explorer while an import reads it); closing the archive closes the handle."""
+
+    def __init__(self, stream):
+        self._stream = stream
+        super().__init__(stream)
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            self._stream.close()
+
+
 def _open_package(path, *, full_check=True):
     """Validate the container and manifest; return (zipfile, manifest, songs, names)."""
-    if not zipfile.is_zipfile(path):
-        raise StoreError("Dosya bir RadioS aktarım paketi değil.")
     try:
-        zf = zipfile.ZipFile(path)
+        stream = _platform.open_read(path, nofollow=True)
+    except OSError as exc:
+        raise StoreError("Paket açılamadı; dosya okunamıyor.") from exc
+    try:
+        if not zipfile.is_zipfile(stream):
+            raise StoreError("Dosya bir RadioS aktarım paketi değil.")
+        stream.seek(0)
+        zf = _PackageReader(stream)
     except (zipfile.BadZipFile, OSError) as exc:
+        stream.close()
         raise StoreError("Paket açılamadı; dosya bozuk olabilir.") from exc
+    except BaseException:
+        stream.close()
+        raise
     try:
         names = zf.namelist()
         for name in names:
@@ -943,44 +1078,81 @@ def import_start(store, principal, station_id, package_path, settings=True, kind
 
 
 def _place_song(zf, song, root, job, warnings):
-    """Write ``root/<album>/<file>``; equal content is kept, a clash gets ' (2)'."""
-    parts = _relative_path(song["path"][len("medya/"):]).split("/")
+    """Write ``root/<album>/<file>``; equal content is kept, a clash gets ' (2)'.
+
+    Package folders and names come from any system (a Linux package may carry
+    ``Live: 2020/CON.mp3``): every component is made a valid Windows name before it
+    touches the disk, so nothing lands in an alternate data stream or a device."""
+    parts = [_platform.sanitize_component(part, "_", limit=255)
+             for part in _relative_path(song["path"][len("medya/"):]).split("/")]
     if len(parts) > 256:
         raise StoreError(f"Paketteki medya yolu geçersiz: {song['path']}")
     directory = root
     for part in parts[:-1]:
         directory = directory / part
-        if directory.is_symlink():
-            raise StoreError(f"Medya klasöründe sembolik bağlantı var: {directory}")
+        if not _fits(directory, _MAX_DIRECTORY_PATH):
+            raise StoreError(f"Medya klasör yolu Windows için çok uzun: {directory}")
         directory.mkdir(exist_ok=True)
+        # Checked after mkdir: an existing link (symlink or junction) is never entered.
+        if _platform.is_link(directory):
+            raise StoreError(f"Medya klasöründe sembolik bağlantı veya bağlantı noktası var: {directory}")
     name = parts[-1]
     stem, suffix = (name.rsplit(".", 1) + [""])[:2] if "." in name else (name, "")
-    candidate, counter = directory / name, 2
+
+    def candidates():
+        yield directory / name
+        counter = 2
+        while True:
+            yield directory / (f"{stem} ({counter})" + (f".{suffix}" if suffix else ""))
+            counter += 1
+
+    def same_content(path):
+        if _platform.is_link(path) or not path.is_file():
+            return False
+        actual, size = media_service._digest(path)
+        return actual == song["sha256"] and size == song["size_bytes"]
+
+    names = candidates()
+    candidate = next(names)
     while os.path.lexists(candidate):
-        if candidate.is_file() and not candidate.is_symlink():
-            actual, size = media_service._digest(candidate)
-            if actual == song["sha256"] and size == song["size_bytes"]:
-                return candidate, False
-        candidate = directory / (f"{stem} ({counter})" + (f".{suffix}" if suffix else ""))
-        counter += 1
-    temp = directory / f".{candidate.name}.{uuid4().hex}.partial"
+        if same_content(candidate):
+            return candidate, False
+        candidate = next(names)
+    if not _fits(candidate, _MAX_FILE_PATH):
+        raise StoreError(f"Medya dosya yolu Windows için çok uzun: {candidate}")
+    temp = directory / f".{name[:64]}.{uuid4().hex}.partial"
     sha = hashlib.sha256()
     size = 0
     try:
-        with zf.open(song["path"]) as source, temp.open("wb") as output:
+        descriptor = _platform.open_fd(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        try:
+            output = os.fdopen(descriptor, "wb")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with output, zf.open(song["path"]) as source:
             for chunk in iter(lambda: source.read(_CHUNK), b""):
                 job.check()
                 sha.update(chunk)
                 output.write(chunk)
                 size += len(chunk)
             output.flush()
-            os.fsync(output.fileno())
+            _platform.fsync(output)
         if sha.hexdigest() != song["sha256"] or size != song["size_bytes"]:
             raise StoreError(f"Paketteki medya dosyasının özeti uyuşmuyor: {song['path']}")
-        os.replace(temp, candidate)
+        while True:
+            try:
+                # Never overwrite a file that appeared under the name meanwhile.
+                _platform.rename_noreplace(temp, candidate)
+                return candidate, True
+            except FileExistsError:
+                if same_content(candidate):
+                    return candidate, False
+                candidate = next(names)
+                if not _fits(candidate, _MAX_FILE_PATH):
+                    raise StoreError(f"Medya dosya yolu Windows için çok uzun: {candidate}") from None
     finally:
-        temp.unlink(missing_ok=True)
-    return candidate, True
+        _platform.unlink_quietly(temp)
 
 
 def _existing_songs(store, sid):

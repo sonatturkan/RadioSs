@@ -1,0 +1,61 @@
+/* Resources of every RadioS executable (cmake/RadioSWindowsExe.cmake compiles this
+ * file twice: RADIOS_RC_KIND_app for RadioS.exe, RADIOS_RC_KIND_tool for the tests and
+ * tools). radios_resource.h is generated from project(RadioS VERSION ...) and gives
+ * the version numbers and the icon/manifest paths. Without the code_page pragma
+ * windres reads the Turkish strings below as cp1252. */
+#pragma code_page(65001)
+#include <winver.h>
+#include <winuser.h>
+#include "radios_resource.h"
+
+/* The first icon resource: GDK-Win32 uses it for windows and the taskbar. */
+1 ICON RADIOS_RC_ICON_FILE
+
+/* Replaces the default manifest that MinGW's GCC links into every program. */
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST RADIOS_RC_MANIFEST_FILE
+
+#if defined(RADIOS_RC_KIND_app)
+#define RADIOS_RC_DESCRIPTION "RadioS yayın otomasyonu"
+#define RADIOS_RC_INTERNAL_NAME "RadioS"
+#elif defined(RADIOS_RC_KIND_tool)
+#define RADIOS_RC_DESCRIPTION "RadioS test ve araç programı"
+#define RADIOS_RC_INTERNAL_NAME "RadioS-tool"
+#else
+#error "RADIOS_RC_KIND_app or RADIOS_RC_KIND_tool must be defined"
+#endif
+
+#if defined(RADIOS_RC_DEBUG)
+#define RADIOS_RC_FILEFLAGS VS_FF_DEBUG
+#else
+#define RADIOS_RC_FILEFLAGS 0
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    RADIOS_RC_VERSION_MAJOR, RADIOS_RC_VERSION_MINOR, RADIOS_RC_VERSION_PATCH, 0
+ PRODUCTVERSION RADIOS_RC_VERSION_MAJOR, RADIOS_RC_VERSION_MINOR, RADIOS_RC_VERSION_PATCH, 0
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS      RADIOS_RC_FILEFLAGS
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_APP
+ FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041F04B0" /* Turkish, Unicode */
+        BEGIN
+            VALUE "CompanyName", "RadioS"
+            VALUE "FileDescription", RADIOS_RC_DESCRIPTION
+            VALUE "FileVersion", RADIOS_RC_VERSION_STRING
+            VALUE "InternalName", RADIOS_RC_INTERNAL_NAME
+#if defined(RADIOS_RC_KIND_app)
+            VALUE "OriginalFilename", "RadioS.exe"
+#endif
+            VALUE "ProductName", "RadioS"
+            VALUE "ProductVersion", RADIOS_RC_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x041F, 1200
+    END
+END

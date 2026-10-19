@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 200809L
 #include "radios/widgets.h"
 #include "radios/editors.h"
 #include "radios/data.h"
@@ -8,11 +7,13 @@
 #include "radios/player_loader.h"
 #include "radios/media_jobs.h"
 #include "radios/playlist_browser.h"
+#include "radios/platform.h"
 #include <errno.h>
-#include <fcntl.h>
-#include <glib/gstdio.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <string.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <winioctl.h>
+#include <dbt.h>
 
 typedef struct {
     gchar *title, *artist, *album, *duration, *genre, *key, *location, *comment;
@@ -1190,7 +1191,7 @@ playlist_track_editor(PlaylistView *view, gboolean is_new)
             gtk_text_buffer_set_text(gtk_text_view_get_buffer(GTK_TEXT_VIEW(input)), values[i], -1);
             gtk_widget_set_size_request(input, -1, 80);
         } else {
-            input = radios_ui_entry(i == 3 ? "03:30" : (i == 7 ? "/Music/parca.mp3 veya URI" : NULL));
+            input = radios_ui_entry(i == 3 ? "03:30" : (i == 7 ? "C:\\Müzik\\parca.mp3 veya URI" : NULL));
             gtk_entry_set_text(GTK_ENTRY(input), values[i]);
             gtk_entry_set_max_length(GTK_ENTRY(input), i == 7 ? 4096 : (i == 0 ? 160 : 120));
         }
@@ -1335,9 +1336,12 @@ playlist_export(PlaylistView *view, gboolean csv)
     gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
     gtk_widget_set_name(dialog, "pw-export-dialog");
     gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE);
-    gchar *name = g_strdup_printf("%s.%s", draft->name, csv ? "csv" : "m3u8");
+    gchar *stem = g_utf8_substring(draft->name, 0, MIN(g_utf8_strlen(draft->name, -1), 200));
+    gchar *name = g_strdup_printf("%s.%s", stem, csv ? "csv" : "m3u8"); g_free(stem);
     for (gchar *cursor = name; *cursor != '\0'; ++cursor)
         if (strchr("<>:\"/\\|?*", *cursor) != NULL || (guchar)*cursor < 32) *cursor = '_';
+    /* "CON.csv", "NUL.m3u8" ... name devices on Windows 10, not files. */
+    if (!radios_path_component_valid(name)) { gchar *safe = g_strconcat("_", name, NULL); g_free(name); name = safe; }
     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), name); g_free(name);
     g_object_set_data_full(G_OBJECT(dialog), "pw-export-data", g_string_free(output, FALSE), g_free);
     g_signal_connect(dialog, "response", G_CALLBACK(playlist_export_response), view);
@@ -1531,7 +1535,10 @@ typedef struct {
     GWeakRef page;
     GtkWidget *dialog, *controls, *file, *status, *choices, *selected, *collection, *review;
     GtkWidget *library_key, *name_policy, *duplicates, *cues, *format, *folder, *sources, *inputs;
-    GVolumeMonitor *volumes;
+    GPtrArray *devices; /* RemovableVolume*: last USB / SD enumeration */
+    GCancellable *device_cancel;
+    guint device_generation, device_timer;
+    gboolean device_filter;
     guint collection_tracks;
     GCancellable *cancel;
     gchar *xml_base64, *preview_hash, *usb_root, *auto_library_key;
@@ -1543,6 +1550,7 @@ typedef struct { GWeakRef page; gboolean applying; } XmlOperation;
 typedef struct { gchar *path; gboolean device; } ImportSource;
 
 static void xml_preview_request(XmlImport *import, gboolean discovery);
+static GdkFilterReturn import_device_filter(GdkXEvent *native, GdkEvent *event, gpointer data);
 
 static gboolean import_device(XmlImport *import)
 { return g_strcmp0(gtk_combo_box_get_active_id(GTK_COMBO_BOX(import->format)), "usb") == 0; }
@@ -1735,30 +1743,33 @@ xml_worker(GTask *task, gpointer object, gpointer task_data, GCancellable *cance
     (void)object;
     gint descriptor = -1;
     if (!g_cancellable_set_error_if_cancelled(cancel, &error)) {
+        /* No link, junction or mount point is followed below the chosen root
+         * (ELOOP), and every directory handle stays open while the next
+         * component is opened. */
         if (source->device) {
-            gint directory = g_open(source->path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0);
+            gint directory = radios_fs_open(source->path, RADIOS_O_RDONLY | RADIOS_O_DIRECTORY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
             const gchar *components[] = {"PIONEER", "rekordbox"};
             for (guint component = 0; directory >= 0 && component < G_N_ELEMENTS(components); ++component) {
-                gint child = openat(directory, components[component], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-                gint saved_errno = errno; close(directory); directory = child; errno = saved_errno;
+                gint child = radios_fs_openat(directory, components[component], RADIOS_O_RDONLY | RADIOS_O_DIRECTORY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
+                gint saved_errno = errno; radios_fd_close(directory); directory = child; errno = saved_errno;
             }
             if (directory >= 0) {
-                descriptor = openat(directory, "export.pdb", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
-                gint saved_errno = errno; close(directory); errno = saved_errno;
+                descriptor = radios_fs_openat(directory, "export.pdb", RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
+                gint saved_errno = errno; radios_fd_close(directory); errno = saved_errno;
             }
-        } else descriptor = g_open(source->path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, 0);
+        } else descriptor = radios_fs_open(source->path, RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
         if (descriptor < 0) g_set_error(&error, G_IO_ERROR, g_io_error_from_errno(errno),
-            source->device ? "USB Device Library bulunamadı: PIONEER/rekordbox/export.pdb. OneLibrary/exportLibrary.db tek başına desteklenmiyor. (%s)" : "Dosya açılamadı: %s", g_strerror(errno));
+            source->device ? "USB Device Library bulunamadı: PIONEER\\rekordbox\\export.pdb. OneLibrary/exportLibrary.db tek başına desteklenmiyor. (%s)" : "Dosya açılamadı: %s", g_strerror(errno));
     }
     if (descriptor >= 0) {
-        struct stat info;
-        if (fstat(descriptor, &info) != 0) g_set_error(&error, G_IO_ERROR, g_io_error_from_errno(errno), "Kaynak incelenemedi: %s", g_strerror(errno));
-        else if (!S_ISREG(info.st_mode)) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NOT_REGULAR_FILE, "Tracklist kaynağı düzenli bir dosya olmalı.");
-        else if (info.st_size > (off_t)limit) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
+        RadioSFileInfo info, after;
+        if (radios_fd_stat(descriptor, &info) != 0) g_set_error(&error, G_IO_ERROR, g_io_error_from_errno(errno), "Kaynak incelenemedi: %s", g_strerror(errno));
+        else if (info.type != RADIOS_FILE_TYPE_REGULAR) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NOT_REGULAR_FILE, "Tracklist kaynağı düzenli bir dosya olmalı.");
+        else if (info.size < 0 || (guint64)info.size > limit) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE,
             source->device ? "USB export.pdb en fazla 16 MiB olabilir." : "Eski XML kaynağı en fazla 1 MiB olabilir.");
         while (!error && length <= limit) {
             if (g_cancellable_set_error_if_cancelled(cancel, &error)) break;
-            ssize_t count = read(descriptor, contents + length, MIN((gsize)65536, limit + 1 - length));
+            gssize count = radios_fd_pread(descriptor, contents + length, MIN((gsize)65536, limit + 1 - length), (gint64)length);
             if (count == 0) break;
             if (count < 0) {
                 if (errno == EINTR) continue;
@@ -1766,12 +1777,11 @@ xml_worker(GTask *task, gpointer object, gpointer task_data, GCancellable *cance
             }
             length += (gsize)count;
         }
-        struct stat after;
-        if (!error && (fstat(descriptor, &after) != 0 || after.st_size != info.st_size ||
-            after.st_mtim.tv_sec != info.st_mtim.tv_sec || after.st_mtim.tv_nsec != info.st_mtim.tv_nsec ||
-            after.st_ctim.tv_sec != info.st_ctim.tv_sec || after.st_ctim.tv_nsec != info.st_ctim.tv_nsec || length != (gsize)info.st_size))
+        /* Same file, size, LastWriteTime and ChangeTime before and after the
+         * read: a device rewritten by rekordbox meanwhile is rejected. */
+        if (!error && (radios_fd_stat(descriptor, &after) != 0 || !radios_file_info_same(&info, &after) || length != (gsize)info.size))
             g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_BUSY, "Tracklist okunurken değişti; yeniden seçin.");
-        close(descriptor);
+        radios_fd_close(descriptor);
     }
     if (!error && length > limit) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_NO_SPACE, "Tracklist boyut sınırını aşıyor.");
     if (!error && length == 0) g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "Tracklist kaynağı boş.");
@@ -1823,21 +1833,22 @@ import_file_selected(GtkFileChooserButton *chooser, gpointer data)
     if (!filename) { gtk_label_set_text(GTK_LABEL(import->status), "Dosya seçilmedi."); return; }
     import->busy = TRUE; xml_update_action(import);
     ImportSource *source = g_new0(ImportSource, 1); source->device = import_device(import);
-    source->path = g_canonicalize_filename(filename, NULL); g_free(filename);
+    source->path = radios_path_normalize(filename); g_free(filename);
     g_clear_pointer(&import->usb_root, g_free);
     if (source->device) {
+        /* FAT/exFAT media are case-insensitive: "Pioneer\Rekordbox" is the same folder. */
         gchar *base = g_path_get_basename(source->path);
-        if (g_str_equal(base, "rekordbox")) {
+        if (g_ascii_strcasecmp(base, "rekordbox") == 0) {
             gchar *parent = g_path_get_dirname(source->path), *parent_name = g_path_get_basename(parent);
-            if (g_str_equal(parent_name, "PIONEER")) { g_free(source->path); source->path = g_path_get_dirname(parent); }
+            if (g_ascii_strcasecmp(parent_name, "PIONEER") == 0) { g_free(source->path); source->path = g_path_get_dirname(parent); }
             g_free(parent); g_free(parent_name);
-        } else if (g_str_equal(base, "PIONEER")) {
+        } else if (g_ascii_strcasecmp(base, "PIONEER") == 0) {
             gchar *parent = g_path_get_dirname(source->path); g_free(source->path); source->path = parent;
         }
         g_free(base); import->usb_root = g_strdup(source->path);
         const gchar *key = gtk_entry_get_text(GTK_ENTRY(import->library_key));
         const gchar *mount = gtk_combo_box_get_active_id(GTK_COMBO_BOX(import->sources));
-        if ((g_strcmp0(key, import->auto_library_key) == 0 && g_strcmp0(mount, source->path) != 0) ||
+        if ((g_strcmp0(key, import->auto_library_key) == 0 && (!mount || !radios_path_equal(mount, source->path))) ||
             g_str_has_prefix(key, "usb-path-") || g_str_equal(key, "native-rekordbox-usb")) {
             gchar *digest = g_compute_checksum_for_string(G_CHECKSUM_SHA256, source->path, -1);
             gchar *identity = g_strdup_printf("usb-path-%.32s", digest); gtk_entry_set_text(GTK_ENTRY(import->library_key), identity);
@@ -1866,6 +1877,9 @@ xml_import_destroyed(GtkWidget *widget, gpointer data)
 {
     XmlImport *import = data; (void)widget; import->closed = TRUE;
     if (import->cancel) g_cancellable_cancel(import->cancel);
+    if (import->device_cancel) g_cancellable_cancel(import->device_cancel);
+    if (import->device_filter) { gdk_window_remove_filter(NULL, import_device_filter, import); import->device_filter = FALSE; }
+    g_clear_handle_id(&import->device_timer, g_source_remove);
     GtkWidget *page = xml_page(import);
     if (page) {
         PlaylistView *view = g_object_get_data(G_OBJECT(page), "playlist-view");
@@ -1879,8 +1893,7 @@ xml_import_free(gpointer data)
 {
     XmlImport *import = data;
     g_clear_object(&import->cancel); g_weak_ref_clear(&import->page);
-    if (import->volumes) g_signal_handlers_disconnect_by_data(import->volumes, import);
-    g_clear_object(&import->volumes);
+    g_clear_object(&import->device_cancel); g_clear_pointer(&import->devices, g_ptr_array_unref);
     g_free(import->xml_base64); g_free(import->preview_hash); g_free(import->usb_root); g_free(import->auto_library_key);
     g_clear_pointer(&import->retry_body, json_node_free); g_free(import);
 }
@@ -1958,53 +1971,143 @@ import_format_changed(GtkComboBox *combo, gpointer data)
     xml_update_action(import);
 }
 
-static void
-import_mounts_changed(GVolumeMonitor *monitor, GMount *mount, gpointer data)
+/* ---- USB / SD volumes (Windows volume enumeration) ----
+ * GVolumeMonitor on Windows reports no unmountable mounts and no UUIDs, so the
+ * list would stay empty.  Drives are enumerated with Win32 instead: removable
+ * drives plus fixed disks on a USB/SD/MMC bus (USB hard disks, card readers),
+ * each only while it holds a mounted file system. */
+typedef struct { gchar *root, *label, *uuid; } RemovableVolume;
+
+static void removable_volume_free(gpointer data)
+{ RemovableVolume *volume = data; g_free(volume->root); g_free(volume->label); g_free(volume->uuid); g_free(volume); }
+
+static gboolean
+volume_on_external_bus(const wchar_t *root)
 {
-    (void)mount; XmlImport *import = data; if (import->closed) return;
+    wchar_t device[] = L"\\\\.\\X:"; device[4] = root[0];
+    /* Zero access is enough for the storage property query; no admin rights. */
+    HANDLE handle = CreateFileW(device, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    if (handle == INVALID_HANDLE_VALUE) return FALSE;
+    STORAGE_PROPERTY_QUERY query = { .PropertyId = StorageDeviceProperty, .QueryType = PropertyStandardQuery };
+    union { STORAGE_DEVICE_DESCRIPTOR descriptor; BYTE bytes[1024]; } output;
+    DWORD returned = 0; gboolean external = FALSE;
+    memset(&output, 0, sizeof output);
+    if (DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY, &query, sizeof query, &output, sizeof output, &returned, NULL) &&
+        returned >= offsetof(STORAGE_DEVICE_DESCRIPTOR, BusType) + sizeof output.descriptor.BusType)
+        external = output.descriptor.BusType == BusTypeUsb || output.descriptor.BusType == BusTypeSd || output.descriptor.BusType == BusTypeMmc;
+    CloseHandle(handle);
+    return external;
+}
+
+/* Worker thread: never on the GTK thread, a waking USB disk may take seconds. */
+static GPtrArray *
+removable_volumes(void)
+{
+    GPtrArray *volumes = g_ptr_array_new_with_free_func(removable_volume_free);
+    /* An empty card reader or floppy slot must not raise "insert a disk" dialogs. */
+    DWORD previous_mode = 0;
+    SetThreadErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, &previous_mode);
+    wchar_t drives[27 * 4 + 1];
+    DWORD length = GetLogicalDriveStringsW(G_N_ELEMENTS(drives) - 1, drives);
+    for (const wchar_t *root = drives; length > 0 && length < G_N_ELEMENTS(drives) && *root; root += wcslen(root) + 1) {
+        UINT type = GetDriveTypeW(root);
+        if (type != DRIVE_REMOVABLE && !(type == DRIVE_FIXED && volume_on_external_bus(root))) continue;
+        wchar_t label[MAX_PATH + 1] = L"", file_system[MAX_PATH + 1] = L"";
+        DWORD serial = 0;
+        if (!GetVolumeInformationW(root, label, G_N_ELEMENTS(label), &serial, NULL, NULL, file_system, G_N_ELEMENTS(file_system)))
+            continue; /* no medium */
+        RemovableVolume *volume = g_new0(RemovableVolume, 1);
+        volume->root = g_utf16_to_utf8((const gunichar2 *)root, -1, NULL, NULL, NULL);
+        volume->label = g_utf16_to_utf8((const gunichar2 *)label, -1, NULL, NULL, NULL);
+        if (!volume->root) { removable_volume_free(volume); continue; }
+        /* Same string as the Linux blkid UUID of the medium, so a stick keeps
+         * its "usb-<uuid>" library identity across systems: "ABCD-1234" for
+         * FAT/exFAT (32-bit serial), 16 hex digits for NTFS (64-bit serial). */
+        RadioSFileInfo info;
+        if (_wcsicmp(file_system, L"NTFS") == 0 && radios_fs_stat(volume->root, TRUE, &info) == 0 && info.device > G_MAXUINT32)
+            volume->uuid = g_strdup_printf("%016" G_GINT64_MODIFIER "X", info.device);
+        else volume->uuid = g_strdup_printf("%04X-%04X", (guint)(serial >> 16), (guint)(serial & 0xFFFFu));
+        g_ptr_array_add(volumes, volume);
+    }
+    SetThreadErrorMode(previous_mode, NULL);
+    return volumes;
+}
+
+static void
+import_volumes_worker(GTask *task, gpointer object, gpointer task_data, GCancellable *cancel)
+{
+    (void)object; (void)task_data; (void)cancel;
+    g_task_return_pointer(task, removable_volumes(), (GDestroyNotify)g_ptr_array_unref);
+}
+
+static void
+import_volumes_loaded(GObject *object, GAsyncResult *result, gpointer data)
+{
+    XmlImport *import = g_object_get_data(object, "pw-xml-import");
+    GPtrArray *volumes = g_task_propagate_pointer(G_TASK(result), NULL);
+    if (!import || import->closed || GPOINTER_TO_UINT(data) != import->device_generation || !volumes) {
+        if (volumes) g_ptr_array_unref(volumes);
+        return;
+    }
+    g_clear_pointer(&import->devices, g_ptr_array_unref); import->devices = volumes;
     gchar *selected = g_strdup(gtk_combo_box_get_active_id(GTK_COMBO_BOX(import->sources)));
     gboolean updating = import->updating; import->updating = TRUE;
     gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(import->sources));
     gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(import->sources), "-1", "Klasörden seç");
-    GList *mounts = g_volume_monitor_get_mounts(monitor);
-    for (GList *item = mounts; item; item = item->next) {
-        GMount *device = item->data; GFile *root = g_mount_get_root(device);
-        gchar *path = g_file_get_path(root), *name = g_mount_get_name(device);
-        if (path && g_mount_can_unmount(device)) {
-            gchar *label = g_strdup_printf("%s · %s", name, path);
-            gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(import->sources), path, label); g_free(label);
-        }
-        g_free(path); g_free(name); g_object_unref(root);
+    for (guint i = 0; i < volumes->len; ++i) {
+        RemovableVolume *volume = g_ptr_array_index(volumes, i);
+        gchar *label = g_strdup_printf("%s · %s", volume->label && *volume->label ? volume->label : "USB / SD aygıtı", volume->root);
+        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(import->sources), volume->root, label); g_free(label);
     }
-    g_list_free_full(mounts, g_object_unref);
     if (!selected || !gtk_combo_box_set_active_id(GTK_COMBO_BOX(import->sources), selected))
         gtk_combo_box_set_active_id(GTK_COMBO_BOX(import->sources), "-1");
     import->updating = updating; g_free(selected);
 }
 
+static void
+import_volumes_refresh(XmlImport *import)
+{
+    if (import->closed) return;
+    if (import->device_cancel) g_cancellable_cancel(import->device_cancel);
+    g_clear_object(&import->device_cancel); import->device_cancel = g_cancellable_new();
+    GTask *task = g_task_new(import->dialog, import->device_cancel, import_volumes_loaded, GUINT_TO_POINTER(++import->device_generation));
+    g_task_run_in_thread(task, import_volumes_worker); g_object_unref(task);
+}
+
+static gboolean
+import_device_timer(gpointer data)
+{ XmlImport *import = data; import->device_timer = 0; import_volumes_refresh(import); return G_SOURCE_REMOVE; }
+
+/* WM_DEVICECHANGE reaches every top-level window: a stick plugged in or pulled
+ * out, or a card inserted into a reader, refreshes the list shortly after
+ * (the file system mounts a moment after the arrival message). */
+static GdkFilterReturn
+import_device_filter(GdkXEvent *native, GdkEvent *event, gpointer data)
+{
+    (void)event; const MSG *message = (const MSG *)native; XmlImport *import = data;
+    if (message->message == WM_DEVICECHANGE && !import->closed &&
+        (message->wParam == DBT_DEVICEARRIVAL || message->wParam == DBT_DEVICEREMOVECOMPLETE) && !import->device_timer)
+        import->device_timer = g_timeout_add(500, import_device_timer, import);
+    return GDK_FILTER_CONTINUE;
+}
+
 static void import_devices_refresh(GtkButton *button, gpointer data)
-{ (void)button; XmlImport *import = data; import_mounts_changed(import->volumes, NULL, import); }
+{ (void)button; import_volumes_refresh(data); }
 
 static void
 import_device_changed(GtkComboBox *combo, gpointer data)
 {
     XmlImport *import = data; if (import->closed || import->updating || import->busy || import->retry_body) return;
     const gchar *path = gtk_combo_box_get_active_id(combo); if (!path || g_str_equal(path, "-1")) return;
-    GList *mounts = g_volume_monitor_get_mounts(import->volumes);
-    for (GList *item = mounts; item; item = item->next) {
-        GMount *mount = item->data; GFile *root = g_mount_get_root(mount); gchar *location = g_file_get_path(root);
-        if (g_strcmp0(location, path) == 0) {
-            gchar *uuid = g_mount_get_uuid(mount);
-            if (uuid) {
-                gchar *identity = g_strdup_printf("usb-%.100s", uuid);
-                g_free(import->auto_library_key); import->auto_library_key = g_strdup(identity);
-                gtk_entry_set_text(GTK_ENTRY(import->library_key), identity); g_free(identity);
-            }
-            g_free(uuid);
+    for (guint i = 0; import->devices && i < import->devices->len; ++i) {
+        RemovableVolume *volume = g_ptr_array_index(import->devices, i);
+        if (radios_path_equal(volume->root, path) && volume->uuid) {
+            gchar *identity = g_strdup_printf("usb-%.100s", volume->uuid);
+            g_free(import->auto_library_key); import->auto_library_key = g_strdup(identity);
+            gtk_entry_set_text(GTK_ENTRY(import->library_key), identity); g_free(identity);
+            break;
         }
-        g_free(location); g_object_unref(root);
     }
-    g_list_free_full(mounts, g_object_unref);
     if (gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(import->folder), path))
         import_file_selected(GTK_FILE_CHOOSER_BUTTON(import->folder), import);
 }
@@ -2026,7 +2129,7 @@ playlist_import(GtkButton *button, gpointer data)
     gtk_combo_box_set_active_id(GTK_COMBO_BOX(import->format), "usb");
     import->folder = gtk_file_chooser_button_new("USB / SD kök klasörü", GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);
     import->file = gtk_file_chooser_button_new("Eski rekordbox XML dosyası", GTK_FILE_CHOOSER_ACTION_OPEN);
-    import->sources = gtk_combo_box_text_new(); import->volumes = g_volume_monitor_get();
+    import->sources = gtk_combo_box_text_new();
     import->inputs = gtk_stack_new(); gtk_stack_set_homogeneous(GTK_STACK(import->inputs), FALSE);
     import->status = radios_ui_label("USB / SD aygıtını veya kök klasörünü seç.", "pw-status");
     import->choices = radios_ui_box(GTK_ORIENTATION_VERTICAL, 6, "pw-import-lists");
@@ -2058,7 +2161,7 @@ playlist_import(GtkButton *button, gpointer data)
     gtk_container_set_border_width(GTK_CONTAINER(body), 22); gtk_box_set_spacing(GTK_BOX(body), 12);
     gtk_box_pack_start(GTK_BOX(body), import->controls, TRUE, TRUE, 0);
     GtkFileFilter *filter = gtk_file_filter_new(); gtk_file_filter_set_name(filter, "rekordbox XML (*.xml)");
-    gtk_file_filter_add_pattern(filter, "*.xml"); gtk_file_filter_add_mime_type(filter, "application/xml");
+    gtk_file_filter_add_pattern(filter, "*.[xX][mM][lL]"); gtk_file_filter_add_mime_type(filter, "application/xml");
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(import->file), filter);
     gtk_box_pack_start(GTK_BOX(import->controls), import->format, FALSE, FALSE, 0);
     GtkWidget *device_input = radios_ui_box(GTK_ORIENTATION_VERTICAL, 8, NULL);
@@ -2103,9 +2206,10 @@ playlist_import(GtkButton *button, gpointer data)
     g_signal_connect(import->format, "changed", G_CALLBACK(import_format_changed), import);
     g_signal_connect(import->sources, "changed", G_CALLBACK(import_device_changed), import);
     g_signal_connect(refresh, "clicked", G_CALLBACK(import_devices_refresh), import);
-    g_signal_connect(import->volumes, "mount-added", G_CALLBACK(import_mounts_changed), import);
-    g_signal_connect(import->volumes, "mount-removed", G_CALLBACK(import_mounts_changed), import);
-    import_mounts_changed(import->volumes, NULL, import); gtk_widget_set_sensitive(import->cues, FALSE);
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(import->sources), "-1", "Klasörden seç");
+    gtk_combo_box_set_active_id(GTK_COMBO_BOX(import->sources), "-1");
+    gdk_window_add_filter(NULL, import_device_filter, import); import->device_filter = TRUE;
+    import_volumes_refresh(import); gtk_widget_set_sensitive(import->cues, FALSE);
     g_signal_connect(import->collection, "toggled", G_CALLBACK(xml_selection_changed), import);
     g_signal_connect(import->library_key, "changed", G_CALLBACK(xml_selection_changed), import);
     g_signal_connect(dialog, "response", G_CALLBACK(playlist_import_response), import);

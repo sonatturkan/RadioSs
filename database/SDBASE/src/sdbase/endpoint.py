@@ -22,6 +22,7 @@ from typing import Any, BinaryIO, Mapping
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from . import _platform
 from .endpoint_protocol import EndpointTransport, TransportError
 from .endpoint_journal import EndpointError, EndpointJournal, _json
 from .endpoint_media import EndpointMediaStore, MediaIntegrityError
@@ -116,7 +117,8 @@ class EndpointAgent:
         path = root / "Endpoint.sdb"
         if not path.is_file():
             raise EndpointError("endpoint is not initialized")
-        with path.open("rb") as stream:
+        # Share-delete binary reader: never blocks the owning agent's journal handle.
+        with _platform.open_read(path) as stream:
             first = stream.readline()
         try:
             record = json.loads(first)
@@ -164,7 +166,8 @@ class EndpointAgent:
         _uuid(snapshot.get("plan_id"), "plan_id")
         try:
             service_date = date.fromisoformat(snapshot["service_date"])
-            zone = ZoneInfo(snapshot["station_timezone"])
+            # Exact-case IANA key: Windows tzdata lookups are case-insensitive.
+            zone = ZoneInfo(_platform.canonical_timezone(snapshot["station_timezone"]))
             activate_after = _instant(snapshot["activate_after"], "activate_after")
         except (KeyError, TypeError, ValueError, ZoneInfoNotFoundError) as exc:
             raise EndpointError("snapshot requires service_date, station_timezone and activate_after") from exc
@@ -389,8 +392,9 @@ class EndpointAgent:
     def reconcile_startup(self) -> dict[str, Any]:
         removed = 0
         for path in self.staging.glob("*.partial"):
-            if path.is_file() and not path.is_symlink():
-                path.unlink()
+            # A scanner (Defender, indexer) holding a partial file must not make the
+            # agent fail to open; the next start retries the leftover.
+            if not _platform.is_link(path) and path.is_file() and _platform.unlink_quietly(path):
                 removed += 1
         counts = self.verify_media()
         active = self._identity.get("active_revision_id")

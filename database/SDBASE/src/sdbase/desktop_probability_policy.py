@@ -6,8 +6,9 @@ Native C owns deterministic selection and actual-consumption checkpoints.
 from __future__ import annotations
 
 import math
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfoNotFoundError
 
+from . import _platform
 from .storage import StoreError
 
 NODE_KEYS = {"schema", "seed", "transitions", "jingles", "children"}
@@ -74,7 +75,7 @@ def validate_probability_policy(policy, station_id, state, *, persisted=False, p
             if not isinstance(zone, str) or not zone or len(zone.encode("utf-8")) > 64:
                 raise StoreError("probability timezone must be a known IANA timezone")
             try:
-                ZoneInfo(zone)
+                _platform.canonical_timezone(zone)   # exact case (Windows lookups ignore it)
             except (ZoneInfoNotFoundError, ValueError) as exc:
                 raise StoreError("probability timezone must be a known IANA timezone") from exc
 

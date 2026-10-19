@@ -69,6 +69,33 @@ struct RadioSAudioController {
 };
 typedef struct { RadioSAudioController *audio; guint deck; guint64 epoch; } OwnerGuard;
 static void binding_update(AudioBinding *binding, const RadioSAudioSnapshot *snapshot, gboolean force);
+/* Windows cannot delete a file that another handle holds open without
+ * FILE_SHARE_DELETE, and an unloaded preview deck's decoder may still be
+ * closing its WAV: retry on the main loop (every 200 ms, up to 10 s) instead
+ * of leaving transient preview PCM in the cache. */
+typedef struct { gchar *path; guint attempts; } PreviewDelete;
+static gboolean preview_delete_retry(gpointer value)
+{
+    PreviewDelete *pending = value;
+    if (g_unlink(pending->path) == 0 || errno == ENOENT || ++pending->attempts >= 50) {
+        if (pending->attempts >= 50) g_warning("Önizleme dosyası silinemedi: %s", pending->path);
+        g_free(pending->path); g_free(pending); return G_SOURCE_REMOVE;
+    }
+    return G_SOURCE_CONTINUE;
+}
+static void preview_file_delete(const gchar *path)
+{
+    if (!path || g_unlink(path) == 0 || errno == ENOENT) return;
+    PreviewDelete *pending = g_new0(PreviewDelete, 1); pending->path = g_strdup(path);
+    g_timeout_add(200, preview_delete_retry, pending);
+}
+/* A snapshot holds 2 x 64 device names of 513 bytes (~130 KiB): it lives on
+ * the heap, never on a thread stack. */
+static RadioSAudioSnapshot *snapshot_take(RadioSAudioController *audio)
+{
+    RadioSAudioSnapshot *snapshot = g_new(RadioSAudioSnapshot, 1);
+    radios_audio_engine_snapshot(audio->engine, snapshot); return snapshot;
+}
 static void mixer_loaded(RadioSViewContext *, GtkWidget *, JsonObject *, gpointer);
 static void transition_cancel(RadioSAudioController *audio);
 static void autosave_schedule(RadioSAudioController *audio, guint delay_ms);
@@ -591,11 +618,11 @@ gboolean radios_audio_ui_channel_input_status(RadioSViewContext *ctx, guint chan
 guint radios_audio_ui_capture_devices(RadioSViewContext *ctx, RadioSAudioDevice *devices, guint capacity)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return 0;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); guint count = 0;
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); guint count = 0;
     for (guint pass = 0; pass < 2; ++pass)
-        for (guint i = 0; i < snapshot.input_count; ++i) {
-            if (snapshot.inputs[i].monitor != (pass == 1)) continue;
-            if (devices && count < capacity) devices[count] = snapshot.inputs[i];
+        for (guint i = 0; i < snapshot->input_count; ++i) {
+            if (snapshot->inputs[i].monitor != (pass == 1)) continue;
+            if (devices && count < capacity) devices[count] = snapshot->inputs[i];
             ++count;
         }
     return devices ? MIN(count, capacity) : count;
@@ -643,18 +670,18 @@ gboolean radios_audio_ui_remove_network_source(RadioSViewContext *ctx, const gch
 guint radios_audio_ui_sources_hash(RadioSViewContext *ctx)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return 0;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); guint value = 5381;
-    for (guint i = 0; i < snapshot.input_count; ++i)
-        value = (value * 33) ^ g_str_hash(snapshot.inputs[i].name) ^ g_str_hash(snapshot.inputs[i].description) ^ (snapshot.inputs[i].monitor ? 1u : 0u);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); guint value = 5381;
+    for (guint i = 0; i < snapshot->input_count; ++i)
+        value = (value * 33) ^ g_str_hash(snapshot->inputs[i].name) ^ g_str_hash(snapshot->inputs[i].description) ^ (snapshot->inputs[i].monitor ? 1u : 0u);
     for (guint i = 0; i < audio->network_count; ++i) value = (value * 33) ^ g_str_hash(audio->network[i].name) ^ g_str_hash(audio->network[i].url);
-    return value ^ snapshot.input_count ^ (audio->network_count << 8);
+    return value ^ snapshot->input_count ^ (audio->network_count << 8);
 }
 gboolean radios_audio_ui_get_mixer(RadioSViewContext *ctx, RadioSAudioMixerConfig *cfg, RadioSAudioDspMeters *meters, gdouble *master_db)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return FALSE;
-    RadioSAudioSnapshot snap; radios_audio_engine_snapshot(audio->engine, &snap);
-    if (cfg) *cfg = snap.mixer;
-    if (meters) *meters = snap.dsp_meters;
+    g_autofree RadioSAudioSnapshot *snap = snapshot_take(audio);
+    if (cfg) *cfg = snap->mixer;
+    if (meters) *meters = snap->dsp_meters;
     if (master_db) *master_db = audio->preferences.main_gain_db;
     return TRUE;
 }
@@ -760,7 +787,7 @@ void radios_audio_ui_mixer_reload(RadioSViewContext *ctx)
 gboolean radios_audio_ui_microphone(RadioSViewContext *ctx, gboolean on, GError **error)
 { RadioSAudioController *audio = controller(ctx); return audio ? radios_audio_engine_set_microphone_gate(audio->engine, on, error) : unavailable(error); }
 gboolean radios_audio_ui_microphone_active(RadioSViewContext *ctx)
-{ RadioSAudioController *audio = controller(ctx); if (!audio) return FALSE; RadioSAudioSnapshot snap; radios_audio_engine_snapshot(audio->engine, &snap); return snap.microphone_gate; }
+{ RadioSAudioController *audio = controller(ctx); if (!audio) return FALSE; g_autofree RadioSAudioSnapshot *snap = snapshot_take(audio); return snap->microphone_gate; }
 gboolean radios_audio_ui_microphone_ptt(RadioSViewContext *ctx, gboolean held, GError **error)
 { RadioSAudioController *audio = controller(ctx); return audio ? radios_audio_engine_set_microphone_ptt(audio->engine, held, error) : unavailable(error); }
 gboolean radios_audio_ui_set_channel_on_air(RadioSViewContext *ctx, guint channel, gboolean on_air, GError **error)
@@ -839,8 +866,8 @@ static void preferences_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonObj
     GError *error = NULL;
     if (!apply_engine(audio, &error)) { notify_audio(audio, error->message); g_clear_error(&error); }
     if (keep_local) { mark_dirty(audio); autosave_schedule(audio, 250); }
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-    for (guint i = 0; i < audio->bindings->len; ++i) binding_update(g_ptr_array_index(audio->bindings, i), &snapshot, TRUE);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+    for (guint i = 0; i < audio->bindings->len; ++i) binding_update(g_ptr_array_index(audio->bindings, i), snapshot, TRUE);
 }
 static void binding_free(gpointer value)
 {
@@ -907,7 +934,7 @@ static gboolean detail_spec(RadioSAudioController *audio, JsonObject *detail, Ra
     JsonObject *media = json_node_get_object(media_node), *version = json_node_get_object(version_node);
     const gchar *station = radios_json_string(media, "station_id", ""), *sha = radios_json_string(version, "sha256", ""), *managed = radios_json_string(version, "managed_path", "");
     if (!radios_data_connected(audio->ctx) || !g_str_equal(station, radios_data_station_id(audio->ctx)) ||
-        !flag_true(version, "verified") || !flag_true(version, "object_available") || strlen(sha) != 64 || !g_path_is_absolute(managed)) goto invalid;
+        !flag_true(version, "verified") || !flag_true(version, "object_available") || strlen(sha) != 64 || !radios_path_is_absolute(managed)) goto invalid;
     for (guint i = 0; i < 64; ++i) if (!g_ascii_isxdigit(sha[i])) goto invalid;
     spec->media_id = radios_json_string(media, "_id", ""); spec->version_id = radios_json_string(version, "_id", "");
     if (!g_uuid_string_is_valid(spec->media_id) || !g_uuid_string_is_valid(spec->version_id) ||
@@ -916,9 +943,12 @@ static gboolean detail_spec(RadioSAudioController *audio, JsonObject *detail, Ra
         !g_str_equal(radios_json_string(media, "item_id", ""), radios_json_string(version, "item_id", "")) ||
         !g_uuid_string_is_valid(radios_json_string(media, "media_file_id", "")) ||
         !g_str_equal(radios_json_string(media, "media_file_id", ""), radios_json_string(version, "media_file_id", ""))) goto invalid;
-    *path = g_canonicalize_filename(managed, NULL);
-    gchar *root = g_strdup_printf("%s.objects%c", audio->ctx->config->database_file, G_DIR_SEPARATOR);
-    gboolean contained = g_str_has_prefix(*path, root); g_free(root);
+    /* The managed object must lie strictly below "<database>.objects".  NTFS
+     * names are case-insensitive and both separators are valid, so the check
+     * compares normalized paths component-wise without case ("c:/X" vs "C:\x"). */
+    *path = radios_path_normalize(managed);
+    gchar *objects = g_strconcat(audio->ctx->config->database_file, ".objects", NULL), *root = radios_path_normalize(objects);
+    gboolean contained = radios_path_is_inside(root, *path) && !radios_path_equal(root, *path); g_free(objects); g_free(root);
     if (!contained) { g_clear_pointer(path, g_free); goto invalid; }
     gint64 duration_ms = radios_json_int(version, "duration_ms", 0); if (duration_ms < 1 || duration_ms > 86400000) { g_clear_pointer(path, g_free); goto invalid; }
     *duration = (guint64)duration_ms; spec->path = *path; spec->sha256 = sha;
@@ -997,14 +1027,14 @@ static gboolean player_load_metadata(RadioSAudioController *audio, GtkWidget *ow
 static gboolean load_spec(RadioSAudioController *audio, GtkWidget *owner, RadioSAudioLoadSpec *spec, guint deck, gboolean autoplay, guint64 duration, GError **error)
 {
     if (!owner || deck >= RADIOS_AUDIO_DECKS) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "Oynatıcı veya kayıt sahibi geçersiz."); return FALSE; }
-    RadioSAudioSnapshot requested; radios_audio_engine_snapshot(audio->engine, &requested);
+    g_autofree RadioSAudioSnapshot *requested = snapshot_take(audio);
     RadioSAudioPlayerBinding metadata;
     gboolean has_metadata = player_load_metadata(audio, owner, spec, deck, duration, &metadata);
     if (!radios_audio_engine_load_player(audio->engine, deck, spec, has_metadata ? &metadata : NULL, error)) return FALSE;
     UiDeck *state = &audio->decks[deck]; owner_clear(state); ++state->epoch; state->autoplay = autoplay; state->duration_ms = duration; g_weak_ref_set(&state->owner, owner);
     state->title[0] = state->artist[0] = state->album[0] = state->kind[0] = '\0';
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); state->generation = snapshot.decks[deck].generation;
-    state->loss_epoch = requested.loss_epoch;
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); state->generation = snapshot->decks[deck].generation;
+    state->loss_epoch = requested->loss_epoch;
     OwnerGuard *guard = g_new0(OwnerGuard, 1); guard->audio = radios_audio_ui_ref(audio); guard->deck = deck; guard->epoch = state->epoch;
     state->owner_handler = g_signal_connect_data(owner, "destroy", G_CALLBACK(owner_destroyed), guard, owner_guard_free, 0); return TRUE;
 }
@@ -1061,82 +1091,82 @@ static void deck_ui_snapshot(RadioSAudioController *audio, const RadioSAudioSnap
 gboolean radios_audio_ui_get_snapshot(RadioSViewContext *ctx, guint deck, RadioSAudioUiSnapshot *out)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio || !out || deck >= RADIOS_AUDIO_DECKS) return FALSE;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-    deck_ui_snapshot(audio, &snapshot, deck, out); return TRUE;
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+    deck_ui_snapshot(audio, snapshot, deck, out); return TRUE;
 }
 gboolean radios_audio_ui_get_snapshots(RadioSViewContext *ctx, RadioSAudioUiSnapshot *out, guint count)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio || !out || !count || count > RADIOS_AUDIO_DECKS) return FALSE;
     /* One engine snapshot (one lock of the render mutex) serves every deck. */
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-    for (guint deck = 0; deck < count; ++deck) deck_ui_snapshot(audio, &snapshot, deck, &out[deck]);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+    for (guint deck = 0; deck < count; ++deck) deck_ui_snapshot(audio, snapshot, deck, &out[deck]);
     return TRUE;
 }
 gboolean radios_audio_ui_ready(RadioSViewContext *ctx, RadioSAudioUiBus bus)
 {
-    RadioSAudioController *audio = controller(ctx); if (!audio) return FALSE; RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-    return bus_ready(audio, &snapshot, bus);
+    RadioSAudioController *audio = controller(ctx); if (!audio) return FALSE; g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+    return bus_ready(audio, snapshot, bus);
 }
 guint64 radios_audio_ui_loss_epoch(RadioSViewContext *ctx)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return 0;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); return snapshot.loss_epoch;
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); return snapshot->loss_epoch;
 }
 static void deck_metadata_rebind(RadioSAudioController *audio, guint deck, const RadioSAudioSnapshot *before);
 gboolean radios_audio_ui_play(RadioSViewContext *ctx, guint deck, GError **error)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return unavailable(error);
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     GError *failure = NULL;
     if (radios_audio_engine_play(audio->engine, deck, &failure)) {
-        deck_metadata_rebind(audio, deck, &before); return TRUE;
+        deck_metadata_rebind(audio, deck, before); return TRUE;
     }
     if (deck < RADIOS_AUDIO_DECKS && g_error_matches(failure, RADIOS_AUDIO_ERROR_DOMAIN, RADIOS_AUDIO_ERROR_UNAVAILABLE)) {
-        RadioSAudioSnapshot snap; radios_audio_engine_snapshot(audio->engine, &snap); gint bus = snap.decks[deck].output_bus;
-        RadioSAudioState state = snap.decks[deck].state; GtkWidget *owner = g_weak_ref_get(&audio->decks[deck].owner);
+        g_autofree RadioSAudioSnapshot *snap = snapshot_take(audio); gint bus = snap->decks[deck].output_bus;
+        RadioSAudioState state = snap->decks[deck].state; GtkWidget *owner = g_weak_ref_get(&audio->decks[deck].owner);
         /* A pause/seek recreates output streams asynchronously. Preserve this
          * explicit Play intent across that bounded readiness gap, while real
          * device errors still require an explicit retry. */
         gboolean retry = (deck < RADIOS_AUDIO_NORMAL_DECKS || (owner && !gtk_widget_in_destruction(owner))) && bus >= 0 && bus <= 2 &&
-            !snap.error[0] && !snap.buses[bus].error[0] &&
+            !snap->error[0] && !snap->buses[bus].error[0] &&
             (state == RADIOS_AUDIO_READY || state == RADIOS_AUDIO_PAUSED || state == RADIOS_AUDIO_LOADING);
         g_clear_object(&owner);
-        if (retry) { audio->decks[deck].autoplay = TRUE; audio->decks[deck].generation = snap.decks[deck].generation; audio->decks[deck].loss_epoch = snap.loss_epoch; g_clear_error(&failure); return TRUE; }
+        if (retry) { audio->decks[deck].autoplay = TRUE; audio->decks[deck].generation = snap->decks[deck].generation; audio->decks[deck].loss_epoch = snap->loss_epoch; g_clear_error(&failure); return TRUE; }
     }
     g_propagate_error(error, failure); return FALSE;
 }
 gboolean radios_audio_ui_pause(RadioSViewContext *ctx, guint deck, GError **error)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return unavailable(error);
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     if (deck < RADIOS_AUDIO_DECKS) audio->decks[deck].autoplay = FALSE;
     gboolean accepted = radios_audio_engine_pause(audio->engine, deck, error);
-    if (accepted) deck_metadata_rebind(audio, deck, &before);
+    if (accepted) deck_metadata_rebind(audio, deck, before);
     return accepted;
 }
 static void deck_metadata_rebind(RadioSAudioController *audio, guint deck, const RadioSAudioSnapshot *before)
 {
     if (deck >= RADIOS_AUDIO_DECKS || audio->decks[deck].generation != before->decks[deck].generation) return;
-    RadioSAudioSnapshot after; radios_audio_engine_snapshot(audio->engine, &after);
-    if (g_str_equal(after.decks[deck].media_id, before->decks[deck].media_id) && g_str_equal(after.decks[deck].version_id, before->decks[deck].version_id))
-        audio->decks[deck].generation = after.decks[deck].generation;
+    g_autofree RadioSAudioSnapshot *after = snapshot_take(audio);
+    if (g_str_equal(after->decks[deck].media_id, before->decks[deck].media_id) && g_str_equal(after->decks[deck].version_id, before->decks[deck].version_id))
+        audio->decks[deck].generation = after->decks[deck].generation;
 }
 gboolean radios_audio_ui_stop(RadioSViewContext *ctx, guint deck, GError **error)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return unavailable(error);
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     if (deck < RADIOS_AUDIO_DECKS) audio->decks[deck].autoplay = FALSE;
     gboolean accepted = radios_audio_engine_stop(audio->engine, deck, error);
-    if (accepted) deck_metadata_rebind(audio, deck, &before);
+    if (accepted) deck_metadata_rebind(audio, deck, before);
     return accepted;
 }
 gboolean radios_audio_ui_seek(RadioSViewContext *ctx, guint deck, guint64 milliseconds, GError **error)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return unavailable(error);
     if (deck >= RADIOS_AUDIO_DECKS || milliseconds > audio->decks[deck].duration_ms) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "Konum gerçek medya süresi içinde olmalı."); return FALSE; }
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     gboolean accepted = radios_audio_engine_seek(audio->engine, deck, milliseconds * 48, error);
-    if (accepted) deck_metadata_rebind(audio, deck, &before);
+    if (accepted) deck_metadata_rebind(audio, deck, before);
     return accepted;
 }
 gboolean radios_audio_ui_seek_if_generation(RadioSViewContext *ctx, guint deck,
@@ -1146,9 +1176,9 @@ gboolean radios_audio_ui_seek_if_generation(RadioSViewContext *ctx, guint deck,
     if (deck >= RADIOS_AUDIO_DECKS || milliseconds > audio->decks[deck].duration_ms || milliseconds > G_MAXUINT64 / 48) {
         g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "Konum gerçek medya süresi içinde olmalı."); return FALSE;
     }
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     gboolean accepted = radios_audio_engine_seek_if_generation(audio->engine, deck, expected_generation, milliseconds * 48, error);
-    if (accepted) deck_metadata_rebind(audio, deck, &before);
+    if (accepted) deck_metadata_rebind(audio, deck, before);
     return accepted;
 }
 gboolean radios_audio_ui_set_deck_gain(RadioSViewContext *ctx, guint deck, gdouble db, GError **error)
@@ -1158,9 +1188,9 @@ gboolean radios_audio_ui_set_deck_main(RadioSViewContext *ctx, guint deck, gbool
 gboolean radios_audio_ui_sync(RadioSViewContext *ctx, guint deck, gint master, gboolean enabled, GError **error)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio) return unavailable(error);
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
     if (!radios_audio_engine_sync(audio->engine, deck, master, enabled, error)) return FALSE;
-    deck_metadata_rebind(audio, deck, &before); return TRUE;
+    deck_metadata_rebind(audio, deck, before); return TRUE;
 }
 gboolean radios_audio_ui_player_options(RadioSViewContext *ctx, guint deck, RadioSAudioPlayerOptions *options)
 {
@@ -1258,7 +1288,7 @@ void radios_audio_ui_preview_stop(RadioSViewContext *ctx, GtkWidget *owner)
     else radios_audio_engine_stop(audio->engine, 32, NULL);
     audio->preview_active = FALSE;
     radios_audio_engine_set_preview_output(audio->engine, RADIOS_AUDIO_BUS_CUE, 0, FALSE, NULL);
-    if (audio->preview_file) { g_unlink(audio->preview_file); g_clear_pointer(&audio->preview_file, g_free); }
+    if (audio->preview_file) { preview_file_delete(audio->preview_file); g_clear_pointer(&audio->preview_file, g_free); }
 }
 static gboolean preview_prepare(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *detail, guint64 start_ms, guint64 end_ms, gboolean autoplay, GError **error)
 {
@@ -1392,8 +1422,8 @@ gboolean radios_audio_ui_preview_seek(RadioSViewContext *ctx, GtkWidget *owner, 
     /* Moving an inactive editor's cursor must never seek or replace another
      * widget's exclusive audition. Its next explicit Play uses that cursor. */
     if (!preview_matches(ctx, owner, detail)) return TRUE;
-    RadioSAudioSnapshot before; radios_audio_engine_snapshot(audio->engine, &before);
-    gboolean playing = before.decks[RADIOS_AUDIO_PREVIEW_DECK].state == RADIOS_AUDIO_PLAYING ||
+    g_autofree RadioSAudioSnapshot *before = snapshot_take(audio);
+    gboolean playing = before->decks[RADIOS_AUDIO_PREVIEW_DECK].state == RADIOS_AUDIO_PLAYING ||
                        audio->decks[RADIOS_AUDIO_PREVIEW_DECK].autoplay;
     return preview_position(ctx, owner, detail, milliseconds, playing, error);
 }
@@ -1424,7 +1454,7 @@ static void transition_owner_destroyed(GtkWidget *widget, gpointer value)
 static void transition_job_free(gpointer value)
 {
     TransitionJob *job = value;
-    if (job->result_path) { g_unlink(job->result_path); g_free(job->result_path); }
+    if (job->result_path) { preview_file_delete(job->result_path); g_free(job->result_path); }
     for (guint i = 0; i < 2; ++i) { g_free(job->paths[i]); g_free(job->hashes[i]); }
     g_free(job->directory); g_free(job->result_hash); g_weak_ref_clear(&job->owner); radios_audio_ui_unref(job->audio); g_free(job);
 }
@@ -1450,8 +1480,8 @@ static void transition_done(GObject *source, GAsyncResult *result, gpointer unus
     (void)source; (void)unused; GTask *task = G_TASK(result); TransitionJob *job = g_task_get_task_data(task);
     RadioSAudioController *audio = job->audio; GError *error = NULL; gboolean success = g_task_propagate_boolean(task, &error);
     GtkWidget *owner = g_weak_ref_get(&job->owner);
-    RadioSAudioSnapshot physical; radios_audio_engine_snapshot(audio->engine, &physical);
-    gboolean current = !audio->closed && job->intent == audio->preview_intent && job->loss_epoch == physical.loss_epoch && owner && !gtk_widget_in_destruction(owner);
+    g_autofree RadioSAudioSnapshot *physical = snapshot_take(audio);
+    gboolean current = !audio->closed && job->intent == audio->preview_intent && job->loss_epoch == physical->loss_epoch && owner && !gtk_widget_in_destruction(owner);
     if (current) {
         transition_cancel(audio);
         if (success) {
@@ -1496,7 +1526,7 @@ gboolean radios_audio_ui_transition_preview(RadioSViewContext *ctx, GtkWidget *o
     if (!radios_audio_transition_plan(&settings, &plan, error)) { g_free(paths[0]); g_free(paths[1]); return FALSE; }
     radios_audio_ui_preview_stop(ctx, NULL);
     TransitionJob *job = g_new0(TransitionJob, 1); job->audio = radios_audio_ui_ref(audio); job->intent = ++audio->preview_intent;
-    RadioSAudioSnapshot physical; radios_audio_engine_snapshot(audio->engine, &physical); job->loss_epoch = physical.loss_epoch;
+    g_autofree RadioSAudioSnapshot *physical = snapshot_take(audio); job->loss_epoch = physical->loss_epoch;
     g_weak_ref_init(&job->owner, owner); job->settings = settings;
     for (guint i = 0; i < 2; ++i) { job->paths[i] = paths[i]; job->hashes[i] = g_strdup(specs[i].sha256); }
     job->settings.sha_a = job->hashes[0]; job->settings.sha_b = job->hashes[1];
@@ -1606,8 +1636,8 @@ static void bus_toggled(GtkToggleButton *toggle, gpointer value)
     AudioBinding *binding = value; RadioSAudioController *audio = binding->audio;
     if (binding->dead || audio->closed || audio->updating) return;
     if (audio->preview_active) {
-        RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-        if (snapshot.decks[RADIOS_AUDIO_PREVIEW_DECK].output_bus == (gint)binding->bus)
+        g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+        if (snapshot->decks[RADIOS_AUDIO_PREVIEW_DECK].output_bus == (gint)binding->bus)
             radios_audio_ui_preview_stop(audio->ctx, NULL);
     }
     GError *error = NULL; radios_audio_engine_set_bus_gate(audio->engine, (RadioSAudioBus)binding->bus,
@@ -1709,7 +1739,7 @@ static void binding_update(AudioBinding *binding, const RadioSAudioSnapshot *sna
         gchar *status = snapshot->connected ? g_strdup_printf("Ana çıkış: %s · CUE: %s · Monitör: %s · Mikrofon: %s",
             bus_ready(audio, snapshot, RADIOS_AUDIO_UI_MAIN) ? "bağlı" : "bağlı değil", bus_ready(audio, snapshot, RADIOS_AUDIO_UI_CUE) ? "bağlı" : "atanmadı / bağlı değil",
             bus_ready(audio, snapshot, RADIOS_AUDIO_UI_MONITOR) ? "bağlı" : "atanmadı / bağlı değil", snapshot->microphone_gate ? "açık" : "kapalı") :
-            g_strdup("Ses sunucusu bağlı değil; ses servisini kontrol edip uygulamayı yeniden aç.");
+            g_strdup("Windows ses hizmetine bağlı değil; hizmet açılınca kendiliğinden bağlanır.");
         gtk_label_set_text(GTK_LABEL(field(widget, "task-audio-status")), status); g_free(status);
     }
     audio->updating = was_updating; g_object_unref(widget);
@@ -1717,7 +1747,7 @@ static void binding_update(AudioBinding *binding, const RadioSAudioSnapshot *sna
 void radios_audio_ui_bind_meter(RadioSViewContext *ctx, GtkWidget *meter, RadioSAudioUiBus bus)
 {
     RadioSAudioController *audio = controller(ctx); if (!audio || !meter || bus < RADIOS_AUDIO_UI_MAIN || bus > RADIOS_AUDIO_UI_MICROPHONE) return;
-    AudioBinding *binding = binding_new(audio, meter, BIND_METER, bus); RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); binding_update(binding, &snapshot, TRUE);
+    AudioBinding *binding = binding_new(audio, meter, BIND_METER, bus); g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); binding_update(binding, snapshot, TRUE);
 }
 void radios_audio_ui_bind_gain(RadioSViewContext *ctx, GtkWidget *knob, RadioSAudioUiBus bus)
 {
@@ -1726,7 +1756,7 @@ void radios_audio_ui_bind_gain(RadioSViewContext *ctx, GtkWidget *knob, RadioSAu
     AudioBinding *binding = binding_new(audio, knob, BIND_GAIN, bus); g_weak_ref_set(&binding->control, adjustment);
     bind_signal(binding, adjustment, "value-changed", G_CALLBACK(gain_changed));
     GtkWidget *dial = g_object_get_data(G_OBJECT(knob), "dial"); if (dial) gtk_widget_set_tooltip_text(dial, "Gerçek ses motoru kazancı. Değişiklikler otomatik kaydedilir.");
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); binding_update(binding, &snapshot, TRUE);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); binding_update(binding, snapshot, TRUE);
 }
 void radios_audio_ui_bind_monitor(RadioSViewContext *ctx, GtkWidget *module, GtkWidget *source, GtkWidget *destination, GtkWidget *toggle, RadioSAudioUiBus bus)
 {
@@ -1736,7 +1766,7 @@ void radios_audio_ui_bind_monitor(RadioSViewContext *ctx, GtkWidget *module, Gtk
     audio->updating = TRUE; sources_fill(source); audio->updating = FALSE;
     bind_signal(binding, source, "changed", G_CALLBACK(source_changed)); bind_signal(binding, destination, "changed", G_CALLBACK(destination_changed));
     bind_signal(binding, toggle, "toggled", G_CALLBACK(bus_toggled));
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); binding_update(binding, &snapshot, TRUE);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); binding_update(binding, snapshot, TRUE);
 }
 void radios_audio_ui_bind_settings(RadioSViewContext *ctx, GtkWidget *page)
 {
@@ -1753,14 +1783,14 @@ void radios_audio_ui_bind_settings(RadioSViewContext *ctx, GtkWidget *page)
     bind_signal(binding, field(page, "task-audio-apply"), "clicked", G_CALLBACK(apply_clicked));
     bind_signal(binding, field(page, "task-microphone-gate"), "toggled", G_CALLBACK(microphone_toggled));
     radios_audio_ui_bind_gain(ctx, field(page, "task-microphone-gain"), RADIOS_AUDIO_UI_MICROPHONE);
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot); binding_update(binding, &snapshot, TRUE);
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio); binding_update(binding, snapshot, TRUE);
 }
 static gboolean poll_audio(gpointer value)
 {
     RadioSAudioController *audio = value; if (audio->closed) return G_SOURCE_REMOVE;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(audio->engine, &snapshot);
-    if (audio->loss_epoch != snapshot.loss_epoch) {
-        audio->loss_epoch = snapshot.loss_epoch;
+    g_autofree RadioSAudioSnapshot *snapshot = snapshot_take(audio);
+    if (audio->loss_epoch != snapshot->loss_epoch) {
+        audio->loss_epoch = snapshot->loss_epoch;
         ++audio->preview_intent; transition_cancel(audio);
         for (guint i = 0; i < RADIOS_AUDIO_DECKS; ++i) audio->decks[i].autoplay = FALSE;
         if (audio->preview_active) radios_audio_ui_preview_stop(audio->ctx, NULL);
@@ -1769,25 +1799,25 @@ static gboolean poll_audio(gpointer value)
         UiDeck *deck = &audio->decks[i]; if (!deck->autoplay) continue;
         GtkWidget *owner = g_weak_ref_get(&deck->owner);
         gboolean needs_owner = i >= RADIOS_AUDIO_NORMAL_DECKS;
-        if ((needs_owner && !owner) || deck->generation != snapshot.decks[i].generation || deck->loss_epoch != snapshot.loss_epoch) {
+        if ((needs_owner && !owner) || deck->generation != snapshot->decks[i].generation || deck->loss_epoch != snapshot->loss_epoch) {
             deck->autoplay = FALSE; if (needs_owner && !owner) radios_audio_engine_stop(audio->engine, i, NULL);
         }
-        else if ((snapshot.decks[i].state == RADIOS_AUDIO_READY || snapshot.decks[i].state == RADIOS_AUDIO_PAUSED) && deck_output_ready(audio, &snapshot, i)) {
+        else if ((snapshot->decks[i].state == RADIOS_AUDIO_READY || snapshot->decks[i].state == RADIOS_AUDIO_PAUSED) && deck_output_ready(audio, snapshot, i)) {
             GError *error = NULL;
             if (radios_audio_engine_play(audio->engine, i, &error)) deck->autoplay = FALSE;
             else if (!g_error_matches(error, RADIOS_AUDIO_ERROR_DOMAIN, RADIOS_AUDIO_ERROR_UNAVAILABLE)) { deck->autoplay = FALSE; report_error(audio, g_steal_pointer(&error)); }
             g_clear_error(&error);
-        } else if (snapshot.decks[i].state == RADIOS_AUDIO_ERROR || snapshot.decks[i].state == RADIOS_AUDIO_EMPTY || snapshot.decks[i].state == RADIOS_AUDIO_EOF) {
-            deck->autoplay = FALSE; if (snapshot.decks[i].error[0]) notify_audio(audio, snapshot.decks[i].error);
+        } else if (snapshot->decks[i].state == RADIOS_AUDIO_ERROR || snapshot->decks[i].state == RADIOS_AUDIO_EMPTY || snapshot->decks[i].state == RADIOS_AUDIO_EOF) {
+            deck->autoplay = FALSE; if (snapshot->decks[i].error[0]) notify_audio(audio, snapshot->decks[i].error);
         }
         g_clear_object(&owner);
     }
-    if (audio->preview_active && audio->preview_pause_pending && snapshot.decks[32].state == RADIOS_AUDIO_READY) {
+    if (audio->preview_active && audio->preview_pause_pending && snapshot->decks[32].state == RADIOS_AUDIO_READY) {
         radios_audio_engine_pause(audio->engine, RADIOS_AUDIO_PREVIEW_DECK, NULL);
         audio->preview_pause_pending = FALSE;
     }
-    if (audio->preview_active && (snapshot.decks[32].state == RADIOS_AUDIO_EOF || snapshot.decks[32].state == RADIOS_AUDIO_ERROR)) radios_audio_ui_preview_stop(audio->ctx, NULL);
-    for (guint i = 0; i < audio->bindings->len; ++i) binding_update(g_ptr_array_index(audio->bindings, i), &snapshot, FALSE);
+    if (audio->preview_active && (snapshot->decks[32].state == RADIOS_AUDIO_EOF || snapshot->decks[32].state == RADIOS_AUDIO_ERROR)) radios_audio_ui_preview_stop(audio->ctx, NULL);
+    for (guint i = 0; i < audio->bindings->len; ++i) binding_update(g_ptr_array_index(audio->bindings, i), snapshot, FALSE);
     return G_SOURCE_CONTINUE;
 }
 void radios_audio_ui_start(RadioSViewContext *ctx)
@@ -1834,7 +1864,7 @@ void radios_audio_ui_unref(RadioSAudioController *audio)
     /* Final window teardown joins cancellable workers; ordinary widget closure
      * only publishes cancellation and never waits for decode/device I/O. */
     radios_audio_engine_unref(audio->engine);
-    if (audio->preview_file) { g_unlink(audio->preview_file); g_free(audio->preview_file); }
+    if (audio->preview_file) { preview_file_delete(audio->preview_file); g_free(audio->preview_file); }
     g_weak_ref_clear(&audio->transition_owner);
     g_ptr_array_unref(audio->bindings); g_ptr_array_unref(audio->preview_outputs); g_weak_ref_clear(&audio->parent);
     for (guint i = 0; i < RADIOS_AUDIO_DECKS; ++i) g_weak_ref_clear(&audio->decks[i].owner);

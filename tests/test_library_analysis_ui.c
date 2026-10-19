@@ -10,20 +10,12 @@
 #include <glib/gstdio.h>
 #include <string.h>
 
+#include "radios_test_support.h"
+
 static RadioSConfig config;
 static gchar *base;
 typedef struct { RadioSViewContext ctx; GtkWidget *window, *page; } Harness;
 
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) { g_remove(path); return; }
-    GDir *directory = g_dir_open(path, 0, NULL); const gchar *name;
-    while (directory && (name = g_dir_read_name(directory))) {
-        gchar *child = g_build_filename(path, name, NULL); remove_tree(child); g_free(child);
-    }
-    if (directory) g_dir_close(directory);
-    g_rmdir(path);
-}
 static void pump(void) { while (g_main_context_iteration(NULL, FALSE)) {} g_usleep(1000); }
 static void pump_for(gint64 milliseconds)
 {
@@ -155,6 +147,6 @@ int main(int argc, char **argv)
     g_test_add_func("/library-analysis-ui/broken-file", test_broken_file_is_shown_and_replaced);
     g_test_add_func("/library-analysis-ui/run-and-progress", test_run_needs_connection_and_progress_shows);
     gint result = g_test_run();
-    remove_tree(base);
+    rt_remove_tree(base);
     g_free(config.project_root); g_free(base); return result;
 }

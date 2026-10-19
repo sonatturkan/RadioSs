@@ -1,9 +1,10 @@
 """Crash-recoverable local schedule for verified SDBASE backups and audit copies.
 
 This module never prunes database rows, media objects, backups or archives.
-The output directory must be private and on a filesystem with working flock,
-fsync and atomic rename semantics. A digest detects accidental state damage;
-it does not authenticate a hostile operator or host.
+The output directory must be private (owner-only ACL) and on a local NTFS
+volume with working byte-range locks, FlushFileBuffers and atomic rename
+semantics. A digest detects accidental state damage; it does not authenticate
+a hostile operator or host.
 """
 
 from __future__ import annotations
@@ -11,17 +12,16 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
-import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import stat
-import tempfile
 from typing import Any, Iterator, Mapping
 from uuid import UUID, uuid4
 
+from . import _platform
 from .backup import create_backup, verify_backup
 from .capacity_monitor import _delivery_policy, evaluate_delivery_health
 from .identity import authenticate
@@ -124,20 +124,27 @@ def _validate_config(config: ScheduleConfig) -> tuple[Path, Path]:
                 canonical_ids != list(config.station_ids):
             raise SchedulerError("delivery station IDs must be distinct canonical UUIDs")
     raw_database = Path(config.database).expanduser()
-    if raw_database.suffix != ".sdb" or raw_database.is_symlink() or not raw_database.is_file():
+    if raw_database.suffix != ".sdb" or _platform.is_link_like(raw_database) or \
+            not raw_database.is_file():
         raise SchedulerError("an existing regular .sdb database is required")
     database = raw_database.resolve(strict=True)
     for suffix in (".meta", ".lock"):
         component = database.with_name(database.name + suffix)
-        if component.is_symlink() or not component.is_file():
+        if _platform.is_link_like(component) or not component.is_file():
             raise SchedulerError("existing .sdb metadata and lock files are required")
     root = Path(config.output_dir).expanduser()
-    if root.is_symlink() or not root.is_dir():
+    if _platform.is_link_like(root) or not root.is_dir():
         raise SchedulerError("output_dir must be an existing private directory")
     root = root.resolve(strict=True)
-    mode = root.stat().st_mode
-    if not stat.S_ISDIR(mode) or mode & 0o077:
-        raise SchedulerError("output_dir must be accessible only by its owner (mode 0700)")
+    # Windows equivalent of "S_ISDIR and mode 0700": owner is the current user
+    # (or Administrators for an elevated token) and no other principal holds an
+    # effective allow ACE (the inherited Users/Everyone grants of a plain folder fail).
+    try:
+        private = _platform.private_dir_ok(root)
+    except OSError as exc:
+        raise SchedulerError("output_dir security descriptor cannot be read") from exc
+    if not private:
+        raise SchedulerError("output_dir must be accessible only by its owner (owner-only ACL)")
     if root == database.parent:
         raise SchedulerError("output_dir must be separate from the database directory")
     return database, root
@@ -147,27 +154,24 @@ def _validate_config(config: ScheduleConfig) -> tuple[Path, Path]:
 def scheduler_lock(root: Path) -> Iterator[None]:
     """Hold one nonblocking process lock for the whole once/loop invocation."""
     path = root / _LOCK
-    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags, 0o600)
+    fd = _platform.os_open(path, os.O_RDWR | os.O_CREAT, 0o600, nofollow=True)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise SchedulerError("scheduler lock is not a regular file")
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             raise SchedulerError("another scheduler owns this output directory") from exc
         yield
     finally:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        finally:
-            os.close(fd)
+        # LOCK_UN of a never-acquired lock is a no-op; unlock before closing.
+        _platform.unlock_and_close(fd)
 
 
 def _read_state(root: Path) -> dict | None:
     path = root / _STATE
     try:
-        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        fd = _platform.os_open(path, os.O_RDONLY, nofollow=True)
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -200,32 +204,34 @@ def _write_state(root: Path, state: dict) -> None:
     if len(encoded) > _MAX_STATE_BYTES:
         raise SchedulerError("scheduler state exceeds its size bound")
     path = root / _STATE
-    if path.is_symlink():
+    if _platform.is_link_like(path):
         raise SchedulerError("scheduler state path became a symlink")
-    fd, temporary = tempfile.mkstemp(prefix=".scheduler-state-", dir=root)
+    # Private (owner-only DACL) exclusive temporary file: the mkstemp + fchmod
+    # 0600 equivalent.  The replace retries briefly while a status reader or a
+    # scanner holds the old state file.
+    fd, temporary = _platform.mkstemp_private(dir=root, prefix=".scheduler-state-")
     try:
-        os.fchmod(fd, 0o600)
         with os.fdopen(fd, "wb") as stream:
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
-        dir_fd = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
+        _platform.replace(temporary, path)
+        _platform.fsync_dir(root)
     finally:
+        # Never mask the original error with a cleanup failure.
         if os.path.lexists(temporary):
-            os.unlink(temporary)
+            _platform.unlink_quietly(temporary)
 
 
 def _check_state(state: dict, database: Path, root: Path, store_id: str) -> None:
     required = {"format", "database", "output_dir", "store_id", "archives", "last_backup",
                 "last_backup_attempt_at", "last_archive_attempt_at", "archive_backlog",
                 "pending", "last_errors", "delivery"}
+    # Stored paths are native; compare like NTFS (separator- and case-insensitive).
+    # A state file from another host (e.g. a Linux path) never matches.
     if set(state) != required or state["format"] != _FORMAT or \
-            state["database"] != str(database) or state["output_dir"] != str(root) or \
+            not _platform.path_equal(state["database"], str(database)) or \
+            not _platform.path_equal(state["output_dir"], str(root)) or \
             state["store_id"] != store_id:
         raise SchedulerError("scheduler state belongs to another database or output directory")
     if not isinstance(state["archives"], list) or not isinstance(state["pending"], dict) or \

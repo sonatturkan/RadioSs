@@ -20,6 +20,7 @@ import tempfile
 from typing import Any, BinaryIO, Iterator
 import wave
 
+from . import _platform
 from .endpoint import EndpointAgent
 from .endpoint_journal import EndpointError
 from .playback_markers import validate_frozen_markers
@@ -66,11 +67,13 @@ def _elapsed_frames(start: datetime, anchor: datetime, rate: int) -> int:
 
 @contextmanager
 def _open_local_file(path: Path) -> Iterator[BinaryIO]:
-    if path.is_symlink() or path.parent.is_symlink():
+    # Links include junctions and mount points (name-surrogate reparse points).
+    if _platform.is_link(path) or _platform.is_link(path.parent):
         raise AudioRenderError("local media path must not be a symlink")
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
+        # Binary, share-delete, no-follow fd: a text-mode CRT fd would fold CRLF and
+        # stop at 0x1A, so hashes and PCM decoding would see different bytes.
+        descriptor = _platform.open_fd(path, os.O_RDONLY, nofollow=True)
     except OSError as exc:
         raise AudioRenderError("local media is missing or unreadable") from exc
     try:
@@ -97,7 +100,8 @@ def _hash_file(path: Path) -> tuple[str, int]:
 
 
 def _file_identity(info: os.stat_result) -> tuple[int, ...]:
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    # st_ctime is the creation time on Windows, not a change time: not an identity field.
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
 
 
 def _media_path(agent: EndpointAgent, manifest: dict,
@@ -326,7 +330,7 @@ def render_active_plan_wav(agent: EndpointAgent, output_path: str | Path, *,
     if not parent.is_dir():
         raise AudioRenderError("output parent is not a directory")
     target = parent / requested.name
-    if target.exists() or target.is_symlink():
+    if target.exists() or _platform.is_link(target):
         raise AudioRenderError("output file already exists")
     if target == Path(planned[0]["source_path"]):
         raise AudioRenderError("output cannot replace endpoint media")
@@ -346,7 +350,7 @@ def render_active_plan_wav(agent: EndpointAgent, output_path: str | Path, *,
                     _write_entry(target_wave, entry,
                                  spec["channels"] * spec["width"])
             stream.flush()
-            os.fsync(stream.fileno())
+            _platform.fsync(stream)
         current = agent.active_manifest()
         if current["plan_revision_id"] != manifest["plan_revision_id"] or \
                 agent._identity["engine_epoch"] != epoch:
@@ -355,14 +359,12 @@ def render_active_plan_wav(agent: EndpointAgent, output_path: str | Path, *,
         if size > max_output_bytes:
             raise AudioRenderError("rendered WAV exceeds max_output_bytes")
         try:
-            os.link(temp, target)
+            # No-overwrite publish (works on NTFS, FAT/exFAT and SMB; the temporary
+            # name is consumed).  NTFS journals the rename: no directory flush exists.
+            _platform.rename_noreplace(temp, target)
         except FileExistsError as exc:
             raise AudioRenderError("output file appeared while rendering") from exc
-        directory_fd = os.open(parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        temp = None
         return {
             "plan_revision_id": manifest["plan_revision_id"],
             "endpoint_id": manifest["endpoint_id"],
@@ -386,4 +388,4 @@ def render_active_plan_wav(agent: EndpointAgent, output_path: str | Path, *,
         raise AudioRenderError("PCM WAV could not be written") from exc
     finally:
         if temp is not None:
-            temp.unlink(missing_ok=True)
+            _platform.unlink_quietly(temp)

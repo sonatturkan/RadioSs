@@ -228,6 +228,21 @@ static guint runner_receipts(RadioSPlayoutController *p, RadioSAudioRunReceipt *
         if (g_hash_table_contains(p->scoped_epochs, &out[i].epoch)) out[kept++] = out[i];
     return kept;
 }
+/* The engine's receipt window (2000 receipts, ~112 KB) and its snapshot
+ * (66 decks plus 2 × 64 device names, ~266 KB) live on the heap: nested GTK
+ * callbacks stacked several of them (more than 1 MB) on the UI thread. */
+static RadioSAudioRunReceipt *receipts_take(RadioSPlayoutController *p, guint *count)
+{
+    RadioSAudioRunReceipt *receipts = g_new(RadioSAudioRunReceipt, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
+    *count = runner_receipts(p, receipts, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
+    return receipts;
+}
+static RadioSAudioSnapshot *audio_snapshot_new(RadioSAudioEngine *engine)
+{
+    RadioSAudioSnapshot *audio = g_new0(RadioSAudioSnapshot, 1);
+    radios_audio_engine_snapshot(engine, audio);
+    return audio;
+}
 /* Deep copy without a text round trip: a 1 MB programme copies in ~5 ms
  * instead of ~13 ms on the GTK thread (kılavuz §08 liste sonu donması). */
 static JsonNode *clone(JsonNode *source)
@@ -254,14 +269,14 @@ static void controller_copyright(RadioSPlayoutController *p, JsonObject *policy)
     if (p->scoped && !scoped_owns_run(p)) return;
     guint count = p->plan->entries->len;
     if (!count || count > RADIOS_AUDIO_RUN_MAX_ITEMS) return;
-    RadioSAudioCopyrightWindow windows[RADIOS_AUDIO_RUN_MAX_ITEMS];
+    RadioSAudioCopyrightWindow *windows = g_new(RadioSAudioCopyrightWindow, count);
     for (guint i = 0; i < count; ++i)
         windows[i] = ((RadioSPlayoutEntry *)g_ptr_array_index(p->plan->entries, i))->run.copyright;
     radios_audio_engine_runner_copyright(p->engine, p->player_deck, windows, count, NULL);
-    RadioSAudioCopyrightWindow adjunct[RADIOS_AUDIO_RUN_MAX_ITEMS];
     for (guint i = 0; i < count; ++i)
-        adjunct[i] = ((RadioSPlayoutEntry *)g_ptr_array_index(p->plan->entries, i))->run.adjunct.copyright;
-    radios_audio_engine_runner_adjunct_copyright(p->engine, p->player_deck, adjunct, count, NULL);
+        windows[i] = ((RadioSPlayoutEntry *)g_ptr_array_index(p->plan->entries, i))->run.adjunct.copyright;
+    radios_audio_engine_runner_adjunct_copyright(p->engine, p->player_deck, windows, count, NULL);
+    g_free(windows);
 }
 void radios_playout_ui_copyright_policy(RadioSViewContext *ctx, JsonObject *policy)
 {
@@ -431,11 +446,12 @@ static gint receipt_compare(gconstpointer a, gconstpointer b)
 }
 static void capture_history(RadioSPlayoutController *p)
 {
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = runner_receipts(p, receipts, G_N_ELEMENTS(receipts));
+    guint count = 0;
+    RadioSAudioRunReceipt *receipts = receipts_take(p, &count);
     qsort(receipts, count, sizeof receipts[0], receipt_compare);
     gboolean changed = FALSE;
     for (guint i = 0; i < count; ++i) changed |= observe(p, &receipts[i]);
+    g_free(receipts);
     if (!changed) return;
     if (p->history_document && radios_data_document_ready(p->history_document)) {
         JsonNode *body = radios_playout_history_json(p->history);
@@ -450,8 +466,8 @@ static void capture_history(RadioSPlayoutController *p)
 static void prune_observed(RadioSPlayoutController *p)
 {
     if (g_hash_table_size(p->observed) <= RADIOS_AUDIO_RUN_MAX_RECEIPTS * 3u) return;
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = runner_receipts(p, receipts, G_N_ELEMENTS(receipts));
+    guint count = 0;
+    RadioSAudioRunReceipt *receipts = receipts_take(p, &count);
     GHashTable *keep = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     for (guint i = 0; i < count; ++i) {
         const RadioSAudioRunReceipt *r = &receipts[i];
@@ -459,6 +475,7 @@ static void prune_observed(RadioSPlayoutController *p)
         g_hash_table_add(keep, g_strdup_printf("entry:%" G_GUINT64_FORMAT ":%u", r->epoch, r->index));
         g_hash_table_add(keep, g_strdup_printf("complete:%" G_GUINT64_FORMAT ":%" G_GUINT64_FORMAT, r->epoch, r->occurrence));
     }
+    g_free(receipts);
     GHashTableIter iter; gpointer key;
     g_hash_table_iter_init(&iter, p->observed);
     while (g_hash_table_iter_next(&iter, &key, NULL))
@@ -702,23 +719,26 @@ static void route_adjuncts(RadioSPlayoutController *p, RadioSPlayoutPlan *plan,
         if (voice->enabled && voice->player < 32) auxiliary[voice->player] = TRUE;
     }
     for (guint i = 0; i < primary->pool_count; ++i) auxiliary[primary->deck_pool[i]] = FALSE;
+    RadioSAudioSnapshot *audio = NULL;
     for (guint deck = 0; deck < 32; ++deck) if (auxiliary[deck]) {
-        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+        if (!audio) audio = g_new0(RadioSAudioSnapshot, 1);
+        radios_audio_engine_snapshot(p->engine, audio);
         gint source = -1;
         /* An append may reuse this run's currently sounding auxiliary. Its
          * existing lease and physical mapping must remain untouched. */
         if (radios_audio_engine_deck_runner_owner(p->engine, deck, &source)) continue;
         gboolean cue = FALSE;
         for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
-            if (audio.mixer.channels[channel].source_deck == (gint)deck) cue |= audio.mixer.channels[channel].pfl;
-        if (audio.decks[deck].state != RADIOS_AUDIO_EMPTY || cue) continue;
+            if (audio->mixer.channels[channel].source_deck == (gint)deck) cue |= audio->mixer.channels[channel].pfl;
+        if (audio->decks[deck].state != RADIOS_AUDIO_EMPTY || cue) continue;
         GError *routing_error = NULL;
-        if (!autodj_route(p, &audio, deck, &routing_error)) {
+        if (!autodj_route(p, audio, deck, &routing_error)) {
             gchar *message = g_strdup_printf("Oynatıcı %u jingle için kullanılamıyor; yayın sırası devam edecek. %s",
                 deck + 1, routing_error ? routing_error->message : "");
             notice(p, message); g_free(message); g_clear_error(&routing_error);
         }
     }
+    g_free(audio);
 }
 /* The native start/append may omit an unavailable optional voice. Mirror
  * that accepted omission once, so a later free auxiliary or a refill cannot
@@ -736,10 +756,9 @@ static void accepted_adjunct_metadata(RadioSPlayoutController *p, RadioSPlayoutP
     }
     if (changed) radios_playout_plan_refresh_jingle_metadata(plan);
 }
-static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
+static gboolean choose_pool_snapshot(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, RadioSAudioSnapshot *audio, GError **error)
 {
     if (plan->player_autodj) {
-        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
         for (guint index = 0; index < plan->options.pool_count; ++index) {
             guint deck = plan->options.deck_pool[index];
             gchar *key = g_strdup_printf("radios-deck-owner-%u", deck); GtkWidget *card = g_object_get_data(G_OBJECT(p->ctx->parent), key); g_free(key);
@@ -749,30 +768,30 @@ static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan,
             gboolean other = private.owned[deck] && (!p->scoped || deck != (guint)p->player_deck);
             gchar *message = !defined ? g_strdup_printf("Oynatıcı %u tanımlı değil; rotasyonun kanal dağılımını güncelleyin.", deck + 1) :
                 other ? g_strdup_printf("Oynatıcı %u kendi playlist sırasını çalıyor; o sırayı durdurun ya da başka kanal seçin.", deck + 1) :
-                index && audio.decks[deck].state == RADIOS_AUDIO_PLAYING ? g_strdup_printf("Oynatıcı %u şu an çalıyor; AutoDJ çalan sesi kesmez. Durdurun ya da başka kanal seçin.", deck + 1) : NULL;
+                index && audio->decks[deck].state == RADIOS_AUDIO_PLAYING ? g_strdup_printf("Oynatıcı %u şu an çalıyor; AutoDJ çalan sesi kesmez. Durdurun ya da başka kanal seçin.", deck + 1) : NULL;
             if (message) { gboolean result = invalid(error, message); g_free(message); return result; }
             /* Paused, cued, loading or failed players are taken over: install
              * unloads every pool player that does not already hold the first item. */
-            if (!autodj_route(p, &audio, deck, error)) return FALSE;
+            if (!autodj_route(p, audio, deck, error)) return FALSE;
         }
         guint source = plan->options.deck_pool[0]; RadioSPlayoutEntry *first = g_ptr_array_index(plan->entries, 0);
-        gboolean matches = g_str_equal(audio.decks[source].media_id, first->run.media.media_id) && g_str_equal(audio.decks[source].version_id, first->run.media.version_id);
-        if (audio.decks[source].state == RADIOS_AUDIO_PLAYING && !matches) return invalid(error, "Çalan kaynak seçilen AutoDJ listesinden farklı; önce durdurun.");
-        if (matches && fabs(audio.decks[source].tempo_ratio - first->run.tempo_ratio) > 0.000001)
+        gboolean matches = g_str_equal(audio->decks[source].media_id, first->run.media.media_id) && g_str_equal(audio->decks[source].version_id, first->run.media.version_id);
+        if (audio->decks[source].state == RADIOS_AUDIO_PLAYING && !matches) return invalid(error, "Çalan kaynak seçilen AutoDJ listesinden farklı; önce durdurun.");
+        if (matches && fabs(audio->decks[source].tempo_ratio - first->run.tempo_ratio) > 0.000001)
             return invalid(error, "AutoDJ kaynağında önce manuel SYNC'i kapatın; mevcut tempo ve ses korunuyor.");
-        if (matches && audio.decks[source].state == RADIOS_AUDIO_PLAYING) {
+        if (matches && audio->decks[source].state == RADIOS_AUDIO_PLAYING) {
             RadioSPlayoutRequest request = {.now_utc_us = g_get_real_time(), .history = p->history};
-            if (!radios_playout_plan_adopt_source(plan, audio.decks[source].cursor_frames, &request, error)) return FALSE;
+            if (!radios_playout_plan_adopt_source(plan, audio->decks[source].cursor_frames, &request, error)) return FALSE;
         }
         if (first->run.media.cue_in_frame >= first->run.media.cue_out_frame)
             return invalid(error, "Çalan parçanın kalan süresi AutoDJ geçişi için çok kısa.");
         return TRUE;
     }
     if (p->player_deck >= 0) {
-        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine,&audio); guint deck = (guint)p->player_deck;
+        guint deck = (guint)p->player_deck;
         gboolean mapped = FALSE;
-        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
-        if (!mapped || !audio.decks[deck].main_routed || audio.decks[deck].state != RADIOS_AUDIO_EMPTY)
+        for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) mapped |= audio->mixer.channels[channel].source_deck == (gint)deck;
+        if (!mapped || !audio->decks[deck].main_routed || audio->decks[deck].state != RADIOS_AUDIO_EMPTY)
             return invalid(error,"Seçili oynatıcı boş ve MAIN'e atanmış olmalı; başka oynatıcıya geçilmedi.");
         for (guint index = 0; index < plan->entries->len; ++index) {
             RadioSPlayoutEntry *entry = g_ptr_array_index(plan->entries,index);
@@ -783,7 +802,6 @@ static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan,
         plan->options.pool_count = 1; plan->options.deck_pool[0] = deck; return TRUE;
     }
     if (plan->automation) return TRUE;
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
     plan->options.pool_count = 0;
     for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS && plan->options.pool_count < 2; ++deck) {
         gchar *key = g_strdup_printf("radios-deck-owner-%u", deck);
@@ -792,8 +810,8 @@ static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan,
         if (!card || gtk_widget_in_destruction(card)) continue;
         gboolean mapped = FALSE;
         for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
-            if (audio.mixer.channels[channel].source_deck == (gint)deck) mapped = TRUE;
-        if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_EMPTY)
+            if (audio->mixer.channels[channel].source_deck == (gint)deck) mapped = TRUE;
+        if (mapped && audio->decks[deck].main_routed && audio->decks[deck].state == RADIOS_AUDIO_EMPTY)
             plan->options.deck_pool[plan->options.pool_count++] = deck;
     }
     if (!plan->options.pool_count) return invalid(error, "Sıra için boş ve MAIN'e atanmış oynatıcı bulunamadı; canlı oynatıcılar korunuyor.");
@@ -801,6 +819,14 @@ static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan,
     for (guint i = 0; i < plan->entries->len; ++i) if (((RadioSPlayoutEntry *)g_ptr_array_index(plan->entries, i))->run.overlap_frames) overlap = TRUE;
     if (overlap && plan->options.pool_count < 2) return invalid(error, "Bindirme için boş ve MAIN'e atanmış iki oynatıcı gerekli.");
     return TRUE;
+}
+static gboolean choose_pool(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
+{
+    if (!plan->player_autodj && p->player_deck < 0 && plan->automation) return TRUE;
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
+    gboolean chosen = choose_pool_snapshot(p, plan, audio, error);
+    g_free(audio);
+    return chosen;
 }
 static gboolean install_plan(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
 {
@@ -822,11 +848,12 @@ static gboolean install_plan(RadioSPlayoutController *p, RadioSPlayoutPlan *plan
         radios_audio_engine_runner_configure(p->engine, items, plan->entries->len, &plan->options, error);
     gint adopt = -1; guint64 generation = 0;
     if (configured && plan->player_autodj) {
-        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio); guint source = plan->options.deck_pool[0];
-        if ((audio.decks[source].state == RADIOS_AUDIO_READY || audio.decks[source].state == RADIOS_AUDIO_PAUSED || audio.decks[source].state == RADIOS_AUDIO_PLAYING) &&
-            g_str_equal(audio.decks[source].media_id, items[0].media.media_id) && g_str_equal(audio.decks[source].version_id, items[0].media.version_id)) {
-            adopt = (gint)source; generation = audio.decks[source].generation;
+        RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine); guint source = plan->options.deck_pool[0];
+        if ((audio->decks[source].state == RADIOS_AUDIO_READY || audio->decks[source].state == RADIOS_AUDIO_PAUSED || audio->decks[source].state == RADIOS_AUDIO_PLAYING) &&
+            g_str_equal(audio->decks[source].media_id, items[0].media.media_id) && g_str_equal(audio->decks[source].version_id, items[0].media.version_id)) {
+            adopt = (gint)source; generation = audio->decks[source].generation;
         }
+        g_free(audio);
     }
     gboolean accepted = configured && (p->scoped && plan->player_autodj ?
         radios_audio_engine_scope_runner_start_replacing(p->engine, (guint)p->player_deck, adopt, generation, error) :
@@ -875,7 +902,8 @@ static gboolean replace_remaining_commit(RadioSPlayoutController *p, RadioSPlayo
 {
     if (!p->plan || actual->deck_current < 0 || actual->index >= p->plan->entries->len || !future->entries->len)
         return invalid(error, "Mevcut yayın artık yeni şemanın kaynağı değil.");
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
+    guint64 current_generation = audio->decks[actual->deck_current].generation; g_free(audio);
     guint prefix = actual->index + 1;
     if (future->entries->len > RADIOS_AUDIO_RUN_MAX_ITEMS - prefix)
         return invalid(error, "Yeni şema bu yayın penceresinin kapasitesini aşıyor.");
@@ -888,7 +916,7 @@ static gboolean replace_remaining_commit(RadioSPlayoutController *p, RadioSPlayo
     }
     RadioSAudioRunItem *items = radios_playout_plan_items(future);
     gboolean result = radios_audio_engine_runner_replace_future(p->engine, p->player_deck,
-        actual->epoch, audio.decks[actual->deck_current].generation, actual->entry_id, items, future->entries->len, error);
+        actual->epoch, current_generation, actual->entry_id, items, future->entries->len, error);
     g_free(items); if (!result) return FALSE;
     RadioSPlayoutEntry *current = g_ptr_array_index(p->plan->entries, actual->index);
     RadioSPlayoutEntry *first = g_ptr_array_index(future->entries, 0);
@@ -968,9 +996,10 @@ gboolean radios_playout_ui_remove_future_entries(RadioSViewContext *ctx, const g
         if (!p->plan->routed_rotation) items[n].preferred_deck = all[prefix + n].preferred_deck;
         ++n;
     }
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
+    guint64 current_generation = audio->decks[actual.deck_current].generation; g_free(audio);
     gboolean accepted = radios_audio_engine_runner_remove_future(p->engine, p->player_deck, actual.epoch,
-        audio.decks[actual.deck_current].generation, actual.entry_id, items, keep, error);
+        current_generation, actual.entry_id, items, keep, error);
     if (accepted) {
         JsonArray *rows = json_object_get_array_member(json_node_get_object(p->plan->display), "entries");
         for (guint i = total; i-- > prefix;) {
@@ -986,20 +1015,23 @@ gboolean radios_playout_ui_remove_future_entries(RadioSViewContext *ctx, const g
 }
 static gboolean replacement_ready(RadioSPlayoutController *p, RadioSPlayoutPlan *plan, GError **error)
 {
-    RadioSAudioSnapshot audio; RadioSAudioRunSnapshot actual;
-    radios_audio_engine_snapshot(p->engine, &audio); runner_snapshot(p, &actual);
-    guint available = 0;
-    for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS; ++deck) {
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine); RadioSAudioRunSnapshot actual;
+    runner_snapshot(p, &actual);
+    guint available = 0; const gchar *refusal = NULL;
+    for (guint deck = 0; deck < RADIOS_AUDIO_NORMAL_DECKS && !refusal; ++deck) {
         gboolean mapped = FALSE;
         for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
-            mapped |= audio.mixer.channels[channel].source_deck == (gint)deck;
-        if (mapped && audio.decks[deck].main_routed && audio.decks[deck].state == RADIOS_AUDIO_PLAYING && !actual.owned[deck])
-            return invalid(error, "MAIN'de elle çalınan kaynak var; önce operatör bu kaynağı durdurmalı.");
-        gboolean usable = mapped && audio.decks[deck].main_routed && (actual.owned[deck] || audio.decks[deck].state == RADIOS_AUDIO_EMPTY);
+            mapped |= audio->mixer.channels[channel].source_deck == (gint)deck;
+        if (mapped && audio->decks[deck].main_routed && audio->decks[deck].state == RADIOS_AUDIO_PLAYING && !actual.owned[deck]) {
+            refusal = "MAIN'de elle çalınan kaynak var; önce operatör bu kaynağı durdurmalı."; break;
+        }
+        gboolean usable = mapped && audio->decks[deck].main_routed && (actual.owned[deck] || audio->decks[deck].state == RADIOS_AUDIO_EMPTY);
         if (usable) ++available;
-        if (plan->automation) for (guint i = 0; i < plan->options.pool_count; ++i)
-            if (plan->options.deck_pool[i] == deck && !usable) return invalid(error, "Normal yayın dönüş oynatıcısı elle kullanılıyor; mevcut kaynak korunuyor.");
+        if (plan->automation) for (guint i = 0; i < plan->options.pool_count && !refusal; ++i)
+            if (plan->options.deck_pool[i] == deck && !usable) refusal = "Normal yayın dönüş oynatıcısı elle kullanılıyor; mevcut kaynak korunuyor.";
     }
+    g_free(audio);
+    if (refusal) return invalid(error, refusal);
     gboolean overlap = FALSE;
     for (guint i = 0; i < plan->entries->len; ++i) overlap |= ((RadioSPlayoutEntry *)g_ptr_array_index(plan->entries, i))->run.overlap_frames != 0;
     return available >= (overlap ? 2u : 1u) || invalid(error, "Devralma için boş veya sıraya ait MAIN oynatıcısı gerekli; mevcut kaynak korunuyor.");
@@ -1177,17 +1209,18 @@ static void prepared(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result,
     }
     p->preparing = FALSE;
     if (plan && job->player_autodj) {
-        RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+        RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
         RadioSAudioPlayerOptions options = {-1, -1};
         if (job->pair_selection_captured &&
             (!radios_audio_ui_player_options(ctx, job->pair[0], &options) || options.autodj_target != job->pair_selection)) {
             invalid(&error, "AutoDJ hazırlanırken hedef seçimi değişti; mevcut oynatıcılar korundu.");
             radios_playout_plan_free(plan); plan = NULL;
         }
-        for (guint index = 0; plan && index < 2; ++index) if (audio.decks[job->pair[index]].generation != job->pair_generation[index]) {
+        for (guint index = 0; plan && index < 2; ++index) if (audio->decks[job->pair[index]].generation != job->pair_generation[index]) {
             invalid(&error, "AutoDJ hazırlanırken kaynak veya hedef deck değişti; yeni yükleme korunuyor.");
             radios_playout_plan_free(plan); plan = NULL; break;
         }
+        g_free(audio);
     }
     if (plan && !install_plan(p, plan, &error)) { radios_playout_plan_free(plan); plan = NULL; }
     if (!plan) {
@@ -1380,12 +1413,13 @@ static gboolean prepare_start_origin(RadioSViewContext *ctx, GtkWidget *owner, c
     if (config && json_object_has_member(config, "autodj_players")) {
         JsonArray *pair = json_object_get_array_member(config, "autodj_players");
         if (pair && json_array_get_length(pair) == 2) {
-            RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio); job->player_autodj = TRUE;
+            RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine); job->player_autodj = TRUE;
             for (guint index = 0; index < 2; ++index) {
                 gint64 player = json_array_get_int_element(pair, index) - 1;
-                if (player < 0 || player >= 32) { preparation_free(job); return invalid(error, "AutoDJ hedefi geçersiz."); }
-                job->pair[index] = (guint)player; job->pair_generation[index] = audio.decks[player].generation;
+                if (player < 0 || player >= 32) { g_free(audio); preparation_free(job); return invalid(error, "AutoDJ hedefi geçersiz."); }
+                job->pair[index] = (guint)player; job->pair_generation[index] = audio->decks[player].generation;
             }
+            g_free(audio);
             RadioSAudioPlayerOptions options = {-1, -1};
             job->pair_selection_captured = radios_audio_ui_player_options(ctx, job->pair[0], &options);
             job->pair_selection = options.autodj_target;
@@ -1558,7 +1592,7 @@ gboolean radios_playout_ui_start_prepared_scope_with_loudness_origin(RadioSViewC
      * plays music) plays there while they are free; a busy or foreign player
      * gives its rows back to this scope's own players instead of refusing. */
     guint32 pooled = mask, refused = 0;
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
     const RadioSPlayerTopology *topology = ctx->players ? radios_player_workspace_topology(ctx->players) : NULL;
     for (guint i = 0; i < plan->entries->len; ++i) {
         RadioSPlayoutEntry *entry = g_ptr_array_index(plan->entries, i);
@@ -1570,7 +1604,7 @@ gboolean radios_playout_ui_start_prepared_scope_with_loudness_origin(RadioSViewC
                 gint owner = -1;
                 usable = topology && radios_player_workspace_contains(ctx->players, deck) && !topology->players[deck].cluster_id[0] &&
                     (!radios_audio_engine_deck_runner_owner(p->engine, deck, &owner) || owner == p->player_deck) &&
-                    audio.decks[deck].state != RADIOS_AUDIO_PLAYING && plan->options.pool_count < 32;
+                    audio->decks[deck].state != RADIOS_AUDIO_PLAYING && plan->options.pool_count < 32;
                 if (usable) { plan->options.deck_pool[plan->options.pool_count++] = deck; pooled |= bit; }
                 else {
                     refused |= bit;
@@ -1596,6 +1630,7 @@ gboolean radios_playout_ui_start_prepared_scope_with_loudness_origin(RadioSViewC
             entry->run.preferred_deck = (gint)decks[0];
         }
     }
+    g_free(audio);
     plan_loudness_origin(plan, RADIOS_AUDIO_LOUDNESS_AUTODJ |
         (automation_id && *automation_id ? RADIOS_AUDIO_LOUDNESS_AUTOMATION : 0), automation_id, assigned);
     if (!install_plan(p, plan, error)) { radios_playout_plan_free(plan); return FALSE; }
@@ -1777,14 +1812,15 @@ gboolean radios_playout_ui_interrupt_prepared(RadioSViewContext *ctx, GtkWidget 
             ((RadioSPlayoutEntry *)g_ptr_array_index(resume->plan->entries, actual.next_index))->run.media.cue_in_frame) {
             index = actual.next_index; cursor = actual.actual_next_frame;
         }
-        RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-        guint n = runner_receipts(p, receipts, G_N_ELEMENTS(receipts)); guint64 occurrence = 0;
+        guint n = 0; guint64 occurrence = 0;
+        RadioSAudioRunReceipt *receipts = receipts_take(p, &n);
         for (guint i = 0; i < n; ++i) if (receipts[i].epoch == actual.epoch && receipts[i].index < resume->plan->entries->len && receipts[i].occurrence >= occurrence &&
             receipts[i].position_frames > ((RadioSPlayoutEntry *)g_ptr_array_index(resume->plan->entries, receipts[i].index))->run.media.cue_in_frame) {
             occurrence = receipts[i].occurrence;
             if (index != receipts[i].index) { index = receipts[i].index; cursor = receipts[i].position_frames; }
             else cursor = MAX(cursor, receipts[i].position_frames);
         }
+        g_free(receipts);
         for (guint i = 0; i < index; ++i) g_ptr_array_remove_index(resume->plan->entries, 0);
         RadioSPlayoutEntry *first = g_ptr_array_index(resume->plan->entries, 0);
         cursor = MAX(first->run.media.cue_in_frame, cursor);
@@ -1938,10 +1974,11 @@ static gboolean live_step_end_current(RadioSPlayoutController *p, gboolean *hand
     if (!g_str_equal(run.entry_id, entry->run.entry_id) || entry->run.mode != RADIOS_AUDIO_RUN_MANUAL ||
         (g_strcmp0(rule, "manual") && g_strcmp0(rule, "duration"))) return FALSE;
     *handled = TRUE;
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
+    RadioSAudioSnapshot *audio = audio_snapshot_new(p->engine);
+    guint64 generation = audio->decks[run.deck_current].generation; g_free(audio);
     guint64 end = entry->run.media.cue_out_frame, start = entry->run.media.cue_in_frame;
     return radios_audio_engine_seek_if_generation(p->engine, (guint)run.deck_current,
-        audio.decks[run.deck_current].generation, end > start + 480 ? end - 480 : start, error);
+        generation, end > start + 480 ? end - 480 : start, error);
 }
 gboolean radios_playout_ui_action(RadioSViewContext *ctx, RadioSPlayoutAction action, GError **error)
 {
@@ -2165,8 +2202,8 @@ JsonArray *radios_playout_ui_take_completed(RadioSViewContext *ctx)
     RadioSAudioRunSnapshot run; runner_snapshot(p, &run);
     if (run.state == RADIOS_AUDIO_RUN_IDLE || run.state == RADIOS_AUDIO_RUN_ERROR ||
         run.state == RADIOS_AUDIO_RUN_PREROLL || run.state == RADIOS_AUDIO_RUN_SCHEDULED) return result;
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = runner_receipts(p, receipts, G_N_ELEMENTS(receipts));
+    guint count = 0;
+    RadioSAudioRunReceipt *receipts = receipts_take(p, &count);
     for (guint i = 0; i < count; ++i) {
         const RadioSAudioRunReceipt *receipt = &receipts[i];
         if (receipt->epoch != run.epoch || receipt->terminal != RADIOS_AUDIO_RUN_TERMINAL_COMPLETE ||
@@ -2178,6 +2215,7 @@ JsonArray *radios_playout_ui_take_completed(RadioSViewContext *ctx)
         RadioSPlayoutEntry *entry = g_ptr_array_index(p->plan->entries, receipt->index);
         json_array_add_string_element(result, entry->run.entry_id);
     }
+    g_free(receipts);
     return result;
 }
 static void metadata_copy(gchar *destination, gsize capacity, const gchar *value)
@@ -2316,8 +2354,9 @@ gboolean radios_playout_ui_deck_metadata(RadioSViewContext *ctx, guint deck, Rad
     if (!playout || !playout->plan || deck >= RADIOS_AUDIO_NORMAL_DECKS) return FALSE;
     RadioSAudioRunSnapshot run; runner_snapshot(playout, &run);
     if (!run.owned[deck]) return FALSE;
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(playout->engine, &audio);
-    const RadioSAudioDeckSnapshot *loaded = &audio.decks[deck];
+    RadioSAudioSnapshot *audio = audio_snapshot_new(playout->engine);
+    RadioSAudioDeckSnapshot deck_snapshot = audio->decks[deck]; g_free(audio);
+    const RadioSAudioDeckSnapshot *loaded = &deck_snapshot;
     if (!loaded->media_id[0] || !loaded->version_id[0]) return FALSE;
     guint index = run.deck_next == (gint)deck ? run.next_index : run.index;
     if (index >= playout->plan->entries->len) return FALSE;

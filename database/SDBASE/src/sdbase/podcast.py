@@ -26,6 +26,7 @@ from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 import xml.etree.ElementTree as ET
 
+from . import _platform
 from .identity import Principal, require
 from .storage import Conflict, Store, StoreError
 
@@ -785,7 +786,7 @@ def download_episode(store: Store, principal: Principal, station_id: str,
             result = _fetch(episode["enclosure_url"], max_bytes=MAX_AUDIO_BYTES,
                             destination=output)
             output.flush()
-            os.fsync(output.fileno())
+            _platform.fsync(output)
         if result["content_type"] in {"text/html", "application/xhtml+xml",
                                       "application/xml", "text/xml", "application/rss+xml",
                                       "application/atom+xml"}:
@@ -824,8 +825,10 @@ def download_episode(store: Store, principal: Principal, station_id: str,
                 pass
         raise
     finally:
+        # A scanner (Defender) holding the finished download must neither turn a
+        # committed staging into an error nor mask the original exception.
         if path is not None:
-            path.unlink(missing_ok=True)
+            _platform.unlink_quietly(path)
 
 
 def recover_download(store: Store, principal: Principal, station_id: str,

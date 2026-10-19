@@ -12,11 +12,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
-import tempfile
 from typing import Any
 from uuid import UUID
 
+from . import _platform
 from .backup import (BackupError, _commit_updates, _data, _destination,
                      _fence_restored_store, _fsync_tree, _issue_provision_admin,
                      _open_regular, _publish_absent, _verify_fenced_store)
@@ -64,7 +63,10 @@ def _load_state(root: Path, manifest_sha256: str) -> tuple[dict, dict, dict]:
             records: dict[str, dict] = {}
             digest = hashlib.sha256()
             size = 0
-            with os.fdopen(_open_regular(root / expected["path"]), "rb") as stream:
+            # '/'-separated package path, parsed identically on every host
+            # (no drive, rooted, '\\', ':' or reserved-name forms).
+            relative = _platform.safe_relative_parts(expected["path"])
+            with os.fdopen(_open_regular(root.joinpath(*relative)), "rb") as stream:
                 for raw in stream:
                     digest.update(raw)
                     size += len(raw)
@@ -359,9 +361,9 @@ def restore_portable_export(package_dir: str | Path, target_dir: str | Path) -> 
     except (BackupError, PortableExportError) as exc:
         raise PortableImportError(str(exc)) from exc
 
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".restore",
-                                  dir=target.parent))
-    os.chmod(stage, 0o700)
+    # Owner-only stage (explicit user-SID DACL; Linux: mkdtemp + chmod 0700).
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".restore",
+                                           dir=target.parent))
     try:
         imported = _install_checkpoint(stage, state, tombstones)
         # Rebuild all RadioS indexes before any fencing commits. This rejects
@@ -404,5 +406,6 @@ def restore_portable_export(package_dir: str | Path, target_dir: str | Path) -> 
     except BackupError as exc:
         raise PortableImportError(str(exc)) from exc
     finally:
+        # Never mask the restore error; the stage name is a recognisable leftover.
         if stage.exists():
-            shutil.rmtree(stage)
+            _platform.rmtree(stage, ignore_errors=True)

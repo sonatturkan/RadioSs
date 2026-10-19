@@ -230,16 +230,30 @@ static void file_changed(GFileMonitor *monitor, GFile *file, GFile *other, GFile
     if (s->debounce) g_source_remove(s->debounce);
     s->debounce = g_timeout_add(600, debounced, s);
 }
+/* The shared document may come from another workstation or version: a member
+ * that is not an integer in guint range keeps the local value (json-glib
+ * would raise a critical and return 0, or wrap a negative/huge value). Range
+ * checks stay with the preference validators on save. */
 static guint member(JsonObject *object, const gchar *name, guint fallback)
-{ return object && json_object_has_member(object, name) ? (guint)json_object_get_int_member(object, name) : fallback; }
+{
+    JsonNode *node = object ? json_object_get_member(object, name) : NULL;
+    if (!node || !JSON_NODE_HOLDS_VALUE(node) || json_node_get_value_type(node) != G_TYPE_INT64) return fallback;
+    gint64 value = json_node_get_int(node);
+    return value >= 0 && value <= G_MAXUINT ? (guint)value : fallback;
+}
+static JsonObject *object_member(JsonObject *object, const gchar *name)
+{
+    JsonNode *node = json_object_get_member(object, name);
+    return node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL;
+}
 static void remote_loaded(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer data)
 {
     (void)ctx; (void)owner; Sync *s = data;
     if (s->disposed || !config) return;
     RadioSUIPreferences ui, current_ui; RadioSPreferencesAudio audio, current_audio;
     local_read(s, &current_ui, &current_audio); ui = current_ui; audio = current_audio;
-    JsonObject *u = json_object_has_member(config, "ui") ? json_object_get_object_member(config, "ui") : NULL;
-    JsonObject *a = json_object_has_member(config, "audio_panel") ? json_object_get_object_member(config, "audio_panel") : NULL;
+    JsonObject *u = object_member(config, "ui");
+    JsonObject *a = object_member(config, "audio_panel");
     ui.text_size = member(u, "text_size", ui.text_size); ui.default_profile = member(u, "default_profile", ui.default_profile);
     ui.header_hidden_fields = member(u, "header_hidden_fields", ui.header_hidden_fields);
     ui.content_scale_percent = member(u, "content_scale_percent", ui.content_scale_percent);

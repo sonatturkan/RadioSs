@@ -11,7 +11,6 @@ import csv
 from collections import defaultdict
 from decimal import Decimal
 import io
-from pathlib import Path
 import ntpath
 from typing import Any, Mapping, Sequence
 from uuid import UUID
@@ -47,8 +46,13 @@ def _seconds(milliseconds: int) -> str:
 
 
 def _absolute_path(value: Any) -> bool:
+    """A destination path for the mAirList (Windows) machine: drive-absolute
+    (``C:\\x``, ``C:/x``) or UNC.  Rooted (``\\x``) and drive-relative (``C:x``) paths
+    are rejected, as are control characters (never valid in Windows paths; a CR/LF
+    would also split the CSV record in mAirList)."""
     return isinstance(value, str) and bool(value) and \
-        (Path(value).is_absolute() or ntpath.isabs(value)) and "\x00" not in value
+        not any(ord(character) < 32 or ord(character) == 127 for character in value) and \
+        ntpath.isabs(value)
 
 
 def _duration_ms(media: dict) -> int | None:

@@ -1,11 +1,10 @@
-#define _XOPEN_SOURCE 700
 #include "radios/media_archive_ui.h"
 #include "radios/media_archive.h"
 #include "radios/storage_locations.h"
 #include "radios/media_ui.h"
 #include "radios/data.h"
 #include "radios/reset_ui.h"
-#include <stdlib.h>
+#include "radios/platform.h"
 #include <string.h>
 
 #define RUNNER_KEY "radios-media-archive-runner"
@@ -544,15 +543,24 @@ static void option_changed(GtkWidget *widget, gpointer value)
     page_refresh(page);
 }
 
+/* The physical folder: links and junctions resolved, on-disk case, upper-case
+ * drive letter, mapped network drives as UNC (a drive letter mapped only in
+ * this logon session would not exist for the service).  Falls back to the
+ * normalized chosen path when it cannot be resolved (then validation reports
+ * the real problem). */
+static gchar *chosen_folder(const gchar *chosen)
+{
+    gchar *physical = radios_fs_realpath(chosen, NULL);
+    return physical ? physical : radios_path_normalize(chosen);
+}
+
 static void folder_chosen(GtkDialog *dialog, gint response, gpointer value)
 {
     ArchivePage *page = value;
     gchar *chosen = response == GTK_RESPONSE_ACCEPT ? gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog)) : NULL;
     gtk_widget_destroy(GTK_WIDGET(dialog));
     if (!chosen || page->disposed) { g_free(chosen); return; }
-    gchar *physical = realpath(chosen, NULL);
-    gchar *folder = physical ? g_strdup(physical) : g_canonicalize_filename(chosen, NULL);
-    free(physical); g_free(chosen);
+    gchar *folder = chosen_folder(chosen); g_free(chosen);
     RadioSMediaArchiveSettings proposed; radios_media_archive_settings_init(&proposed);
     radios_media_archive_settings_copy(&proposed, &page->runner->settings);
     g_ptr_array_add(proposed.folders, folder);
@@ -698,9 +706,7 @@ static void storage_chosen(GtkDialog *dialog, gint response, gpointer value)
     gchar *chosen = response == GTK_RESPONSE_ACCEPT ? gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog)) : NULL;
     gtk_widget_destroy(GTK_WIDGET(dialog));
     if (!chosen || page->disposed) { g_free(chosen); return; }
-    gchar *physical = realpath(chosen, NULL);
-    gchar *folder = physical ? g_strdup(physical) : g_canonicalize_filename(chosen, NULL);
-    free(physical); g_free(chosen);
+    gchar *folder = chosen_folder(chosen); g_free(chosen);
     GError *error = NULL;
     const gchar *root = page->ctx->config ? page->ctx->config->project_root : NULL;
     if (!root || !radios_storage_directory_prepare(root, role, folder, &error)) {

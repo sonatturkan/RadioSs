@@ -1,22 +1,10 @@
-#define _XOPEN_SOURCE 700
 #include "radios/storage_locations.h"
 #include <glib/gstdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#include "radios_test_support.h"
 
 typedef struct { gchar *temporary, *root, *external; } Fixture;
-
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) { g_assert_cmpint(g_remove(path), ==, 0); return; }
-    GDir *directory = g_dir_open(path, 0, NULL); g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory)) != NULL) { gchar *child = g_build_filename(path, name, NULL); remove_tree(child); g_free(child); }
-    g_dir_close(directory);
-    g_assert_cmpint(g_rmdir(path), ==, 0);
-}
 
 static void write_file(const gchar *path, const gchar *contents)
 {
@@ -27,9 +15,9 @@ static void write_file(const gchar *path, const gchar *contents)
 static void setup(Fixture *fixture, gconstpointer data)
 {
     (void)data; GError *error = NULL;
-    gchar *made = g_dir_make_tmp("radios-storage-XXXXXX", &error); g_assert_no_error(error);
-    gchar *physical = realpath(made, NULL); g_assert_nonnull(physical);
-    fixture->temporary = g_strdup(physical); free(physical); g_free(made);
+    /* Physical (final, long) path: storage folders must equal their realpath. */
+    fixture->temporary = rt_make_tmp_dir("radios-storage-XXXXXX", &error); g_assert_no_error(error);
+    g_assert_nonnull(fixture->temporary);
     fixture->root = g_build_filename(fixture->temporary, "RadioS proje", NULL);
     fixture->external = g_build_filename(fixture->temporary, "harici disk", NULL);
     const gchar *dirs[] = {"config", "data/database", "data/recordings", "data/backups", NULL};
@@ -39,7 +27,7 @@ static void setup(Fixture *fixture, gconstpointer data)
 
 static void teardown(Fixture *fixture, gconstpointer data)
 {
-    (void)data; remove_tree(fixture->temporary);
+    (void)data; rt_remove_tree(fixture->temporary);
     g_free(fixture->temporary); g_free(fixture->root); g_free(fixture->external);
 }
 
@@ -47,9 +35,10 @@ static void config_init(Fixture *fixture, RadioSConfig *config)
 {
     memset(config, 0, sizeof *config);
     config->project_root = g_strdup(fixture->root);
-    config->database_file = g_build_filename(fixture->root, "data/database/RadioS.sdb", NULL);
-    config->recording_root = g_build_filename(fixture->root, "data/recordings", NULL);
-    config->backup_root = g_build_filename(fixture->root, "data/backups", NULL);
+    /* One component per argument: a literal "a/b" would leave a mixed-separator path. */
+    config->database_file = g_build_filename(fixture->root, "data", "database", "RadioS.sdb", NULL);
+    config->recording_root = g_build_filename(fixture->root, "data", "recordings", NULL);
+    config->backup_root = g_build_filename(fixture->root, "data", "backups", NULL);
 }
 
 static void config_free(RadioSConfig *config)
@@ -58,8 +47,18 @@ static void config_free(RadioSConfig *config)
 static void test_path_syntax(void)
 {
     GError *error = NULL;
-    g_assert_true(radios_storage_path_check_syntax("/mnt/radyo/kayıt", &error)); g_assert_no_error(error);
-    const gchar *bad[] = {"", "göreli", "/", "/a/../b", "/a//b", "/a/", "/a\tb", NULL};
+    /* Absolute canonical Windows folders: a drive path and a UNC share path. */
+    const gchar *good[] = {"D:\\Radyo\\Kayıt", "\\\\srv\\share\\Kayıt", NULL};
+    for (guint i = 0; good[i]; ++i) {
+        g_assert_true(radios_storage_path_check_syntax(good[i], &error)); g_assert_no_error(error);
+    }
+    /* Relative, drive-relative and rooted-without-drive paths, roots, dot and
+     * empty components, a trailing separator, control characters, a stream
+     * or reserved device name, '/' separators, a lower-case drive letter and
+     * the \\?\ device prefix are not storage folders. */
+    const gchar *bad[] = {"", "göreli", "C:", "C:göreli", "\\kök", "/mnt/radyo/kayıt", "C:\\", "\\\\srv\\share",
+                          "C:\\a\\..\\b", "C:\\a\\.\\b", "C:\\a\\\\b", "C:\\a\\", "C:\\a\tb", "C:\\a:b",
+                          "C:\\NUL\\x", "C:/a", "c:\\a", "\\\\?\\C:\\a", NULL};
     for (guint i = 0; bad[i]; ++i) {
         g_assert_false(radios_storage_path_check_syntax(bad[i], &error)); g_assert_nonnull(error); g_clear_error(&error);
     }
@@ -90,7 +89,9 @@ static void test_directory_rules(Fixture *fixture, gconstpointer data)
     gchar *protected_dir = g_build_filename(fixture->root, "config", NULL);
     g_assert_false(radios_storage_directory_check(fixture->root, RADIOS_STORAGE_RECORDINGS, protected_dir, FALSE, &error));
     g_assert_nonnull(strstr(error->message, "kaynak veya ayar")); g_clear_error(&error);
-    gchar *link = g_build_filename(fixture->temporary, "bağ", NULL); g_assert_cmpint(symlink(fixture->external, link), ==, 0);
+    /* A directory link (a junction without the symbolic-link privilege). */
+    gchar *link = g_build_filename(fixture->temporary, "bağ", NULL);
+    g_assert_true(rt_symlink(fixture->external, link, TRUE, &error)); g_assert_no_error(error);
     g_assert_false(radios_storage_directory_check(fixture->root, RADIOS_STORAGE_RECORDINGS, link, FALSE, &error));
     g_assert_nonnull(strstr(error->message, "sembolik")); g_clear_error(&error);
     /* Without the marker the folder passes the plain check but not the mounted-disk check. */
@@ -98,10 +99,10 @@ static void test_directory_rules(Fixture *fixture, gconstpointer data)
     g_assert_false(radios_storage_directory_check(fixture->root, RADIOS_STORAGE_RECORDINGS, fixture->external, TRUE, &error));
     g_assert_nonnull(strstr(error->message, "işareti yok")); g_clear_error(&error);
     /* prepare writes the marker (0600 JSON) and creates a missing folder. */
-    gchar *fresh = g_build_filename(fixture->external, "yeni/kayıtlar", NULL);
+    gchar *fresh = g_build_filename(fixture->external, "yeni", "kayıtlar", NULL);
     g_assert_true(radios_storage_directory_prepare(fixture->root, RADIOS_STORAGE_RECORDINGS, fresh, &error)); g_assert_no_error(error);
     gchar *marker = g_build_filename(fresh, RADIOS_STORAGE_MARKER, NULL);
-    GStatBuf info; g_assert_cmpint(g_stat(marker, &info), ==, 0); g_assert_cmpint(info.st_mode & 0777, ==, 0600);
+    rt_assert_private_file(marker);
     gchar *body = NULL; g_assert_true(g_file_get_contents(marker, &body, NULL, NULL));
     g_assert_nonnull(strstr(body, "\"role\":\"recordings\"")); g_assert_nonnull(strstr(body, "radios-storage-v1")); g_free(body);
     g_assert_true(radios_storage_directory_check(fixture->root, RADIOS_STORAGE_RECORDINGS, fresh, TRUE, &error)); g_assert_no_error(error);
@@ -127,31 +128,31 @@ static void test_settings_and_apply(Fixture *fixture, gconstpointer data)
     settings.path[RADIOS_STORAGE_RECORDINGS] = g_strdup(recordings);
     g_assert_true(radios_storage_settings_save(fixture->root, &settings, &error)); g_assert_no_error(error);
     gchar *file = g_build_filename(fixture->root, "config", RADIOS_STORAGE_FILE, NULL);
-    GStatBuf info; g_assert_cmpint(g_stat(file, &info), ==, 0); g_assert_cmpint(info.st_mode & 0777, ==, 0600);
+    rt_assert_private_file(file);
     RadioSStorageSettings loaded; radios_storage_settings_init(&loaded);
     g_assert_true(radios_storage_settings_load(fixture->root, &loaded, &error)); g_assert_no_error(error);
-    g_assert_cmpstr(loaded.path[RADIOS_STORAGE_RECORDINGS], ==, recordings); g_assert_null(loaded.path[RADIOS_STORAGE_BACKUPS]);
+    rt_assert_path_equal(loaded.path[RADIOS_STORAGE_RECORDINGS], recordings); g_assert_null(loaded.path[RADIOS_STORAGE_BACKUPS]);
     RadioSStorageSettings copy; radios_storage_settings_init(&copy); radios_storage_settings_copy(&copy, &loaded);
-    g_assert_cmpstr(copy.path[RADIOS_STORAGE_RECORDINGS], ==, recordings); radios_storage_settings_clear(&copy);
+    rt_assert_path_equal(copy.path[RADIOS_STORAGE_RECORDINGS], recordings); radios_storage_settings_clear(&copy);
     /* apply: recordings move, backups keep the default, the database stays. */
     RadioSConfig config; config_init(fixture, &config);
     gchar *default_database = g_strdup(config.database_file), *default_backups = g_strdup(config.backup_root);
     g_assert_true(radios_storage_apply(&config, &error)); g_assert_no_error(error);
-    g_assert_cmpstr(config.recording_root, ==, recordings); g_assert_cmpstr(config.backup_root, ==, default_backups);
-    g_assert_cmpstr(config.database_file, ==, default_database); g_assert_false(config.database_external);
-    gchar *current = radios_storage_current_dir(&config, RADIOS_STORAGE_RECORDINGS); g_assert_cmpstr(current, ==, recordings); g_free(current);
-    current = radios_storage_current_dir(&config, RADIOS_STORAGE_BACKUPS); g_assert_cmpstr(current, ==, default_backups); g_free(current);
+    rt_assert_path_equal(config.recording_root, recordings); rt_assert_path_equal(config.backup_root, default_backups);
+    rt_assert_path_equal(config.database_file, default_database); g_assert_false(config.database_external);
+    gchar *current = radios_storage_current_dir(&config, RADIOS_STORAGE_RECORDINGS); rt_assert_path_equal(current, recordings); g_free(current);
+    current = radios_storage_current_dir(&config, RADIOS_STORAGE_BACKUPS); rt_assert_path_equal(current, default_backups); g_free(current);
     gchar *database_dir = g_path_get_dirname(default_database);
-    current = radios_storage_current_dir(&config, RADIOS_STORAGE_DATABASE); g_assert_cmpstr(current, ==, database_dir); g_free(current);
+    current = radios_storage_current_dir(&config, RADIOS_STORAGE_DATABASE); rt_assert_path_equal(current, database_dir); g_free(current);
     gchar *notice = radios_storage_notice(&config); g_assert_null(notice);
     /* An unmounted recording disk falls back with a notice; a database folder without the marker refuses to start. */
     gchar *marker = g_build_filename(recordings, RADIOS_STORAGE_MARKER, NULL); g_assert_cmpint(g_remove(marker), ==, 0);
-    current = radios_storage_current_dir(&config, RADIOS_STORAGE_RECORDINGS); g_assert_cmpstr(current, ==, config.recording_root); g_free(current);
+    current = radios_storage_current_dir(&config, RADIOS_STORAGE_RECORDINGS); rt_assert_path_equal(current, config.recording_root); g_free(current);
     notice = radios_storage_notice(&config); g_assert_nonnull(notice); g_assert_nonnull(strstr(notice, "Kayıtlar")); g_assert_nonnull(strstr(notice, "Varsayılan")); g_free(notice);
     config_free(&config); config_init(fixture, &config);
     g_assert_true(radios_storage_apply(&config, &error)); g_assert_no_error(error);
-    gchar *default_recordings = g_build_filename(fixture->root, "data/recordings", NULL);
-    g_assert_cmpstr(config.recording_root, ==, default_recordings); g_free(default_recordings); /* unchanged default */
+    gchar *default_recordings = g_build_filename(fixture->root, "data", "recordings", NULL);
+    rt_assert_path_equal(config.recording_root, default_recordings); g_free(default_recordings); /* unchanged default */
     gchar *database_external = g_build_filename(fixture->external, "veritabanı", NULL);
     g_assert_cmpint(g_mkdir_with_parents(database_external, 0700), ==, 0);
     loaded.path[RADIOS_STORAGE_DATABASE] = g_strdup(database_external);
@@ -159,12 +160,12 @@ static void test_settings_and_apply(Fixture *fixture, gconstpointer data)
     config_free(&config); config_init(fixture, &config);
     g_assert_false(radios_storage_apply(&config, &error)); g_assert_nonnull(error);
     g_assert_nonnull(strstr(error->message, "Veritabanı klasörü kullanılamıyor")); g_clear_error(&error);
-    g_assert_cmpstr(config.database_file, ==, default_database);
+    rt_assert_path_equal(config.database_file, default_database);
     g_assert_true(radios_storage_directory_prepare(fixture->root, RADIOS_STORAGE_DATABASE, database_external, &error)); g_assert_no_error(error);
     config_free(&config); config_init(fixture, &config);
     g_assert_true(radios_storage_apply(&config, &error)); g_assert_no_error(error);
     gchar *moved = g_build_filename(database_external, "RadioS.sdb", NULL);
-    g_assert_cmpstr(config.database_file, ==, moved); g_assert_true(config.database_external); g_free(moved);
+    rt_assert_path_equal(config.database_file, moved); g_assert_true(config.database_external); g_free(moved);
     /* A broken storage.ini is a configuration error. */
     write_file(file, "[storage]\nversion=1\nrecording_root=göreli\n");
     config_free(&config); config_init(fixture, &config);
@@ -177,15 +178,21 @@ static void test_settings_and_apply(Fixture *fixture, gconstpointer data)
 
 static void test_sizes(Fixture *fixture, gconstpointer data)
 {
-    (void)data;
-    gchar *file = g_build_filename(fixture->external, "a/b.wav", NULL); write_file(file, "0123456789");
-    gchar *link = g_build_filename(fixture->external, "bağ", NULL); g_assert_cmpint(symlink(file, link), ==, 0);
+    (void)data; GError *error = NULL;
+    gchar *directory = g_build_filename(fixture->external, "a", NULL);
+    gchar *file = g_build_filename(directory, "b.wav", NULL); write_file(file, "0123456789");
+    /* A directory link (junction without the symbolic-link privilege) to the
+     * folder holding the only file: following it would count 20 bytes. */
+    gchar *link = g_build_filename(fixture->external, "bağ", NULL);
+    g_assert_true(rt_symlink(directory, link, TRUE, &error)); g_assert_no_error(error);
     g_assert_cmpint(radios_storage_tree_bytes(fixture->external), ==, 10); /* links are not followed */
     g_assert_cmpint(radios_storage_tree_bytes(file), ==, -1); g_assert_cmpint(radios_storage_tree_bytes(NULL), ==, -1);
     g_assert_cmpint(radios_storage_free_bytes(fixture->external), >, 0);
     g_assert_cmpint(radios_storage_total_bytes(fixture->external), >=, radios_storage_free_bytes(fixture->external));
     g_assert_cmpint(radios_storage_free_bytes("/yok/böyle/bir/yer"), ==, -1);
-    g_free(file); g_free(link);
+    gchar *missing = g_build_filename(fixture->temporary, "yok", "böyle", "bir", "yer", NULL);
+    g_assert_cmpint(radios_storage_free_bytes(missing), ==, -1); g_free(missing);
+    g_free(directory); g_free(file); g_free(link);
 }
 
 int main(int argc, char **argv)

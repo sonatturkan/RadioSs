@@ -22,7 +22,9 @@ gboolean radios_audio_transition_plan(const RadioSAudioTransitionMedia *settings
 void radios_audio_transition_envelope(const RadioSAudioTransitionPlan *plan,
     guint64 frame, gdouble *gain_a, gdouble *gain_b);
 /* Worker-only streaming preparation, constant PCM memory, cancellable hash and
- * decoding. Caller owns the private temporary WAV and must delete it. */
+ * decoding. Caller owns the private temporary WAV (owner-only ACL, closed before
+ * this returns) and must delete it. On failure or cancel nothing is left in
+ * directory. */
 gboolean radios_audio_transition_prepare(const RadioSAudioTransitionMedia *settings,
     const gchar *directory, GCancellable *cancellable, gchar **path,
     gchar **sha256, guint64 *frames, GError **error);

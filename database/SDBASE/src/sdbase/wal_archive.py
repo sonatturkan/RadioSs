@@ -17,7 +17,8 @@ import struct
 from typing import Any, Iterator
 from uuid import UUID, uuid4
 
-from .storage import Store, StoreError, _atomic_json, _frame, _json_bytes, _MAX_FRAME
+from . import _platform
+from .storage import Store, StoreError, _atomic_json, _frame, _json_bytes, _MAX_FRAME, _open_shared
 
 
 HEADER_FORMAT = "sdbase-wal-archive-v1"
@@ -342,7 +343,7 @@ def _header(root: Path) -> dict:
             type(row["schema_version"]) is not int or row["schema_version"] < 1 or \
             type(row["start_sequence"]) is not int or row["start_sequence"] < 0 or \
             not isinstance(row["database"], str) or \
-            Path(row["database"]).name != row["database"] or not row["database"].endswith(".sdb"):
+            not _platform.component_valid(row["database"]) or not row["database"].endswith(".sdb"):
         raise WalArchiveError("invalid WAL archive header")
     _instant(row["created_at"])
     return envelope
@@ -350,7 +351,7 @@ def _header(root: Path) -> dict:
 
 def _root(path: str | Path) -> Path:
     raw = Path(path)
-    if raw.is_symlink() or not raw.is_dir():
+    if _platform.is_link_like(raw) or not raw.is_dir():
         raise WalArchiveError("WAL archive root is absent or a symlink")
     return raw.resolve(strict=True)
 
@@ -361,7 +362,7 @@ def _record_paths(root: Path) -> list[tuple[int, Path]]:
         raise WalArchiveError("WAL record directory is missing")
     result = []
     for item in records.iterdir():
-        if item.is_symlink() or not item.is_file():
+        if _platform.is_link_like(item) or not item.is_file():
             raise WalArchiveError("invalid WAL record filename or component")
         if re.fullmatch(r"\.\d{20}\.json\.[0-9a-f]{32}\.partial", item.name):
             # A crash before sealing may leave an uncommitted temporary file.
@@ -377,6 +378,19 @@ def _asset_path(digest: str) -> str:
     return f"assets/{digest[:2]}/{digest}"
 
 
+def _relative_parts(value: Any) -> tuple[str, ...]:
+    """Components of a stored '/'-separated relative path, () when it is unsafe.
+
+    One strict parser on every host: no '\\', ':', drive or absolute forms,
+    empty/'.'/'..' components or Windows device names, so a replicated record
+    is accepted or refused identically by Linux-written and Windows readers.
+    """
+    try:
+        return _platform.safe_relative_parts(value)
+    except (TypeError, ValueError):
+        return ()
+
+
 def _validate_assets(assets: Any, database: str) -> None:
     from .backup import _SHA256
     if not isinstance(assets, list):
@@ -389,7 +403,7 @@ def _validate_assets(assets: Any, database: str) -> None:
                 type(asset["size_bytes"]) is not int or asset["size_bytes"] < 0:
             raise WalArchiveError("invalid or duplicated WAL asset")
         seen.add(asset["path"])
-        parts = Path(asset["path"]).parts
+        parts = _relative_parts(asset["path"])
         media = len(parts) == 3 and parts[0] == database + ".objects" and \
             parts[1] == asset["sha256"][:2] and parts[2] == asset["sha256"]
         cold = len(parts) == 3 and parts[0] == database + ".archives" and \
@@ -426,8 +440,8 @@ def validate_archive_record(record: dict, header: dict | None = None) -> dict:
         # A replica verifies paths against its source database separately.
         if not isinstance(row["assets"], list):
             raise WalArchiveError("invalid WAL asset inventory")
-        roots = {Path(a.get("path", "")).parts[0] for a in row["assets"]
-                 if isinstance(a, dict) and Path(a.get("path", "")).parts}
+        roots = {_relative_parts(a.get("path"))[0] for a in row["assets"]
+                 if isinstance(a, dict) and _relative_parts(a.get("path"))}
         names = {name.removesuffix(".objects").removesuffix(".archives") for name in roots}
         if len(names) > 1:
             raise WalArchiveError("WAL assets name more than one database")
@@ -538,8 +552,6 @@ def enable_wal_archive(store: Store) -> dict:
     if store.read_only:
         raise WalArchiveError("cannot enable WAL archival on a read-only store")
     from .backup import _destination, _fsync_tree, _publish_absent
-    import shutil
-    import tempfile
     with store._locked(exclusive=True):
         store._assert_writable_locked()
         store._reload_locked(repair_tail=True)
@@ -566,7 +578,7 @@ def enable_wal_archive(store: Store) -> dict:
             _atomic_json(store.meta_file, meta)
             return _status_locked(store, verify=True)
         target = _destination(archive_root(store))
-        stage = Path(tempfile.mkdtemp(prefix=".wal-enable-", dir=store.root))
+        stage = Path(_platform.mkdtemp_private(prefix=".wal-enable-", dir=store.root))
         try:
             body = {"format": HEADER_FORMAT, "archive_id": str(uuid4()),
                     "source_store_id": meta["store_id"], "timeline_id": meta["timeline_id"],
@@ -574,8 +586,8 @@ def enable_wal_archive(store: Store) -> dict:
                     "database": store.journal.name, "start_sequence": store._sequence,
                     "created_at": datetime.now(timezone.utc).isoformat()}
             envelope = {"payload": body, "sha256": _digest(body)}
-            (stage / "records").mkdir(mode=0o700)
-            (stage / "assets").mkdir(mode=0o700)
+            _platform.mkdir_private(stage / "records")
+            _platform.mkdir_private(stage / "assets")
             _atomic_json(stage / "header.json", envelope)
             _atomic_json(stage / "head.json", {"sequence": store._sequence,
                          "sha256": envelope["sha256"], "effective_at": body["created_at"]})
@@ -584,8 +596,10 @@ def enable_wal_archive(store: Store) -> dict:
             meta["wal_archive"] = {"archive_id": body["archive_id"], "start_sequence": store._sequence}
             _atomic_json(store.meta_file, meta)
         finally:
+            # Never mask the original error; an unpublished ".wal-enable-*"
+            # stage holds nothing that recovery needs.
             if stage.exists():
-                shutil.rmtree(stage)
+                _platform.rmtree(stage, ignore_errors=True)
         return _status_locked(store, verify=True)
 
 
@@ -648,16 +662,25 @@ def _capture_assets(root: Path, store: Store, assets: list[dict]) -> None:
         if target.exists():
             _verify_asset(root, asset)
             continue
-        target.parent.mkdir(mode=0o700, exist_ok=True)
+        try:
+            _platform.mkdir_private(target.parent)
+        except FileExistsError:
+            # mkdir(0o700, exist_ok=True): an existing fan-out directory is
+            # used as it is; only a link or a non-directory is refused.
+            if _platform.is_link_like(target.parent) or not target.parent.is_dir():
+                raise WalArchiveError("WAL asset directory is not a real directory") from None
         temporary = target.with_name("." + target.name + "." + uuid4().hex + ".partial")
         try:
             _copy_file(_safe(store.root, asset["path"]), temporary,
                        expected_sha=asset["sha256"], expected_size=asset["size_bytes"])
-            os.link(temporary, target, follow_symlinks=False)
+            # No-replace publication: FileExistsError if the name appeared
+            # (never overwritten); the temporary name is consumed on success.
+            _platform.link_noreplace(temporary, target)
             _fsync_dir(target.parent)
             _fsync_dir(target.parent.parent)
         finally:
-            temporary.unlink(missing_ok=True)
+            if os.path.lexists(temporary):
+                _platform.unlink_quietly(temporary)
 
 
 def _append_locked(store: Store, *, kind: str, value: dict, committed_at: str) -> None:
@@ -692,15 +715,17 @@ def _append_locked(store: Store, *, kind: str, value: dict, committed_at: str) -
     path = _safe(root, f"records/{sequence:020d}.json")
     temporary = path.with_name("." + path.name + "." + uuid4().hex + ".partial")
     try:
-        with temporary.open("xb") as stream:
-            os.chmod(temporary, 0o600)
+        descriptor = _platform.os_open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                                       nofollow=True, private=True)
+        with os.fdopen(descriptor, "wb") as stream:
             stream.write(_json_bytes(record))
             stream.flush()
             os.fsync(stream.fileno())
-        os.link(temporary, path, follow_symlinks=False)
+        _platform.link_noreplace(temporary, path)
         _fsync_dir(path.parent)
     finally:
-        temporary.unlink(missing_ok=True)
+        if os.path.lexists(temporary):
+            _platform.unlink_quietly(temporary)
     _atomic_json(root / "head.json", {"sequence": sequence, "sha256": record["sha256"],
                                      "effective_at": body["effective_at"]})
 
@@ -878,7 +903,7 @@ def apply_archive_record(store: Store, record: dict) -> None:
     if row["kind"] == "transaction":
         value = row["transaction"]
         frame = _frame(value)
-        with store.journal.open("ab") as stream:
+        with _open_shared(store.journal, "ab") as stream:
             stream.write(frame)
             stream.flush()
             os.fsync(stream.fileno())
@@ -889,7 +914,7 @@ def apply_archive_record(store: Store, record: dict) -> None:
         _atomic_json(store.checkpoint_file, {"payload": payload, "sha256": _digest(payload)})
         store._checkpoint_stamp = None
         store._reload_locked()
-        with store.journal.open("r+b") as stream:
+        with _open_shared(store.journal, "r+b") as stream:
             stream.truncate(0)
             stream.flush()
             os.fsync(stream.fileno())

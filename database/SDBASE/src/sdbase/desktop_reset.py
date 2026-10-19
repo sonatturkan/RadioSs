@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import shutil
 
+from . import _platform
 from . import desktop_api as api
 from .identity import require
 from .storage import Conflict, StoreError
@@ -186,8 +187,20 @@ def _backup_folder(store, name):
     root = getattr(store, "desktop_backup_root", None)
     if callable(root):
         root = root()
-    root = Path(root) if root else Path(store.root).parent / "backups"
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if root:
+        # A storage.ini folder (often another disk): a folder created here is
+        # private like the default, an existing one is used as configured.
+        root = Path(root)
+        if not root.is_dir():
+            try:
+                _platform.mkdir_private(root, parents=True)
+            except FileExistsError:
+                if not root.is_dir():
+                    raise
+    else:
+        # data\backups beside the database: owner-only (Linux 0700), never a link.
+        root = Path(store.root).parent / "backups"
+        _platform.mkdir_private(root, parents=True, exist_ok=True)
     require_space([(root, _backup_bytes(store))], "Yedek")
     target = root / name
     suffix = 1

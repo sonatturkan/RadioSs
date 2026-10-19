@@ -7,28 +7,38 @@
 
 G_BEGIN_DECLS
 
-/* Live runtime of the routing page. It owns a Pulse connection, runs every
- * block of the applied graph in 10 ms steps (48 kHz stereo) and reaches the
- * mixer through engine taps and lines. Recorders and Internet streams start
- * only on explicit request; nothing starts when a graph is loaded. */
+/* Live runtime of the routing page. It uses the Windows audio system
+ * (WASAPI: capture and render endpoints, endpoint loopback "<render id>.monitor",
+ * per-application process loopback), runs every block of the applied graph in
+ * 10 ms steps (48 kHz stereo) and reaches the mixer through engine taps and
+ * lines. Recorders and Internet streams start only on explicit request;
+ * nothing starts when a graph is loaded. Host audio is never changed: no
+ * default device, volume, mute or per-application routing is touched. */
 #define RADIOS_PATCHBAY_MAX_DEVICES 64u
 #define RADIOS_PATCHBAY_NAME_SIZE 513u
+#define RADIOS_PATCH_INVALID_INDEX G_MAXUINT32
 
 typedef struct RadioSAudioPatchbay RadioSAudioPatchbay;
 typedef enum {
     RADIOS_PATCH_IDLE,     /* not running, or the block needs nothing live */
-    RADIOS_PATCH_STARTING, /* waiting for its device, server or mixer */
+    RADIOS_PATCH_STARTING, /* waiting for its device, the audio system or the mixer */
     RADIOS_PATCH_ACTIVE,
     RADIOS_PATCH_FAILED
 } RadioSPatchState;
 typedef struct {
-    guint32 index;
+    guint32 index;  /* stable while the patchbay lives */
+    /* Persisted identifier: endpoint id, "<render id>.monitor" for the
+     * loopback of an output, or a virtual test device name. */
     gchar name[RADIOS_PATCHBAY_NAME_SIZE], description[RADIOS_PATCHBAY_NAME_SIZE];
-    gboolean monitor; /* the monitor of an output */
+    gboolean monitor; /* the loopback ("monitor") of an output */
 } RadioSPatchDevice;
 typedef struct {
-    guint32 index, sink; /* sink is the index of its current output device */
-    gchar name[RADIOS_PATCHBAY_NAME_SIZE], binary[257];
+    guint32 index;      /* process id; the UI and move_application use it */
+    guint32 sink;       /* index of the output device it plays on, RADIOS_PATCH_INVALID_INDEX if unknown */
+    gchar name[RADIOS_PATCHBAY_NAME_SIZE], binary[257]; /* display name, "spotify.exe" */
+    guint64 start_time; /* process creation time (identity together with the pid) */
+    guint bound_node;   /* application-audio block capturing it, 0 = none */
+    gboolean active;    /* a session of the process is playing now */
 } RadioSPatchApplication;
 typedef struct {
     guint id;
@@ -36,8 +46,9 @@ typedef struct {
     RadioSPatchState state;
     gchar error[256];
     gfloat peak[2], rms[2]; /* since the previous snapshot: output of sources, input of sinks */
-    /* RG_VIRTUAL: Pulse names other applications see */
-    gchar sink[64], source[80];
+    /* RG_VIRTUAL (application audio): the captured application, pid 0 = none */
+    guint32 application_pid;
+    gchar application[RADIOS_PATCHBAY_NAME_SIZE], application_binary[257];
     /* RG_RECORDER */
     gboolean recording, paused;
     guint segment;
@@ -61,20 +72,28 @@ typedef struct {
     guint node_count;
     RadioSPatchNodeSnapshot nodes[RADIOS_ROUTING_GRAPH_MAX_NODES];
     guint64 underruns, trimmed;
+    /* Per-application capture (Windows 10 2004+ process loopback). When FALSE
+     * the reason says why ("Bu Windows sürümü ...", test audio system, ...). */
+    gboolean application_capture;
+    gchar application_capture_reason[256];
 } RadioSAudioPatchbaySnapshot;
 
-RadioSAudioPatchbay *radios_audio_patchbay_new(const gchar *pulse_server);
+/* audio_host selects the sound system: NULL or "" uses $RADIOS_AUDIO_BACKEND
+ * (then $RADIOS_AUDIO_SERVER, default "wasapi"); "wasapi" is the Windows
+ * audio service, "virtual:" the process-wide virtual test devices and
+ * "none:" (also any Linux-era "unix:..." address) no devices at all. Mixer,
+ * MAIN, recorder, meter and stream blocks work with every choice. */
+RadioSAudioPatchbay *radios_audio_patchbay_new(const gchar *audio_host);
 RadioSAudioPatchbay *radios_audio_patchbay_ref(RadioSAudioPatchbay *patchbay);
 /* The last unref stops recorders and streams (WAV files are finalized),
- * closes every stream and removes the virtual devices. */
+ * closes every device stream and drops every application capture. */
 void radios_audio_patchbay_unref(RadioSAudioPatchbay *patchbay);
 /* Mixer, MAIN and talk-microphone blocks need the broadcast engine. */
 void radios_audio_patchbay_set_engine(RadioSAudioPatchbay *patchbay, RadioSAudioEngine *engine);
 /* Folder for recorders without their own folder (absolute path). */
 void radios_audio_patchbay_set_recording_root(RadioSAudioPatchbay *patchbay, const gchar *folder);
 void radios_audio_patchbay_refresh(RadioSAudioPatchbay *patchbay);
-/* Asynchronous. Virtual interfaces follow the graph at once, also while
- * stopped. running=TRUE opens every capture, playback and mixer link;
+/* Asynchronous. running=TRUE opens every capture, playback and mixer link;
  * FALSE closes them and stops recorders and streams. */
 gboolean radios_audio_patchbay_apply(RadioSAudioPatchbay *patchbay,
     const RadioSRoutingGraph *graph, gboolean running, GError **error);
@@ -95,9 +114,17 @@ gboolean radios_audio_patchbay_stream_metadata(RadioSAudioPatchbay *patchbay, gu
  * reference survives graph replacement during observation. FALSE clears out. */
 gboolean radios_audio_patchbay_stream_metadata_status(RadioSAudioPatchbay *patchbay,
     guint node, RadioSAudioOutputSnapshot *out);
-/* Moves a playing application's output into a virtual interface block. */
+/* Binds a playing application (snapshot index = process id) as the capture
+ * source of an application-audio block (RG_VIRTUAL). Nothing is moved: the
+ * application keeps playing on its own output while RadioS captures its
+ * audio (process loopback, its child processes included) whenever the
+ * routing runs. One application feeds one block; binding it elsewhere
+ * releases the previous block. The binding is not persisted and ends when
+ * the application exits ("Uygulama kapandı; yakalama durduruldu."). */
 gboolean radios_audio_patchbay_move_application(RadioSAudioPatchbay *patchbay,
     guint32 application, guint node, GError **error);
+/* Ends the application capture of a block ("Yakalamayı bırak"). */
+void radios_audio_patchbay_release_application(RadioSAudioPatchbay *patchbay, guint node);
 void radios_audio_patchbay_snapshot(RadioSAudioPatchbay *patchbay, RadioSAudioPatchbaySnapshot *snapshot);
 
 G_END_DECLS

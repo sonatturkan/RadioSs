@@ -1,16 +1,12 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/media_archive.h"
 #include "radios/local_ini.h"
+#include "radios/platform.h"
 #include "radios/storage_locations.h"
 
 #include <errno.h>
-#include <fcntl.h>
-#include <glib/gstdio.h>
 #include <json-glib/json-glib.h>
+#include <share.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #define SETTINGS_FILE "media-archive.ini"
 #define INDEX_LIMIT (64u * 1024u * 1024u)
@@ -80,13 +76,6 @@ const gchar *radios_media_archive_playlist_purpose(const gchar *kind)
     return "music";
 }
 
-static gboolean path_inside(const gchar *root, const gchar *path)
-{
-    gsize length = strlen(root);
-    return g_str_equal(root, path) ||
-           (g_str_has_prefix(path, root) && (length == 1 || path[length] == G_DIR_SEPARATOR));
-}
-
 gboolean radios_media_archive_settings_validate(const RadioSMediaArchiveSettings *settings, GError **error)
 {
     g_return_val_if_fail(settings != NULL, FALSE);
@@ -98,8 +87,10 @@ gboolean radios_media_archive_settings_validate(const RadioSMediaArchiveSettings
         if (!radios_storage_path_check_syntax(folder, error)) return FALSE;
         for (guint j = 0; j < i; ++j) {
             const gchar *other = g_ptr_array_index(settings->folders, j);
-            if (g_str_equal(folder, other)) return fail(error, "Klasör iki kez eklenmiş: %s", folder);
-            if (path_inside(other, folder) || path_inside(folder, other))
+            /* Windows paths compare case-insensitively with either separator:
+             * C:\Müzik and c:/müzik/x are the same folder / nested folders. */
+            if (radios_path_equal(folder, other)) return fail(error, "Klasör iki kez eklenmiş: %s", folder);
+            if (radios_path_is_inside(other, folder) || radios_path_is_inside(folder, other))
                 return fail(error, "Arşiv klasörleri iç içe olamaz: %s ve %s", other, folder);
         }
     }
@@ -193,10 +184,11 @@ gboolean radios_media_archive_settings_save(const gchar *project_root, const Rad
 
 RadioSMediaArchiveFolderState radios_media_archive_folder_state(const gchar *folder)
 {
-    GStatBuf info;
-    if (!folder || g_stat(folder, &info) != 0) return RADIOS_MEDIA_ARCHIVE_FOLDER_MISSING;
-    if (!S_ISDIR(info.st_mode)) return RADIOS_MEDIA_ARCHIVE_FOLDER_NOT_DIRECTORY;
-    return access(folder, R_OK | X_OK) == 0 ? RADIOS_MEDIA_ARCHIVE_FOLDER_READY : RADIOS_MEDIA_ARCHIVE_FOLDER_UNREADABLE;
+    RadioSFileInfo info;
+    if (!folder || radios_fs_stat(folder, TRUE, &info) != 0) return RADIOS_MEDIA_ARCHIVE_FOLDER_MISSING;
+    if (info.type != RADIOS_FILE_TYPE_DIRECTORY) return RADIOS_MEDIA_ARCHIVE_FOLDER_NOT_DIRECTORY;
+    /* ACL-accurate: the directory is opened and listed (access() ignores ACLs on Windows). */
+    return radios_fs_dir_check_access(folder, FALSE) == 0 ? RADIOS_MEDIA_ARCHIVE_FOLDER_READY : RADIOS_MEDIA_ARCHIVE_FOLDER_UNREADABLE;
 }
 
 const gchar *radios_media_archive_folder_state_label(RadioSMediaArchiveFolderState state)
@@ -239,8 +231,9 @@ typedef struct {
     GCancellable *cancellable;
 } Walk;
 
-static gint64 mtime_us(const GStatBuf *info)
-{ return (gint64)info->st_mtim.tv_sec * G_USEC_PER_SEC + (gint64)info->st_mtim.tv_nsec / 1000; }
+/* LastWriteTime in µs (floor, like tv_sec * 10^6 + tv_nsec / 1000). */
+static gint64 mtime_us(const RadioSFileInfo *info)
+{ return info->mtime_ns >= 0 ? info->mtime_ns / 1000 : -((-info->mtime_ns + 999) / 1000); }
 
 static gint compare_names(gconstpointer a, gconstpointer b)
 { return g_strcmp0(*(const gchar *const *)a, *(const gchar *const *)b); }
@@ -251,6 +244,7 @@ static void walk_directory(Walk *walk, const gchar *directory, guint depth, cons
     if (!dir) { if (depth) ++walk->stats->unreadable; return; }
     GPtrArray *names = g_ptr_array_new_with_free_func(g_free);
     const gchar *name;
+    /* Dot names are dropped here (cheap); hidden/system attributes after the stat below. */
     while ((name = g_dir_read_name(dir))) if (name[0] != '.') g_ptr_array_add(names, g_strdup(name));
     g_dir_close(dir);
     g_ptr_array_sort(names, compare_names);
@@ -258,20 +252,24 @@ static void walk_directory(Walk *walk, const gchar *directory, guint depth, cons
         if (g_cancellable_is_cancelled(walk->cancellable)) break;
         const gchar *entry = g_ptr_array_index(names, i);
         gchar *path = g_build_filename(directory, entry, NULL);
-        GStatBuf info;
-        if (g_lstat(path, &info) != 0) { ++walk->stats->unreadable; g_free(path); continue; }
-        if (S_ISLNK(info.st_mode)) { ++walk->stats->skipped_links; g_free(path); continue; }
-        if (S_ISDIR(info.st_mode)) {
+        RadioSFileInfo info;
+        if (radios_fs_stat(path, FALSE, &info) != 0) { ++walk->stats->unreadable; g_free(path); continue; }
+        /* $RECYCLE.BIN, System Volume Information and other hidden/system entries
+         * (at the root of every archive disk) are not part of the archive. */
+        if (radios_file_info_is_hidden(entry, &info)) { g_free(path); continue; }
+        /* Symbolic links, junctions and mount points are never followed. */
+        if (info.type == RADIOS_FILE_TYPE_LINK) { ++walk->stats->skipped_links; g_free(path); continue; }
+        if (info.type == RADIOS_FILE_TYPE_DIRECTORY) {
             if (depth + 1 <= RADIOS_MEDIA_ARCHIVE_MAX_DEPTH) walk_directory(walk, path, depth + 1, depth == 0 ? entry : group);
             g_free(path); continue;
         }
-        if (!S_ISREG(info.st_mode) || !radios_media_archive_is_audio_name(entry) || g_hash_table_contains(walk->seen, path)) {
+        if (info.type != RADIOS_FILE_TYPE_REGULAR || !radios_media_archive_is_audio_name(entry) || g_hash_table_contains(walk->seen, path)) {
             g_free(path); continue;
         }
         if (walk->files->len >= RADIOS_MEDIA_ARCHIVE_MAX_FILES) { walk->stats->truncated = TRUE; g_free(path); break; }
         RadioSMediaArchiveFile *file = g_new0(RadioSMediaArchiveFile, 1);
         file->path = path; file->folder = g_strdup(walk->folder); file->group = g_strdup(group);
-        file->size = (gint64)info.st_size; file->mtime_us = mtime_us(&info);
+        file->size = info.size; file->mtime_us = mtime_us(&info);
         g_hash_table_add(walk->seen, g_strdup(path));
         g_ptr_array_add(walk->files, file);
     }
@@ -281,8 +279,8 @@ static void walk_directory(Walk *walk, const gchar *directory, guint depth, cons
 static GHashTable *index_load(const gchar *path)
 {
     GHashTable *table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-    GStatBuf info;
-    if (!path || g_stat(path, &info) != 0 || !S_ISREG(info.st_mode) || (guint64)info.st_size > INDEX_LIMIT) return table;
+    RadioSFileInfo info;
+    if (!path || radios_fs_stat(path, TRUE, &info) != 0 || info.type != RADIOS_FILE_TYPE_REGULAR || (guint64)info.size > INDEX_LIMIT) return table;
     JsonParser *parser = json_parser_new();
     if (json_parser_load_from_file(parser, path, NULL)) {
         JsonNode *root = json_parser_get_root(parser);
@@ -313,6 +311,28 @@ static GHashTable *index_load(const gchar *path)
     return table;
 }
 
+/* Private temporary file + flush + atomic replacement (radios_fs_rename retries
+ * while a scanner or the Search indexer briefly holds the old index open). */
+static gboolean write_replace(const gchar *path, const gchar *data, gsize length)
+{
+    gchar *temporary = g_strdup_printf("%s.%08x.tmp", path, g_random_int());
+    gint descriptor = radios_fs_open(temporary, RADIOS_O_WRONLY | RADIOS_O_CREAT | RADIOS_O_EXCL | RADIOS_O_NOFOLLOW |
+                                                RADIOS_O_CLOEXEC, 0600);
+    gboolean ok = descriptor >= 0;
+    for (gsize done = 0; ok && done < length;) {
+        guint chunk = (guint)MIN(length - done, (gsize)(1u << 30));
+        gint written = write(descriptor, data + done, chunk);
+        if (written <= 0) ok = FALSE;
+        else done += (gsize)written;
+    }
+    if (ok && radios_fd_sync(descriptor) != 0) ok = FALSE;
+    if (descriptor >= 0 && close(descriptor) != 0) ok = FALSE;
+    if (ok && radios_fs_rename(temporary, path) != 0) ok = FALSE;
+    if (!ok && descriptor >= 0) radios_fs_unlink(temporary);
+    g_free(temporary);
+    return ok;
+}
+
 static void index_save(const gchar *path, GPtrArray *files)
 {
     if (!path) return;
@@ -337,20 +357,43 @@ static void index_save(const gchar *path, GPtrArray *files)
     gsize length = 0;
     gchar *text = json_generator_to_data(generator, &length);
     gchar *directory = g_path_get_dirname(path);
-    g_mkdir_with_parents(directory, 0700);
-    g_free(directory);
     /* The index is only a cache: a failed write costs one re-hash. */
-    g_file_set_contents_full(path, text, (gssize)length, G_FILE_SET_CONTENTS_CONSISTENT, 0600, NULL);
+    if (radios_fs_mkdir_with_parents(directory, 0700) == 0) write_replace(path, text, length);
+    g_free(directory);
     g_free(text); json_node_unref(root); g_object_unref(generator); g_object_unref(builder);
 }
 
-static gboolean hash_file(const gchar *path, const GStatBuf *expected, GCancellable *cancellable,
+/* TRUE while another handle can still write the file.  Explorer/CopyFileEx size
+ * the target to its final length before copying and set the source mtime only
+ * at the end, so size and mtime stay constant during a long copy: a deny-write
+ * open (fails with a sharing violation while a writer is open) detects it. */
+static gboolean file_has_writer(const gchar *path)
+{
+    gchar *normal = radios_path_normalize(path);
+    if (!normal) return FALSE;
+    gchar *extended = strlen(normal) < 240 ? g_strdup(normal) :
+        g_str_has_prefix(normal, "\\\\") ? g_strconcat("\\\\?\\UNC\\", normal + 2, NULL) : g_strconcat("\\\\?\\", normal, NULL);
+    g_free(normal);
+    gunichar2 *wide = g_utf8_to_utf16(extended, -1, NULL, NULL, NULL);
+    g_free(extended);
+    if (!wide) return FALSE;
+    gint descriptor = -1;
+    errno_t code = _wsopen_s(&descriptor, (const wchar_t *)wide, _O_RDONLY | _O_BINARY | _O_NOINHERIT, _SH_DENYWR, 0);
+    g_free(wide);
+    if (code == 0) { close(descriptor); return FALSE; }
+    return code == EACCES;
+}
+
+static gboolean hash_file(const gchar *path, const RadioSFileInfo *expected, GCancellable *cancellable,
                           gchar digest[65], GError **error)
 {
-    gint descriptor = g_open(path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0);
-    if (descriptor < 0) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "%s: %s", path, g_strerror(errno)); return FALSE; }
-    GStatBuf opened;
-    if (fstat(descriptor, &opened) != 0 || !S_ISREG(opened.st_mode)) {
+    gint descriptor = radios_fs_open(path, RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
+    if (descriptor < 0) {
+        gint code = errno;
+        g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "%s: %s", path, g_strerror(code)); return FALSE;
+    }
+    RadioSFileInfo opened;
+    if (radios_fd_stat(descriptor, &opened) != 0 || opened.type != RADIOS_FILE_TYPE_REGULAR) {
         close(descriptor); return fail(error, "%s: normal dosya değil.", path);
     }
     GChecksum *checksum = g_checksum_new(G_CHECKSUM_SHA256);
@@ -359,15 +402,17 @@ static gboolean hash_file(const gchar *path, const GStatBuf *expected, GCancella
     gboolean ok = TRUE;
     for (;;) {
         if (g_cancellable_is_cancelled(cancellable)) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_CANCELLED, "Tarama iptal edildi."); ok = FALSE; break; }
-        ssize_t amount = read(descriptor, buffer, HASH_CHUNK);
-        if (amount < 0 && errno == EINTR) continue;
-        if (amount < 0) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "%s: %s", path, g_strerror(errno)); ok = FALSE; break; }
+        gint amount = read(descriptor, buffer, HASH_CHUNK);
+        if (amount < 0) {
+            gint code = errno;
+            g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "%s: %s", path, g_strerror(code)); ok = FALSE; break;
+        }
         if (amount == 0) break;
-        g_checksum_update(checksum, buffer, amount); total += amount;
+        g_checksum_update(checksum, buffer, (gssize)amount); total += amount;
     }
-    GStatBuf after;
-    if (ok && (fstat(descriptor, &after) != 0 || after.st_size != expected->st_size || total != (gint64)expected->st_size ||
-               mtime_us(&after) != mtime_us(expected)))
+    RadioSFileInfo after;
+    if (ok && (radios_fd_stat(descriptor, &after) != 0 || after.size != expected->size || total != expected->size ||
+               mtime_us(&after) != mtime_us(expected) || file_has_writer(path)))
         ok = fail(error, "%s: okunurken değişti (kopyalama sürüyor olabilir).", path);
     if (ok) g_strlcpy(digest, g_checksum_get_string(checksum), 65);
     g_free(buffer); g_checksum_free(checksum); close(descriptor);
@@ -413,8 +458,8 @@ GPtrArray *radios_media_archive_scan(const gchar *const *folders, const gchar *i
         if (known && known->size == file->size && known->mtime_us == file->mtime_us) {
             g_strlcpy(file->sha256, known->sha256, sizeof file->sha256);
         } else {
-            GStatBuf info;
-            if (g_lstat(file->path, &info) != 0 || !S_ISREG(info.st_mode) || (gint64)info.st_size != file->size) {
+            RadioSFileInfo info;
+            if (radios_fs_stat(file->path, FALSE, &info) != 0 || info.type != RADIOS_FILE_TYPE_REGULAR || info.size != file->size) {
                 ++stats->unreadable;
             } else if (hash_file(file->path, &info, cancellable, file->sha256, &hash_error)) {
                 ++stats->hashed;

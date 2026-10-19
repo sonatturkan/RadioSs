@@ -9,18 +9,15 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
-import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import stat
-import tempfile
 from typing import Iterator
 from uuid import UUID, uuid4
 
-from . import backup
+from . import _platform, backup
 from .schema import REFERENCES, REQUIRED, SCHEMA_VERSION, STATUS, open_radio_store
 from .storage import Store, StoreError, _atomic_json, _json_bytes
 
@@ -41,6 +38,10 @@ def _target_identity(path: str | Path) -> Path:
     raw = Path(path).expanduser()
     if raw.name in {"", ".", ".."}:
         raise MigrationError("migration target must name a directory")
+    if not _platform.valid_new_name(raw.name):
+        # Windows would silently strip a trailing dot/space or open a device
+        # (CON, NUL, ...), defeating the absent-target and stage-prefix checks.
+        raise MigrationError("migration target name is not a valid Windows file name")
     try:
         parent = raw.parent.resolve(strict=True)
     except OSError as exc:
@@ -57,21 +58,20 @@ def _job_lock(target: Path) -> Iterator[Path]:
     descriptor = -1
     try:
         try:
-            descriptor = os.open(path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) |
-                                 getattr(os, "O_CLOEXEC", 0), 0o600)
+            descriptor = _platform.os_open(path, os.O_CREAT | os.O_RDWR, 0o600, nofollow=True)
         except OSError as exc:
             raise MigrationError("migration job lock is unreadable or unsafe") from exc
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
             raise MigrationError("migration lock must be a regular, unlinked file")
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(descriptor, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             raise MigrationError("migration target has an active migration or recovery job") from exc
         yield path
     finally:
         if descriptor >= 0:
-            os.close(descriptor)
+            _platform.unlock_and_close(descriptor)
 
 
 def _mark_stage(stage: Path, target: Path, *, stage_kind: str,
@@ -99,7 +99,7 @@ def recover_migration(target_dir: str | Path, *, cleanup: bool = False) -> dict:
         for stage in sorted(target.parent.iterdir()):
             if not stage.name.startswith(f".{target.name}.") or stage == lock:
                 continue
-            if stage.is_symlink() or not stage.is_dir():
+            if _platform.is_link_like(stage) or not stage.is_dir():
                 skipped.append({"path": str(stage), "reason": "not_a_real_stage_directory"})
                 continue
             marker_path = stage / _STAGE_MARKER
@@ -113,8 +113,9 @@ def recover_migration(target_dir: str | Path, *, cleanup: bool = False) -> dict:
                 fields = {"format", "run_id", "target", "stage_path", "stage_kind",
                           "phase", "created_at", "source"}
                 if not isinstance(marker, dict) or set(marker) != fields or \
-                        marker["format"] != _STAGE_FORMAT or marker["target"] != str(target) or \
-                        marker["stage_path"] != str(stage) or \
+                        marker["format"] != _STAGE_FORMAT or \
+                        not _platform.path_equal(marker["target"], str(target)) or \
+                        not _platform.path_equal(marker["stage_path"], str(stage)) or \
                         marker["stage_kind"] not in {"snapshot", "database", "backup_source"} or \
                         marker["phase"] not in {"staging", "ready", "failed"} or \
                         not isinstance(marker["source"], dict):
@@ -133,9 +134,10 @@ def recover_migration(target_dir: str | Path, *, cleanup: bool = False) -> dict:
                 current = stage.stat(follow_symlinks=False)
                 if not stat.S_ISDIR(current.st_mode) or \
                         (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino) or \
-                        marker_path.is_symlink() or marker_path.read_bytes() != raw:
+                        _platform.is_link_like(marker_path) or \
+                        _platform.read_bytes_shared(marker_path, limit=65537) != raw:
                     raise MigrationError("migration stage changed during recovery")
-                shutil.rmtree(stage)
+                _platform.rmtree(stage)
                 removed.append(str(stage))
         if removed:
             backup._fsync_dir(target.parent)
@@ -149,7 +151,7 @@ def _source_database(path: str | Path) -> Path:
     raw = Path(path).expanduser().absolute()
     if raw.suffix != ".sdb" or not raw.is_file():
         raise MigrationError("migration source must be an existing .sdb file")
-    if any(part.is_symlink() for part in (raw, *raw.parents)):
+    if any(_platform.is_link_like(part) for part in (raw, *raw.parents)):
         raise MigrationError("migration source path must not contain symlinks")
     return raw.resolve(strict=True)
 
@@ -157,10 +159,10 @@ def _source_database(path: str | Path) -> Path:
 def _legacy_store(path: str | Path) -> Store:
     database = _source_database(path)
     metadata = database.with_name(database.name + ".meta")
-    if metadata.is_symlink() or not metadata.is_file():
+    if _platform.is_link_like(metadata) or not metadata.is_file():
         raise MigrationError("migration metadata is absent or a symlink")
     try:
-        version = json.loads(metadata.read_bytes())["schema_version"]
+        version = json.loads(_platform.read_bytes_shared(metadata))["schema_version"]
     except (ValueError, KeyError, OSError, TypeError) as exc:
         raise MigrationError("migration metadata is invalid") from exc
     if type(version) is not int or version not in SUPPORTED_SOURCE_VERSIONS:
@@ -357,8 +359,8 @@ def _migrate_copy_locked(source_db: str | Path, target: Path) -> dict:
     run_id = str(uuid4())
     source_identity = {"source_file": str(source_path), "store_id": source_id,
                        "sequence": source_sequence, "schema_version": source_version}
-    with tempfile.TemporaryDirectory(prefix=f".{target.name}.migration-",
-                                     dir=target.parent) as temporary:
+    with _platform.temporary_directory(prefix=f".{target.name}.migration-",
+                                       dir=target.parent) as temporary:
         _mark_stage(Path(temporary), target, stage_kind="snapshot",
                     source_identity=source_identity, run_id=run_id)
         snapshot_dir = Path(temporary) / "snapshot"
@@ -369,8 +371,8 @@ def _migrate_copy_locked(source_db: str | Path, target: Path) -> dict:
             raise MigrationError("source snapshot identity changed before migration")
         manifest = backup._read_manifest(snapshot_dir)
         database, files, objects = backup._validate_manifest(manifest)
-        stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".migration",
-                                           dir=target.parent))
+        stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".migration",
+                                               dir=target.parent))
         try:
             _mark_stage(stage, target, stage_kind="database",
                         source_identity=source_identity, run_id=run_id)
@@ -427,8 +429,10 @@ def _migrate_copy_locked(source_db: str | Path, target: Path) -> dict:
                 "service_key_updates": migrated, **fenced, **credential,
             }
         finally:
+            # Never mask the original error; recover_migration discards a
+            # marked stage that a scanner or open handle kept alive.
             if stage.exists():
-                shutil.rmtree(stage)
+                _platform.rmtree(stage, ignore_errors=True)
 
 
 def migrate_backup(backup_dir: str | Path, target_dir: str | Path) -> dict:
@@ -457,8 +461,8 @@ def _migrate_backup_locked(backup_dir: str | Path, target: Path) -> dict:
         raise MigrationError("migration target must be outside the source backup")
     manifest = backup._read_manifest(source)
     database, files, _objects = backup._validate_manifest(manifest)
-    with tempfile.TemporaryDirectory(prefix=f".{target.name}.source-",
-                                     dir=target.parent) as temporary:
+    with _platform.temporary_directory(prefix=f".{target.name}.source-",
+                                       dir=target.parent) as temporary:
         _mark_stage(Path(temporary), target, stage_kind="backup_source", run_id=str(uuid4()),
                     source_identity={"source_backup": str(source), "store_id": verified["store_id"],
                                      "sequence": verified["sequence"],

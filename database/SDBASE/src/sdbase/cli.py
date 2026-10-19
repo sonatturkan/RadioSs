@@ -3,21 +3,33 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import closing, contextmanager
 import json
 import os
 from pathlib import Path
 import sys
-from threading import Event
 
+from . import _platform
 from .identity import authenticate, bootstrap, issue_endpoint_token
 from .schema import open_radio_store
 from .storage import StoreError
 from .endpoint_journal import EndpointError
 
 
+_MAX_MAP_BYTES = 2 * 1024 * 1024
+_WSAEACCES = 10013
+_WSAEADDRINUSE = 10048
+
+
 def _json_map_file(path: Path) -> dict:
     """Load a bounded operator mapping without silently dropping duplicate keys."""
-    if path.stat().st_size > 2 * 1024 * 1024:
+    if path.stat().st_size > _MAX_MAP_BYTES:
+        raise StoreError("mapping JSON exceeds 2 MiB")
+    # Bounded share-delete read: a file that grows after the size check cannot
+    # exhaust memory, and the reader never blocks the editor saving the file.
+    with _platform.open_read(path) as stream:
+        raw = stream.read(_MAX_MAP_BYTES + 1)
+    if len(raw) > _MAX_MAP_BYTES:
         raise StoreError("mapping JSON exceeds 2 MiB")
     def pairs(values):
         result = {}
@@ -27,7 +39,8 @@ def _json_map_file(path: Path) -> dict:
             result[key] = value
         return result
     try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=pairs)
+        # utf-8-sig: Windows PowerShell 5.1 (Out-File/Set-Content -Encoding utf8) writes a BOM.
+        value = json.loads(raw.decode("utf-8-sig"), object_pairs_hook=pairs)
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise StoreError("mapping file is not valid UTF-8 JSON") from exc
     if not isinstance(value, dict):
@@ -45,7 +58,34 @@ def _environment_secret(name):
     return value
 
 
+@contextmanager
+def _listener(host, port):
+    """Report Windows bind failures of a listening command as operator messages."""
+    try:
+        yield
+    except OSError as exc:
+        address = f"{host}:{port}"
+        if getattr(exc, "winerror", None) == _WSAEADDRINUSE:
+            raise StoreError(f"{address} kullanımda.") from exc
+        if getattr(exc, "winerror", None) == _WSAEACCES:
+            raise StoreError(
+                f"{address} Windows tarafından ayrılmış veya başka bir uygulamaya özel; "
+                "`netsh int ipv4 show excludedportrange protocol=tcp` ile denetleyin ve "
+                "--port ile başka bir port seçin.") from exc
+        raise
+
+
+def _print_listening(address) -> None:
+    """Readiness line for supervisors and tests (``--port 0`` picks a free port)."""
+    host, port = address[:2]
+    print(json.dumps({"listening": {"host": host, "port": port}}), flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
+    # No critical-error dialogs from a windowless process (empty removable drives),
+    # 8 MiB thread stacks, and UTF-8 JSON on stdout even without -X utf8.
+    _platform.configure_process()
+    _platform.configure_stdio_utf8()
     parser = argparse.ArgumentParser(prog="sdbase", description="RadioS custom database")
     parser.add_argument("--db", type=Path, default=Path("RadioS.sdb"),
                         help="primary .sdb database file")
@@ -266,21 +306,25 @@ def main(argv: list[str] | None = None) -> int:
                 result = supervisor.tick()
             elif args.command == "failover-serve":
                 from .failover_server import serve_failover
-                serve_failover(supervisor, args.host, args.port, max_connections=args.max_connections,
-                               request_timeout=args.request_timeout)
+                with _listener(args.host, args.port):
+                    serve_failover(supervisor, args.host, args.port, max_connections=args.max_connections,
+                                   request_timeout=args.request_timeout)
                 return 0
             else:
-                stop = Event()
-                try:
-                    last = None
-                    for status in supervisor.watch(stop):
-                        signature = (status["state"], status.get("failures"), status.get("last_error"),
-                                     status["active_database"])
-                        if signature != last:
-                            print(json.dumps(status, ensure_ascii=False), flush=True)
-                            last = signature
-                finally:
-                    stop.set()
+                # Graceful stop: Local\RadioS-stop-<pid> (request_stop), Ctrl+C/Ctrl+Break or
+                # console close.  closing() releases the monitor ownership on every exit.
+                with _platform.StopRequest() as stop:
+                    try:
+                        last = None
+                        with closing(supervisor.watch(stop.event)) as statuses:
+                            for status in statuses:
+                                signature = (status["state"], status.get("failures"),
+                                             status.get("last_error"), status["active_database"])
+                                if signature != last:
+                                    print(json.dumps(status, ensure_ascii=False), flush=True)
+                                    last = signature
+                    finally:
+                        stop.event.set()
                 return 0
         elif args.command in {"replication-pull", "replication-follow"}:
             from .replication_stream import follow_once, follow_forever
@@ -290,8 +334,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "replication-pull":
                 result = follow_once(args.db, args.source_url, **options)
             else:
-                result = follow_forever(args.db, args.source_url, poll_interval=args.poll_interval,
-                    on_progress=lambda value: print(json.dumps(value, ensure_ascii=False), flush=True), **options)
+                with _platform.StopRequest() as stop:
+                    result = follow_forever(args.db, args.source_url, poll_interval=args.poll_interval,
+                        stop_event=stop.event,
+                        on_progress=lambda value: print(json.dumps(value, ensure_ascii=False), flush=True),
+                        **options)
         elif args.command in {"pitr-preview", "pitr-restore"}:
             from .pitr import preview_recovery, recover_point_in_time
             targets = {"target_sequence": args.target_sequence, "target_time": args.target_time,
@@ -346,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.db.suffix != ".sdb":
                 raise StoreError("database filename must end in .sdb")
             metadata = args.db.with_name(args.db.name + ".meta")
-            if args.db.is_symlink() or metadata.is_symlink():
+            # Links include junctions and mount points (name-surrogate reparse points).
+            if _platform.is_link(args.db) or _platform.is_link(metadata):
                 raise StoreError("database path and metadata must not be symlinks")
             if args.command != "init" and (
                     not args.db.is_file() or not metadata.is_file()):
@@ -358,8 +406,11 @@ def main(argv: list[str] | None = None) -> int:
                                    args.station_name, args.timezone)
             elif args.command == "serve":
                 from .http_server import serve
-                serve(store, args.host, args.port, max_connections=args.max_connections,
-                      request_timeout=args.request_timeout)
+                # serve() returns after a graceful stop request (named stop event,
+                # Ctrl+C/Ctrl+Break, console close) once in-flight requests finished.
+                with _listener(args.host, args.port):
+                    serve(store, args.host, args.port, max_connections=args.max_connections,
+                          request_timeout=args.request_timeout, ready=_print_listening)
                 return 0
             elif args.command == "status":
                 with store._locked(exclusive=False):
@@ -411,14 +462,16 @@ def main(argv: list[str] | None = None) -> int:
                 result = recover_online_jobs(store, cleanup=args.cleanup)
             elif args.command == "maintenance-loop":
                 from .online_maintenance import run_online_maintenance
-                stop = Event()
-                try:
-                    for value in run_online_maintenance(store, stop, interval_seconds=args.interval,
-                        journal_threshold_bytes=args.journal_threshold_bytes,
-                        max_tail_bytes=args.max_tail_bytes, max_tail_frames=args.max_tail_frames):
-                        print(json.dumps(value, ensure_ascii=False), flush=True)
-                finally:
-                    stop.set()
+                with _platform.StopRequest() as stop:
+                    try:
+                        with closing(run_online_maintenance(store, stop.event, interval_seconds=args.interval,
+                                journal_threshold_bytes=args.journal_threshold_bytes,
+                                max_tail_bytes=args.max_tail_bytes,
+                                max_tail_frames=args.max_tail_frames)) as values:
+                            for value in values:
+                                print(json.dumps(value, ensure_ascii=False), flush=True)
+                    finally:
+                        stop.event.set()
                 return 0
             elif args.command == "index-rebuild":
                 from .disk_index import rebuild_disk_indexes
@@ -432,11 +485,13 @@ def main(argv: list[str] | None = None) -> int:
                 result = recover_disk_index_builds(store, cleanup=args.cleanup)
             elif args.command == "replication-serve":
                 from .replication_stream import serve_replication
-                serve_replication(store, host=args.host, port=args.port, token=_environment_secret(args.token_env),
-                    certfile=args.cert, keyfile=args.key, allow_loopback_http=args.allow_loopback_http,
-                    max_records=args.max_records, max_batch_bytes=args.max_batch_bytes,
-                    max_cache_bytes=args.max_cache_bytes, max_cached_batches=args.max_cached_batches,
-                    ttl_seconds=args.ttl_seconds)
+                with _listener(args.host, args.port):
+                    serve_replication(store, host=args.host, port=args.port,
+                        token=_environment_secret(args.token_env),
+                        certfile=args.cert, keyfile=args.key, allow_loopback_http=args.allow_loopback_http,
+                        max_records=args.max_records, max_batch_bytes=args.max_batch_bytes,
+                        max_cache_bytes=args.max_cache_bytes, max_cached_batches=args.max_cached_batches,
+                        ttl_seconds=args.ttl_seconds)
                 return 0
             elif args.command == "retention-preview":
                 from .retention import preview_retention

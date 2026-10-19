@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
+
+from . import _platform
 
 _ZERO_HASH = "0" * 64
 
@@ -21,11 +22,12 @@ def _json(value: Any) -> str:
 
 
 def _fsync_directory(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    """Directory flush after creating a name (kept for endpoint_media).
+
+    NTFS journals the new directory entry; the shim keeps the POSIX error
+    behaviour for a missing or non-directory path.
+    """
+    _platform.fsync_dir(path)
 
 
 class EndpointJournal:
@@ -33,18 +35,33 @@ class EndpointJournal:
 
     def __init__(self, root: Path):
         self.root = root
+        self.fd = -1
+        self.lock_fd = -1
         root.mkdir(parents=True, exist_ok=True)
-        self.lock_fd = os.open(root / "owner.lock", os.O_CREAT | os.O_RDWR, 0o600)
+        # Binary, non-inheritable, no-follow; LockFileEx on the shared RadioS
+        # lock region.  A dead owner releases the lock with its handle.
+        lock_fd = _platform.os_open(root / "owner.lock", os.O_CREAT | os.O_RDWR, 0o600, nofollow=True)
         try:
-            fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(lock_fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
-            os.close(self.lock_fd)
+            os.close(lock_fd)
             raise EndpointError("endpoint state directory is already open") from exc
-        self.path = root / "Endpoint.sdb"
-        existed = self.path.exists()
-        self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR | os.O_APPEND, 0o600)
-        if not existed:
-            _fsync_directory(root)
+        except BaseException:
+            os.close(lock_fd)
+            raise
+        self.lock_fd = lock_fd
+        try:
+            self.path = root / "Endpoint.sdb"
+            existed = self.path.exists()
+            # O_BINARY through the shim: records end in LF exactly as on Linux
+            # (a text-mode CRT descriptor would write CR LF).
+            self.fd = _platform.os_open(self.path, os.O_CREAT | os.O_RDWR | os.O_APPEND, 0o600,
+                                        nofollow=True)
+            if not existed:
+                _fsync_directory(root)
+        except BaseException:
+            self.close()
+            raise
         self.seq = 0
         self.last_hash = _ZERO_HASH
         self.state: dict[str, Any] = {
@@ -58,17 +75,18 @@ class EndpointJournal:
             raise
 
     def close(self) -> None:
-        if self.fd >= 0:
-            os.close(self.fd)
-            self.fd = -1
-        if self.lock_fd >= 0:
-            fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
-            os.close(self.lock_fd)
-            self.lock_fd = -1
+        try:
+            if self.fd >= 0:
+                fd, self.fd = self.fd, -1
+                os.close(fd)
+        finally:
+            if self.lock_fd >= 0:
+                lock_fd, self.lock_fd = self.lock_fd, -1
+                _platform.unlock_and_close(lock_fd)
 
     def _replay(self) -> None:
         offset = 0
-        with self.path.open("rb") as stream:
+        with _platform.open_read(self.path, nofollow=True) as stream:
             for line in stream:
                 if not line.endswith(b"\n"):
                     # A process died mid-write. Only the incomplete final line

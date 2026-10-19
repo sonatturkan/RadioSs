@@ -1,11 +1,7 @@
-#define _POSIX_C_SOURCE 200809L
 #include "radios/audio_transition.h"
-#include <glib/gstdio.h>
-#include <errno.h>
-#include <fcntl.h>
+#include "radios/platform.h"
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 
 #define SECOND 48000u
 #define BLOCK 2048u
@@ -45,12 +41,32 @@ static gboolean write_all(gint fd, const void *data, gsize size, GChecksum *hash
 {
     const guint8 *bytes = data; gsize done = 0;
     while (done < size) {
-        ssize_t count = write(fd, bytes + done, size - done);
-        if (count < 0 && errno == EINTR) continue;
-        if (count <= 0) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Geçiş dosyası yazılamadı: %s", g_strerror(errno)); return FALSE; }
+        int count = _write(fd, bytes + done, (unsigned int)MIN(size - done, (gsize)0x40000000));
+        if (count <= 0) {
+            gint code = count < 0 && errno ? errno : EIO;
+            g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "Geçiş dosyası yazılamadı: %s", g_strerror(code)); return FALSE;
+        }
         done += (gsize)count;
     }
     g_checksum_update(hash, bytes, size); return TRUE;
+}
+/* Private "transition-XXXXXX" file: created exclusively (an existing name is
+ * never reused) with the owner-only descriptor that replaces mode 0600, as a
+ * binary, non-inheritable descriptor. Names are lower case because Windows
+ * file names are case-insensitive. */
+static gint create_temporary(const gchar *directory, gchar **path)
+{
+    static const gchar letters[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+    for (guint attempt = 0; attempt < 100; ++attempt) {
+        gchar name[] = "transition-XXXXXX";
+        for (guint i = 0; i < 6; ++i) name[11 + i] = letters[g_random_int_range(0, (gint)sizeof letters - 1)];
+        gchar *candidate = g_build_filename(directory, name, NULL);
+        gint fd = radios_fs_open(candidate, RADIOS_O_RDWR | RADIOS_O_CREAT | RADIOS_O_EXCL | RADIOS_O_BINARY | RADIOS_O_CLOEXEC, 0600);
+        if (fd >= 0) { *path = candidate; return fd; }
+        gint code = errno; g_free(candidate);
+        if (code != EEXIST) { errno = code; return -1; }
+    }
+    errno = EEXIST; return -1;
 }
 static void le16(guint8 *p, guint16 n) { n = GUINT16_TO_LE(n); memcpy(p, &n, 2); }
 static void le32(guint8 *p, guint32 n) { n = GUINT32_TO_LE(n); memcpy(p, &n, 4); }
@@ -65,10 +81,16 @@ gboolean radios_audio_transition_prepare(const RadioSAudioTransitionMedia *s, co
     RadioSAudioDecoder *b = radios_audio_decoder_open(s->path_b, s->sha_b, cancel, error);
     if (!b) { radios_audio_decoder_close(a); return FALSE; }
     gboolean ok = radios_audio_decoder_seek(a, plan.start_a, cancel, error) && radios_audio_decoder_seek(b, s->cue_b, cancel, error);
-    gchar *temporary = g_build_filename(directory, "transition-XXXXXX", NULL);
+    gchar *temporary = NULL;
     gint fd = -1;
-    if (ok && g_mkdir_with_parents(directory, 0700) != 0) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Geçiş önizleme dizini açılamadı: %s", g_strerror(errno)); ok = FALSE; }
-    if (ok) { fd = g_mkstemp_full(temporary, O_RDWR | O_CLOEXEC, 0600); if (fd < 0) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Geçiş önizlemesi oluşturulamadı: %s", g_strerror(errno)); ok = FALSE; } }
+    if (ok && (!directory || radios_fs_mkdir_with_parents(directory, 0700) != 0)) {
+        gint code = directory ? errno : EINVAL;
+        g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "Geçiş önizleme dizini açılamadı: %s", g_strerror(code)); ok = FALSE;
+    }
+    if (ok) {
+        fd = create_temporary(directory, &temporary);
+        if (fd < 0) { gint code = errno; g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "Geçiş önizlemesi oluşturulamadı: %s", g_strerror(code)); ok = FALSE; }
+    }
     GChecksum *hash = g_checksum_new(G_CHECKSUM_SHA256);
     guint8 header[44] = {0}; memcpy(header, "RIFF", 4); le32(header + 4, (guint32)(36 + plan.frames * 8));
     memcpy(header + 8, "WAVEfmt ", 8); le32(header + 16, 16); le16(header + 20, 3); le16(header + 22, 2);
@@ -104,10 +126,10 @@ gboolean radios_audio_transition_prepare(const RadioSAudioTransitionMedia *s, co
         ok = write_all(fd, mix, count * 2 * sizeof(gfloat), hash, error); at += count;
     }
     for (guint side = 0; side < 2; ++side) radios_audio_shape_voice_free(voices[side]);
-    if (fd >= 0 && close(fd) != 0 && ok) { g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Geçiş önizlemesi kapatılamadı: %s", g_strerror(errno)); ok = FALSE; }
+    if (fd >= 0 && _close(fd) != 0 && ok) { gint code = errno; g_set_error(error, G_IO_ERROR, g_io_error_from_errno(code), "Geçiş önizlemesi kapatılamadı: %s", g_strerror(code)); ok = FALSE; }
     radios_audio_decoder_close(a); radios_audio_decoder_close(b);
     if (ok) { *path = temporary; *sha = g_strdup(g_checksum_get_string(hash)); *frames = plan.frames; }
-    else { g_unlink(temporary); g_free(temporary); }
+    else { if (temporary) radios_fs_unlink(temporary); g_free(temporary); }
     g_checksum_free(hash); return ok;
 }
 

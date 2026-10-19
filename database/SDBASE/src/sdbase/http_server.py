@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import base64
 import binascii
+import errno
 import hashlib
-from http.server import BaseHTTPRequestHandler
 import json
 import os
 from pathlib import Path
 import re
-import tempfile
-from time import monotonic
+import sys
+import threading
+import traceback
+from time import monotonic, time
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 from . import __version__
+from . import _platform
+from .api_server import StoppableRequestHandler
 from .catalog import NotFound
 from .identity import Forbidden, authenticate
 from .http_limits import RequestLimiter
@@ -33,7 +37,7 @@ def make_handler(store: Store):
     # while this process could still be executing modules imported before them.
     runtime_digest = source_digest()
 
-    class Handler(BaseHTTPRequestHandler):
+    class Handler(StoppableRequestHandler):
         source_digest = runtime_digest
         server_version = "RadioS-SDBASE/" + __version__
         protocol_version = "HTTP/1.1"
@@ -41,6 +45,17 @@ def make_handler(store: Store):
         def setup(self) -> None:
             self.request.settimeout(getattr(self.server, "request_timeout", 30))
             super().setup()
+
+        def log_message(self, format, *args) -> None:
+            # The service log is stderr redirected to a file by the launcher.  A
+            # missing stream (pythonw without redirection), a closed stream or a full
+            # disk must never turn a request into a failure.
+            if sys.stderr is None:
+                return
+            try:
+                super().log_message(format, *args)
+            except (OSError, ValueError):
+                pass
 
         def _send(self, status: int, value: object, *, retry_after: int = 0) -> None:
             self.connection.settimeout(getattr(self.server, "request_timeout", 30))
@@ -115,15 +130,11 @@ def make_handler(store: Store):
                 raise StoreError("invalid Content-Length") from exc
             if length < 1 or length > 512 * 1024 * 1024:
                 raise StoreError("media upload must be 1..536870912 bytes")
-            staging = Path(store.root) / ".uploads"
-            staging.mkdir(mode=0o700, exist_ok=True)
-            if staging.is_symlink():
-                raise StoreError("upload staging must not be a symlink")
-            temporary: Path | None = None
+            staging = upload_staging(store)
+            temporary: str | None = None
             try:
-                with tempfile.NamedTemporaryFile(mode="wb", prefix="upload-",
-                                                 dir=staging, delete=False) as stream:
-                    temporary = Path(stream.name)
+                descriptor, temporary = _platform.mkstemp_private(dir=staging, prefix="upload-")
+                with os.fdopen(descriptor, "wb") as stream:
                     remaining = length
                     deadline = monotonic() + 300
                     while remaining:
@@ -131,15 +142,17 @@ def make_handler(store: Store):
                         stream.write(chunk)
                         remaining -= len(chunk)
                     stream.flush()
-                    os.fsync(stream.fileno())
+                    _platform.fsync(stream.fileno())
                 result = media.stage_media(store, principal, station_id, version_id,
-                                           temporary, [staging])
+                                           Path(temporary), [staging])
                 return {key: value for key, value in result.items() if key != "path"}
             except OSError as exc:
                 raise StoreError("media upload failed") from exc
             finally:
+                # A cleanup failure (a scanner holding the temporary file) must not
+                # turn a committed upload into an error; the start-up sweep removes it.
                 if temporary is not None:
-                    temporary.unlink(missing_ok=True)
+                    _platform.unlink_quietly(temporary)
 
         def _auth(self):
             header = self.headers.get("Authorization", "")
@@ -255,9 +268,14 @@ def make_handler(store: Store):
                 self._send(503, {"error": "temporarily_unavailable", "detail": str(exc)}, retry_after=1)
             except (StoreError, ValueError, KeyError, TypeError) as exc:
                 self._send(422, {"error": "invalid_request", "detail": str(exc)})
-            except (BrokenPipeError, ConnectionResetError):
+            except (ConnectionError, TimeoutError):
+                # The client went away (WSAECONNABORTED/WSAECONNRESET) or stalled:
+                # never answer on a dead socket.
                 self.close_connection = True
             except Exception:
+                # The client gets no details; the operator log gets the traceback.
+                self.log_error("internal error for %s %s:\n%s", method, path,
+                               traceback.format_exc().rstrip())
                 self._send(500, {"error": "internal_error"})
             finally:
                 store.metrics.observe("http_request_ms", (monotonic() - started) * 1000)
@@ -482,14 +500,26 @@ def make_handler(store: Store):
             if method == "GET" and match:
                 source = media.verified_media_path(store, principal, query["station_id"],
                                                    match.group(1), match.group(2))
-                self.send_response(200)
-                self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("Content-Length", str(source.stat().st_size))
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                with source.open("rb") as stream:
-                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                # Share-delete reader: a long download never blocks object repair or
+                # retention from replacing/deleting the file; the length comes from
+                # the open file (no stat/open race).
+                with _platform.open_read(source, nofollow=True) as stream:
+                    size = os.fstat(stream.fileno()).st_size
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(size))
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    remaining = size
+                    while remaining:
+                        chunk = stream.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            # The object shrank under us: the declared length cannot
+                            # be honoured, so the connection must not be reused.
+                            self.close_connection = True
+                            break
                         self.wfile.write(chunk)
+                        remaining -= len(chunk)
                 return False
             match = re.fullmatch(rf"/v1/endpoints/({_UUID})/media/({_UUID})/verify", path)
             if method == "POST" and match:
@@ -538,12 +568,109 @@ def make_handler(store: Store):
     return Handler
 
 
-def serve(store: Store, host: str = "127.0.0.1", port: int = 8000, *,
-          max_connections: int = 32, request_timeout: float = 30.0) -> None:
-    from .api_server import BoundedHTTPServer
-    server = BoundedHTTPServer((host, port), make_handler(store),
-                              max_connections=max_connections, request_timeout=request_timeout)
+_UPLOAD_SWEEP_AGE_SECONDS = 3600
+
+
+def upload_staging(store: Store) -> Path:
+    """Private ``<store>\\.uploads`` directory (created on first use).  A link
+    (symlink or junction) in its place is refused."""
+    staging = Path(store.root) / ".uploads"
     try:
-        server.serve_forever()
+        _platform.mkdir_private(staging, exist_ok=True)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise StoreError("upload staging must not be a symlink or junction") from exc
+        raise StoreError("upload staging is unavailable") from exc
+    return staging
+
+
+def sweep_stale_uploads(store: Store, *, max_age_seconds: float = _UPLOAD_SWEEP_AGE_SECONDS) -> int:
+    """Delete ``.uploads/upload-*`` files left by an interrupted service (older than
+    max_age_seconds).  Never raises; returns the number of files removed."""
+    staging = Path(store.root) / ".uploads"
+    removed = 0
+    try:
+        if _platform.is_link(staging) or not staging.is_dir():
+            return 0
+        cutoff = time() - max_age_seconds
+        with os.scandir(staging) as entries:
+            for entry in entries:
+                if not entry.name.startswith("upload-") or _platform.entry_is_link(entry):
+                    continue
+                try:
+                    if not entry.is_file(follow_symlinks=False) or \
+                            entry.stat(follow_symlinks=False).st_mtime >= cutoff:
+                        continue
+                except OSError:
+                    continue
+                if _platform.unlink_quietly(entry.path):
+                    removed += 1
+    except OSError:
+        pass
+    return removed
+
+
+def serve(store: Store, host: str = "127.0.0.1", port: int = 8000, *,
+          max_connections: int = 32, request_timeout: float = 30.0, ready=None) -> None:
+    """Serve until a graceful stop request: the named event
+    ``Local\\RadioS-stop-<pid>`` (``_platform.request_stop(pid)``), Ctrl+C/Ctrl+Break or
+    the console being closed.  In-flight requests finish, idle keep-alive connections
+    are ended, background jobs are cancelled, then the function returns normally.
+
+    ready, when given, is called with the bound (host, port) once the listener accepts
+    connections (``port=0`` picks a free port)."""
+    from .api_server import BoundedHTTPServer
+    _platform.configure_process()
+    _platform.check_timezone_database()
+    sweep_stale_uploads(store)
+    server = BoundedHTTPServer((host, port), make_handler(store),
+                               max_connections=max_connections, request_timeout=request_timeout)
+    # Requests in flight finish before server_close() returns (orderly durable stop).
+    server.daemon_threads = False
+    server.block_on_close = True
+    done = threading.Event()
+    stop = _platform.StopRequest()
+    watcher = None
+    try:
+        stop.install()
+        watcher = threading.Thread(target=_stop_watch, args=(stop.event, done, server),
+                                   name="sdbase-stop-watch", daemon=True)
+        watcher.start()
+        if ready is not None:
+            ready(server.server_address[:2])
+        server.serve_forever(poll_interval=0.25)
     finally:
-        server.server_close()
+        done.set()
+        stop.event.set()                     # ends the watcher after an error, too
+        try:
+            cancel_background_jobs()
+        finally:
+            try:
+                server.server_close()
+            finally:
+                stop.finished.set()
+                stop.close()
+        if watcher is not None:
+            watcher.join(5.0)
+
+
+def _stop_watch(event, done, server) -> None:
+    event.wait()
+    if not done.is_set():
+        server.shutdown()                    # serve_forever() returns after its current poll
+
+
+def cancel_background_jobs(timeout: float = 5.0) -> None:
+    """Stop transfer-package and integrity jobs before the process exits (they run
+    in daemon threads; an orphaned scrub child would keep the store lock).  Only
+    modules this process imported can have jobs, so nothing is imported here."""
+    for name in ("desktop_transfer_package", "desktop_integrity"):
+        module = sys.modules.get(f"{__package__}.{name}")
+        cancel = getattr(module, "cancel_running", None)
+        if cancel is None:
+            continue
+        try:
+            cancel(timeout=timeout)
+        except Exception:                    # never block the stop on a job error
+            if sys.stderr is not None:
+                traceback.print_exc(file=sys.stderr)

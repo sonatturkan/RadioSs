@@ -16,7 +16,7 @@ import json
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4, uuid5
 
-from . import desktop_api as api, desktop_playout
+from . import _platform, desktop_api as api, desktop_playout
 from .catalog import NotFound
 from .identity import Forbidden
 from .storage import Conflict, StoreError
@@ -111,6 +111,12 @@ def validate_configuration(kind, config, sid, state, *, persisted=False):
                 len(value.encode()) > 240 or \
                 any(ord(char) < 32 or ord(char) == 127 for char in value):
             raise StoreError("recording filename must be one visible leaf ending in .wav")
+        # The C recorder creates this name on Windows: new saves must be a valid
+        # NTFS name (no ':' stream, '*', '?', '"', '<', '>', '|', device names such
+        # as CON.wav).  Stored Linux-era receipts/profiles stay readable; the
+        # recorder reports a clear error for them.
+        if not persisted and not _platform.component_valid(value):
+            raise StoreError("recording filename is not a valid Windows file name")
     elif kind == "broadcast_metadata":
         api._object(config, {"title", "automatic"}, {"title", "automatic"})
         value = api._text(config["title"], "title", 1024)

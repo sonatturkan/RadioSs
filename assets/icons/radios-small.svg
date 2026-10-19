@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RadioS application mark for 16-24 px: the tile and a heavier "S" only. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d252d"/>
+      <stop offset="1" stop-color="#080c11"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="40" ry="40" fill="url(#tile)" stroke="#38d4ff" stroke-width="16"/>
+  <path d="M168 76A41 41 0 1 0 128 127A42 42 0 1 1 88 179" fill="none" stroke="#e3e8ee" stroke-width="36" stroke-linecap="round"/>
+</svg>

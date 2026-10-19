@@ -1,15 +1,10 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/data_client.h"
+#include "radios/platform.h"
 #include "radios/recovery.h"
 
 #include <curl/curl.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #define CREDENTIAL_LIMIT (64 * 1024)
 #define RESPONSE_LIMIT (2 * 1024 * 1024)
@@ -110,14 +105,6 @@ fail(GError **error, RadioSDataClientError code, const gchar *message)
     return FALSE;
 }
 
-static gboolean
-inside(const gchar *root, const gchar *path)
-{
-    gsize length = strlen(root);
-    return g_str_equal(root, path) || (g_str_has_prefix(path, root) &&
-            (length == 1 || path[length] == G_DIR_SEPARATOR));
-}
-
 static void
 object_member(JsonParser *parser, JsonObject *object, const gchar *member, gpointer data)
 {
@@ -199,28 +186,34 @@ token_valid(const gchar *value)
 static JsonNode *
 read_json_file(const gchar *path, gboolean private, GError **error)
 {
-    gint fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+    gint fd = radios_fs_open(path, RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_NONBLOCK | RADIOS_O_CLOEXEC, 0);
     if (fd < 0) {
         fail(error, RADIOS_DATA_CLIENT_ERROR_CREDENTIALS,
              "Yerel veritabanı kimliği okunamadı; önce veritabanı kurulumu tamamlanmalı.");
         return NULL;
     }
-    struct stat info;
-    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size > CREDENTIAL_LIMIT ||
-            (private && ((info.st_mode & 0777) != 0600 || info.st_uid != getuid()))) {
+    /* Private = owned by the current Windows user and readable by nobody else
+     * (owner-only ACL, the Windows form of 0600). */
+    RadioSFileInfo info;
+    if (radios_fd_stat(fd, &info) != 0 || info.type != RADIOS_FILE_TYPE_REGULAR ||
+            info.size < 0 || info.size > CREDENTIAL_LIMIT ||
+            (private && !radios_fd_is_private(fd, RADIOS_PRIVATE_OWNER | RADIOS_PRIVATE_NO_OTHERS |
+                                                  RADIOS_PRIVATE_EXACT_FILE_MODE))) {
         close(fd);
         fail(error, RADIOS_DATA_CLIENT_ERROR_CREDENTIALS,
-             "Kimlik dosyası kullanıcıya ait, 0600 izinli ve en fazla 64 KiB olmalı.");
+             "Kimlik dosyası bu Windows kullanıcısına ait, yalnızca onun erişebildiği (özel izinli) ve en fazla 64 KiB olmalı.");
         return NULL;
     }
-    gchar buffer[CREDENTIAL_LIMIT + 1];
+    gsize capacity = CREDENTIAL_LIMIT + 1;
+    gchar *buffer = g_malloc(capacity);
     gsize used = 0;
-    while (used < sizeof buffer) {
-        ssize_t amount = read(fd, buffer + used, sizeof buffer - used);
+    while (used < capacity) {
+        gint amount = read(fd, buffer + used, (guint) (capacity - used));
         if (amount < 0 && errno == EINTR)
             continue;
         if (amount < 0) {
             close(fd);
+            g_free(buffer);
             fail(error, RADIOS_DATA_CLIENT_ERROR_CREDENTIALS, "Yerel kimlik dosyası okunamadı.");
             return NULL;
         }
@@ -230,6 +223,11 @@ read_json_file(const gchar *path, gboolean private, GError **error)
     }
     close(fd);
     JsonNode *node = used <= CREDENTIAL_LIMIT ? parse_json(buffer, used) : NULL;
+    /* credentials.json holds the access tokens: wipe the copy before freeing. */
+    volatile gchar *wipe = buffer;
+    for (gsize i = 0; i < used; ++i)
+        wipe[i] = '\0';
+    g_free(buffer);
     if (node == NULL || !JSON_NODE_HOLDS_OBJECT(node)) {
         g_clear_pointer(&node, json_node_unref);
         fail(error, RADIOS_DATA_CLIENT_ERROR_CREDENTIALS,
@@ -287,17 +285,20 @@ radios_data_client_new(const RadioSConfig *config, GError **error)
              "Veri servisi yerel HTTP veya doğrulanan HTTPS adresi olmalı.");
         return NULL;
     }
-    gchar *root = realpath(config->project_root, NULL);
+    /* Physical paths (links, junctions, 8.3 names and subst drives resolved);
+     * comparisons follow the Windows rules (case-insensitive, both separators). */
+    gchar *root = radios_fs_realpath(config->project_root, NULL);
     gchar *config_requested = root != NULL ? g_build_filename(root, "config", NULL) : NULL;
-    gchar *config_root = config_requested != NULL ? realpath(config_requested, NULL) : NULL;
-    gchar *database = realpath(config->database_file, NULL);
-    struct stat db_info;
+    gchar *config_root = config_requested != NULL ? radios_fs_realpath(config_requested, NULL) : NULL;
+    gchar *database = radios_fs_realpath(config->database_file, NULL);
+    RadioSFileInfo db_info;
     gboolean safe = root != NULL && config_root != NULL && database != NULL &&
-            inside(root, config_root) && (config->database_external || inside(root, database)) &&
-            lstat(config->database_file, &db_info) == 0 && S_ISREG(db_info.st_mode);
+            radios_path_is_inside(root, config_root) &&
+            (config->database_external || (radios_path_is_inside(root, database) && !radios_path_equal(root, database))) &&
+            radios_fs_stat(config->database_file, FALSE, &db_info) == 0 && db_info.type == RADIOS_FILE_TYPE_REGULAR;
     g_free(config_requested);
     if (!safe) {
-        free(root); free(config_root); free(database); g_free(service_url);
+        g_free(root); g_free(config_root); g_free(database); g_free(service_url);
         fail(error, RADIOS_DATA_CLIENT_ERROR_CREDENTIALS,
              "Kimlik ve veritabanı yolları RadioS projesindeki normal dosyalara ait olmalı.");
         return NULL;
@@ -306,10 +307,10 @@ radios_data_client_new(const RadioSConfig *config, GError **error)
     gchar *metadata_file = g_strconcat(database, ".meta", NULL);
     JsonNode *identity = read_json_file(credential_file, TRUE, error);
     JsonNode *metadata = identity != NULL ? read_json_file(metadata_file, FALSE, error) : NULL;
-    g_free(credential_file); g_free(metadata_file); free(config_root);
+    g_free(credential_file); g_free(metadata_file); g_free(config_root);
     if (identity == NULL || metadata == NULL) {
         g_clear_pointer(&identity, json_node_unref); g_clear_pointer(&metadata, json_node_unref);
-        free(root); free(database); g_free(service_url);
+        g_free(root); g_free(database); g_free(service_url);
         return NULL;
     }
     JsonObject *object = json_node_get_object(identity);
@@ -321,16 +322,30 @@ radios_data_client_new(const RadioSConfig *config, GError **error)
     const gchar *token = string_member(object, "api_token");
     const gchar *endpoint_token = string_member(object, "endpoint_token");
     const gchar *stored_path = string_member(object, "database_file");
-    const gchar *relative = config->database_external ? NULL :
-            database + strlen(root) + (g_str_equal(root, "/") ? 0 : 1);
+    /* Project-relative path of the database ("data\database\RadioS.sdb"); both
+     * come from realpath, so the root is a byte prefix of the database path.
+     * A drive or share root already ends with its separator. */
+    const gchar *relative = NULL;
+    if (!config->database_external) {
+        relative = database + strlen(root);
+        while (G_IS_DIR_SEPARATOR(*relative))
+            ++relative;
+    }
     /* A database moved by storage.ini lives outside the project: the identity
      * file keeps its logical project path, so only the file name and the
-     * store UUID (compared with the .meta file below) bind them together. */
+     * store UUID (compared with the .meta file below) bind them together.
+     * The stored path is portable ("data/database/RadioS.sdb"); files written
+     * by older builds may use '\'. Windows names compare case-insensitively. */
     gchar *stored_name = config->database_external && stored_path != NULL ? g_path_get_basename(stored_path) : NULL;
     gchar *actual_name = config->database_external ? g_path_get_basename(database) : NULL;
-    gboolean same_database = config->database_external ?
-            (stored_name != NULL && g_strcmp0(stored_name, actual_name) == 0) :
-            g_strcmp0(stored_path, relative) == 0;
+    gboolean same_database = FALSE;
+    if (config->database_external) {
+        same_database = stored_name != NULL && radios_path_equal(stored_name, actual_name);
+    } else if (stored_path != NULL && *stored_path != '\0' && !radios_path_is_absolute(stored_path)) {
+        gchar *native = radios_path_from_portable(stored_path);
+        same_database = radios_path_equal(native, relative);
+        g_free(native);
+    }
     g_free(stored_name); g_free(actual_name);
     gboolean valid = integer_member(object, "schema_version", 1) &&
             integer_member(meta, "schema_version", 4) && uuid_valid(store) && uuid_valid(user) &&
@@ -373,7 +388,7 @@ radios_data_client_new(const RadioSConfig *config, GError **error)
              "Yerel kimliğin UUID, erişim anahtarı, veritabanı yolu veya şema bilgisi eşleşmiyor.");
     }
     json_node_unref(identity); json_node_unref(metadata);
-    free(root); free(database); g_free(service_url);
+    g_free(root); g_free(database); g_free(service_url);
     return client;
 }
 
@@ -414,10 +429,12 @@ radios_data_client_unref(RadioSDataClient *client)
 }
 
 const gchar *radios_data_client_station_id(const RadioSDataClient *client) { return client->station_id; }
-const gchar *radios_data_client_station_timezone(const RadioSDataClient *client) { return client ? g_atomic_pointer_get(&client->station_timezone) : "UTC"; }
+/* The atomic load needs a non-const location (GLib's typeof-based macro would
+ * otherwise load into a const temporary); the client itself is not modified. */
+const gchar *radios_data_client_station_timezone(const RadioSDataClient *client) { return client ? g_atomic_pointer_get((const gchar **) &client->station_timezone) : "UTC"; }
 const gchar *radios_data_client_endpoint_id(const RadioSDataClient *client) { return client->endpoint_id; }
 const gchar *radios_data_client_store_id(const RadioSDataClient *client) { return client->store_id; }
-const gchar *radios_data_client_user_id(const RadioSDataClient *client) { return g_atomic_pointer_get(&client->user_id); }
+const gchar *radios_data_client_user_id(const RadioSDataClient *client) { return g_atomic_pointer_get((gchar **) &client->user_id); }
 const gchar *radios_data_client_service_url(const RadioSDataClient *client) { return client->service_url; }
 
 gboolean radios_data_client_same_identity(const RadioSDataClient *a, const RadioSDataClient *b)
@@ -619,6 +636,10 @@ request_transport_once(RadioSDataClient *client, const gchar *method,
     SET_OPTION(CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
     SET_OPTION(CURLOPT_SSL_VERIFYPEER, 1L);
     SET_OPTION(CURLOPT_SSL_VERIFYHOST, 2L);
+    /* HTTPS verifies against the Windows certificate store: the bundled
+     * libcurl has no CA file of its own. Loopback HTTP is unaffected. */
+    if (g_ascii_strncasecmp(client->service_url, "https:", 6) == 0)
+        SET_OPTION(CURLOPT_SSL_OPTIONS, (long) CURLSSLOPT_NATIVE_CA);
     SET_OPTION(CURLOPT_CONNECTTIMEOUT, (long) client->connect_timeout);
     SET_OPTION(CURLOPT_TIMEOUT_MS, (long) timeout_ms);
     SET_OPTION(CURLOPT_NOSIGNAL, 1L);
@@ -893,28 +914,54 @@ radios_data_client_request_sync(RadioSDataClient *client, const gchar *method,
 
 static gint source_name_compare(gconstpointer a, gconstpointer b)
 { return strcmp(*(gchar * const *)a, *(gchar * const *)b); }
+/* Streams one source file into the digest. Opened with share-delete access,
+ * so a service update replacing a module is never blocked by this reader. */
+static gboolean source_hash_file(GChecksum *hash, gint dir, const gchar *directory, const gchar *name, guchar *chunk, gsize size, GError **error)
+{
+    gint fd = radios_fs_openat(dir, name, RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
+    if (fd < 0) return radios_platform_set_io_error(error, errno, "%s\\%s", directory, name);
+    for (;;) {
+        gint amount = read(fd, chunk, (guint) size);
+        if (amount < 0 && errno == EINTR) continue;
+        if (amount < 0) { gint saved = errno; close(fd); return radios_platform_set_io_error(error, saved, "%s\\%s", directory, name); }
+        if (amount == 0) break;
+        g_checksum_update(hash, chunk, (gssize) amount);
+    }
+    close(fd);
+    return TRUE;
+}
+/* Cross-language contract with sdbase/runtime_version.py: regular files (not
+ * links) whose name ends with the exact lowercase ".py", ordered by the UTF-8
+ * bytes of the name, hashed as name NUL raw-bytes NUL. Windows name matching
+ * and ordering are case-insensitive, so neither is used here. */
 static gchar *installed_source_digest(RadioSDataClient *client, GError **error)
 {
     gchar *directory = g_build_filename(client->source_dir, "src", "sdbase", NULL);
-    if (!g_file_test(directory, G_FILE_TEST_IS_DIR)) { g_free(directory); return NULL; }
-    GDir *dir = g_dir_open(directory, 0, error);
-    if (!dir) { g_free(directory); return NULL; }
-    GPtrArray *names = g_ptr_array_new_with_free_func(g_free); const gchar *name;
-    while ((name = g_dir_read_name(dir)))
-        if (g_str_has_suffix(name, ".py")) g_ptr_array_add(names, g_strdup(name));
-    g_dir_close(dir); g_ptr_array_sort(names, source_name_compare);
+    RadioSFileInfo info;
+    if (radios_fs_stat(directory, TRUE, &info) != 0 || info.type != RADIOS_FILE_TYPE_DIRECTORY) { g_free(directory); return NULL; }
+    gint dir = radios_fs_open(directory, RADIOS_O_RDONLY | RADIOS_O_DIRECTORY | RADIOS_O_CLOEXEC, 0);
+    if (dir < 0) { radios_platform_set_io_error(error, errno, "%s", directory); g_free(directory); return NULL; }
+    GPtrArray *listed = radios_fd_list_names(dir, error);
+    if (!listed) { close(dir); g_free(directory); return NULL; }
+    GPtrArray *names = g_ptr_array_new();
+    for (guint i = 0; i < listed->len; ++i) {
+        gchar *name = g_ptr_array_index(listed, i);
+        if (g_str_has_suffix(name, ".py") && radios_fs_statat(dir, name, FALSE, &info) == 0 &&
+            info.type == RADIOS_FILE_TYPE_REGULAR)
+            g_ptr_array_add(names, name);
+    }
+    g_ptr_array_sort(names, source_name_compare);
     GChecksum *hash = g_checksum_new(G_CHECKSUM_SHA256); gboolean ok = TRUE;
-    for (guint i = 0; i < names->len; ++i) {
-        name = g_ptr_array_index(names, i);
-        gchar *path = g_build_filename(directory, name, NULL), *bytes = NULL; gsize length = 0;
-        ok = g_file_get_contents(path, &bytes, &length, error); g_free(path);
-        if (!ok) break;
-        g_checksum_update(hash, (const guchar *)name, strlen(name) + 1);
-        g_checksum_update(hash, (const guchar *)bytes, length);
-        g_checksum_update(hash, (const guchar *)"", 1); g_free(bytes);
+    gsize size = 64 * 1024; guchar *chunk = g_malloc(size);
+    for (guint i = 0; ok && i < names->len; ++i) {
+        const gchar *name = g_ptr_array_index(names, i);
+        g_checksum_update(hash, (const guchar *)name, (gssize) strlen(name) + 1);
+        ok = source_hash_file(hash, dir, directory, name, chunk, size, error);
+        g_checksum_update(hash, (const guchar *)"", 1);
     }
     gchar *digest = ok ? g_strdup(g_checksum_get_string(hash)) : NULL;
-    g_checksum_free(hash); g_ptr_array_unref(names); g_free(directory); return digest;
+    g_free(chunk); g_checksum_free(hash); g_ptr_array_unref(names); g_ptr_array_unref(listed);
+    close(dir); g_free(directory); return digest;
 }
 static gboolean supports_desktop_kinds(JsonObject *capabilities)
 {

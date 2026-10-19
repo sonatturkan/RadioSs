@@ -4,6 +4,11 @@ Callers serialize operations with ``operation_lock``. A first installation is
 prepared privately and its identity is durably saved before any live database
 file appears. The pending manifest allows the next init to finish a publication
 interrupted between the journal, metadata, checkpoint and credential files.
+
+Windows only: locks, private files (protected DACL instead of 0600/0700), link
+checks (symbolic links *and* junctions) and no-replace publication come from the
+shared platform layer ``radios_platform`` (sdbase/_platform.py), so the service,
+the tools and the C application apply the same rules.
 """
 
 from __future__ import annotations
@@ -12,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import configparser
-import fcntl
+import gc
 import hashlib
 import importlib
 import importlib.util
@@ -23,12 +28,13 @@ import re
 import shutil
 import stat
 import sys
-import tempfile
 import time
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfoNotFoundError
+
+import radios_platform as plat
 
 
 class DatabaseError(RuntimeError):
@@ -56,18 +62,32 @@ class LocalConfig:
     import_root: Path
 
 
+# Characters Windows never accepts in a file path (plus the quote, which would break
+# the command line the C side builds); spaces inside a path are fine because nothing
+# is shell-split on Windows.
+_PYTHON_COMMAND_FORBIDDEN = re.compile(r'[\x00-\x1f\x7f"<>|?*]')
+
+
 def _contained(root: Path, value: str | Path, *, reject_link: bool = False) -> Path:
     candidate = Path(value)
     if not candidate.is_absolute():
         candidate = root / candidate
-    if reject_link and candidate.is_symlink():
-        raise DatabaseError("Sembolik dosya bağlantısı kullanılamaz.")
+    if reject_link and plat.is_link(candidate):
+        raise DatabaseError("Sembolik bağlantı veya bağlantı noktası (junction) kullanılamaz.")
     try:
         resolved = candidate.resolve(strict=False)
         resolved.relative_to(root)
     except (OSError, RuntimeError, ValueError) as exc:
         raise DatabaseError("Yol RadioS proje klasörünün dışına çıkıyor.") from exc
     return resolved
+
+
+def _private_file(target) -> bool:
+    """Linux "regular file, owner == uid, mode 0600" (core spec 5.2 exact file mode)."""
+    try:
+        return plat.is_private(target, exact_file_mode=True)
+    except OSError:
+        return False
 
 
 def _regular(path: Path, *, optional: bool = False, private: bool = False) -> bool:
@@ -77,23 +97,24 @@ def _regular(path: Path, *, optional: bool = False, private: bool = False) -> bo
         if optional:
             return False
         raise DatabaseError("Gerekli yerel dosya bulunamadı.") from None
-    if not stat.S_ISREG(info.st_mode):
+    if plat.stat_is_link(info) or not stat.S_ISREG(info.st_mode):
         raise DatabaseError("Yerel dosya normal dosya olmalı; bağlantı kullanılamaz.")
-    if private and (stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid()):
-        raise DatabaseError("Kimlik veya servis dosyasının sahibi ve 0600 izni geçerli olmalı.")
+    if private and not _private_file(path):
+        raise DatabaseError("Kimlik veya servis dosyası bu kullanıcıya ait ve yalnız ona açık olmalı "
+                            "(özel erişim listesi).")
     return True
 
 
 def _read_bytes(path: Path, limit: int, *, private: bool = False) -> bytes:
     _regular(path, private=private)
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        fd = plat.open_nofollow(path, os.O_RDONLY)
         with os.fdopen(fd, "rb") as stream:
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
                 raise DatabaseError("Yerel dosyanın türü veya boyutu geçersiz.")
-            if private and (stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid()):
-                raise DatabaseError("Kimlik dosyası özel 0600 iznine sahip olmalı.")
+            if private and not _private_file(stream.fileno()):
+                raise DatabaseError("Kimlik dosyası yalnız bu kullanıcıya açık olmalı (özel erişim listesi).")
             body = stream.read(limit + 1)
             if len(body) > limit:
                 raise DatabaseError("Yerel dosya boyut sınırını aşıyor.")
@@ -122,6 +143,18 @@ def _json_read(path: Path, *, private: bool = True) -> dict:
     return value
 
 
+def _portable(path: Path, root: Path) -> str:
+    """Project-relative path in the portable '/' form (core spec 5.6): what
+    credentials.json and the pending manifest store, on every platform."""
+    return path.relative_to(root).as_posix()
+
+
+def _same_portable(stored, expected: str) -> bool:
+    """A stored project-relative path matches when equal after unifying the separators
+    ('\\' written by an older Windows build) and ignoring case like NTFS does."""
+    return isinstance(stored, str) and bool(stored) and plat.path_equal(stored, expected)
+
+
 def load_config(project_root: Path, config_path: str | None = None) -> LocalConfig:
     try:
         root = Path(project_root).resolve(strict=True)
@@ -130,14 +163,15 @@ def load_config(project_root: Path, config_path: str | None = None) -> LocalConf
     if not root.is_dir():
         raise DatabaseError("RadioS proje kökü bir klasör olmalı.")
     if config_path is None:
-        local = root / "config/radios.ini"
-        config_file = local if local.exists() or local.is_symlink() else root / "config/radios.example.ini"
+        local = root / "config" / "radios.ini"
+        config_file = local if local.exists() or plat.is_link(local) else root / "config" / "radios.example.ini"
     else:
         config_file = _contained(root, config_path)
     config_file = _contained(root, config_file)
     parser = configparser.ConfigParser(interpolation=None, strict=True)
     try:
-        parser.read_string(_read_bytes(config_file, 256 * 1024).decode("utf-8"))
+        # utf-8-sig: Notepad and other Windows editors may save the INI with a BOM.
+        parser.read_string(_read_bytes(config_file, 256 * 1024).decode("utf-8-sig"))
         def required(section, name):
             value = parser.get(section, name).strip()
             if not value or "\x00" in value:
@@ -162,9 +196,8 @@ def load_config(project_root: Path, config_path: str | None = None) -> LocalConf
                 not 1 <= port <= 65535 or parsed.netloc != f"127.0.0.1:{port}"):
             raise DatabaseError("Yerel servis adresi http://127.0.0.1:PORT biçiminde olmalı.")
         python_command = required("database", "python_command")
-        if not re.fullmatch(r"[A-Za-z0-9_./+ -]+", python_command) or any(
-                char.isspace() for char in python_command):
-            raise DatabaseError("python_command tek bir çalıştırılabilir dosya adı veya yolu olmalı.")
+        if len(python_command) > 1024 or _PYTHON_COMMAND_FORBIDDEN.search(python_command):
+            raise DatabaseError("python_command bir python.exe yolu veya varsayılan \"python3\" olmalı.")
         token_environment = required("database", "token_environment")
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", token_environment):
             raise DatabaseError("Token ortam değişkeninin adı geçersiz.")
@@ -183,15 +216,26 @@ def load_config(project_root: Path, config_path: str | None = None) -> LocalConf
 
 
 def backend_source_digest(cfg: LocalConfig) -> str:
-    """Match the running service's sorted basename/NUL/bytes/NUL SHA256."""
+    """Match the running service's digest (core spec 5.7): the files of the package
+    whose name ends with the exact lowercase '.py', sorted by the UTF-8 bytes of the
+    name, hashed as name NUL bytes NUL — the same rule as sdbase.runtime_version and
+    the C data client (strcmp order), independent of Windows' case-insensitive glob
+    and path ordering."""
     package = _contained(cfg.project_root, cfg.source_dir / "src" / "sdbase")
-    sources = sorted(package.glob("*.py"))
-    if not sources:
+    try:
+        with os.scandir(package) as entries:
+            names = sorted((entry.name for entry in entries
+                            if entry.name.endswith(".py") and not plat.entry_is_link(entry)
+                            and entry.is_file(follow_symlinks=False)),
+                           key=lambda name: name.encode("utf-8"))
+    except OSError as exc:
+        raise DatabaseError("SDBASE kaynak dosyaları okunamadı.") from exc
+    if not names:
         raise DatabaseError("SDBASE kaynak dosyaları bulunamadı.")
     digest = hashlib.sha256()
-    for source in sources:
-        source = _contained(cfg.project_root, source, reject_link=True)
-        digest.update(source.name.encode("utf-8"))
+    for name in names:
+        source = _contained(cfg.project_root, package / name, reject_link=True)
+        digest.update(name.encode("utf-8"))
         digest.update(b"\0")
         digest.update(_read_bytes(source, 16 * 1024 * 1024))
         digest.update(b"\0")
@@ -214,7 +258,7 @@ def backend_import(cfg: LocalConfig):
     try:
         if package_name not in sys.modules:
             spec = importlib.util.spec_from_file_location(
-                package_name, src / "sdbase/__init__.py",
+                package_name, src / "sdbase" / "__init__.py",
                 submodule_search_locations=[str(src / "sdbase")])
             if spec is None or spec.loader is None:
                 raise DatabaseError("SDBASE paket yükleyicisi bulunamadı.")
@@ -242,13 +286,17 @@ def backend_import(cfg: LocalConfig):
 def _directory(cfg: LocalConfig, path: Path, *, private: bool = False):
     actual = _contained(cfg.project_root, path)
     try:
-        actual.mkdir(parents=True, exist_ok=True, mode=0o700 if private else 0o755)
-        if not actual.is_dir():
-            raise DatabaseError("Çalışma yolu bir klasör olmalı.")
         if private:
-            if actual.stat().st_uid != os.getuid():
-                raise DatabaseError("Özel çalışma klasörünün sahibi geçersiz.")
-            actual.chmod(0o700)
+            # Linux: mkdir 0700 + owner check + chmod 0700.  Windows: created with the
+            # private DACL; an existing folder must be a real directory owned by this
+            # user and is repaired to the private DACL.
+            plat.make_private_dir(actual, parents=True, exist_ok=True)
+        else:
+            actual.mkdir(parents=True, exist_ok=True)
+        if plat.is_link(actual) or not actual.is_dir():
+            raise DatabaseError("Çalışma yolu bir klasör olmalı.")
+    except PermissionError as exc:
+        raise DatabaseError("Özel çalışma klasörünün sahibi geçersiz veya erişim reddedildi.") from exc
     except OSError as exc:
         raise DatabaseError("Yerel çalışma klasörü hazırlanamadı.") from exc
 
@@ -259,44 +307,39 @@ def operation_lock(cfg: LocalConfig):
     _directory(cfg, cfg.runtime_dir, private=True)
     lock_path = _contained(cfg.project_root, cfg.runtime_dir / "operation.lock", reject_link=True)
     try:
-        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        fd = plat.open_nofollow(lock_path, os.O_CREAT | os.O_RDWR, private=True)
     except OSError as exc:
         raise DatabaseError("Veritabanı işlem kilidi açılamadı.") from exc
     try:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
-            raise DatabaseError("Veritabanı işlem kilidi geçersiz.")
-        os.fchmod(fd, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode) or not plat.owned_by_current_user(fd):
+                raise DatabaseError("Veritabanı işlem kilidi geçersiz.")
+            if not plat.is_private(fd):
+                plat.make_private(fd)
+        except OSError as exc:
+            raise DatabaseError("Veritabanı işlem kilidi geçersiz.") from exc
         deadline = time.monotonic() + cfg.request_timeout_seconds
         while True:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                plat.flock(fd, plat.LOCK_EX | plat.LOCK_NB)
                 break
             except BlockingIOError:
                 if time.monotonic() >= deadline:
-                    raise DatabaseError("Başka bir veritabanı işleminin bitmesi beklenirken süre doldu.")
+                    raise DatabaseError("Başka bir veritabanı işleminin bitmesi beklenirken süre doldu.") from None
                 time.sleep(0.05)
         yield
     finally:
-        os.close(fd)
-
-
-def _sync_dir(path: Path):
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        plat.unlock_and_close(fd)
 
 
 def _json_write(path: Path, value: dict):
     body = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    fd = plat.open_nofollow(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, private=True)
     with os.fdopen(fd, "wb") as stream:
         stream.write(body)
         stream.flush()
-        os.fsync(stream.fileno())
-    _sync_dir(path.parent)
+        plat.fsync(stream)
+    plat.fsync_dir(path.parent)
 
 
 def _uuid(value, label: str):
@@ -345,7 +388,7 @@ def _credentials_validate(cfg: LocalConfig, value: dict, backend, store, authent
         field = value.get(label)
         if not isinstance(field, str) or not field.strip() or len(field) > 256 or "\x00" in field:
             raise DatabaseError("Kimlik dosyasındaki açıklayıcı alan geçersiz.")
-    if value.get("database_file") != str(cfg.database_file.relative_to(cfg.project_root)):
+    if not _same_portable(value.get("database_file"), _portable(cfg.database_file, cfg.project_root)):
         raise DatabaseError("Kimlik dosyasının veritabanı yolu eşleşmiyor.")
     for label in ("api_token", "endpoint_token"):
         field = value.get(label)
@@ -395,7 +438,7 @@ def load_credentials(cfg: LocalConfig, *, authenticate_tokens: bool = True) -> d
 def _digest(path: Path) -> str:
     _regular(path)
     value = hashlib.sha256()
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    fd = plat.open_nofollow(path, os.O_RDONLY)          # binary descriptor (O_BINARY)
     with os.fdopen(fd, "rb") as stream:
         while block := stream.read(1024 * 1024):
             value.update(block)
@@ -403,26 +446,28 @@ def _digest(path: Path) -> str:
 
 
 def _publish(source: Path, target: Path, digest: str):
-    """Publish without replacement, including across filesystems."""
-    if target.exists() or target.is_symlink():
+    """Publish without replacement: a private, fully written and verified temporary
+    file in the target folder is renamed to the target only if no target exists
+    (no-replace rename; works on NTFS and FAT/exFAT alike)."""
+    if target.exists() or plat.is_link(target):
         _regular(target, private=True)
         if _digest(target) != digest:
             raise DatabaseError("Bekleyen kurulumun hedef dosyası farklı; hiçbir dosyanın üzerine yazılmadı.")
         return
-    fd, temporary_name = tempfile.mkstemp(prefix=".radios-setup-", dir=target.parent)
+    fd, temporary_name = plat.private_mkstemp(target.parent, prefix=".radios-setup-")
     temporary = Path(temporary_name)
     try:
-        source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        source_fd = plat.open_nofollow(source, os.O_RDONLY)
         with os.fdopen(source_fd, "rb") as incoming, os.fdopen(fd, "wb") as outgoing:
             shutil.copyfileobj(incoming, outgoing, length=1024 * 1024)
             outgoing.flush()
-            os.fsync(outgoing.fileno())
+            plat.fsync(outgoing)
         if _digest(temporary) != digest:
             raise DatabaseError("Bekleyen kurulum dosyasının içeriği değişmiş.")
-        os.link(temporary, target, follow_symlinks=False)
-        _sync_dir(target.parent)
+        plat.publish_noreplace(temporary, target)       # FileExistsError if a target appeared
+        plat.fsync_dir(target.parent)
     finally:
-        temporary.unlink(missing_ok=True)
+        plat.unlink(temporary, missing_ok=True)
 
 
 def _summary(cfg: LocalConfig, value: dict, status: str, backend) -> dict:
@@ -438,14 +483,18 @@ def _summary(cfg: LocalConfig, value: dict, status: str, backend) -> dict:
 def _finish_pending(cfg: LocalConfig, backend) -> dict:
     pending_file = cfg.runtime_dir / "setup-pending.json"
     pending = _json_read(pending_file)
-    expected_database = str(cfg.database_file.relative_to(cfg.project_root))
+    expected_database = _portable(cfg.database_file, cfg.project_root)
     stage_name = pending.get("stage_name")
     if (type(pending.get("schema_version")) is not int or pending["schema_version"] != 1 or
-            pending.get("database_file") != expected_database or
+            not _same_portable(pending.get("database_file"), expected_database) or
             not isinstance(stage_name, str) or not re.fullmatch(r"setup-[0-9a-f]{32}", stage_name)):
         raise DatabaseError("Bekleyen kurulum günlüğü geçersiz; özel kimlik dosyaları korunuyor.")
     stage = _contained(cfg.project_root, cfg.runtime_dir / stage_name, reject_link=True)
-    if not stage.is_dir() or stat.S_IMODE(stage.stat().st_mode) != 0o700:
+    try:
+        stage_private = stage.is_dir() and plat.is_private(stage, directory=True)
+    except OSError:
+        stage_private = False
+    if not stage_private:
         raise DatabaseError("Bekleyen kurulumun özel hazırlık klasörü geçersiz.")
     staged_db = stage / cfg.database_file.name
     credentials = _json_read(stage / "credentials.json")
@@ -462,6 +511,9 @@ def _finish_pending(cfg: LocalConfig, backend) -> dict:
         _regular(source, private=True)
         if _digest(source) != digest:
             raise DatabaseError("Bekleyen kurulum dosyaları değişmiş; kimlikler korunuyor.")
+    # Store objects opened on the stage are released before files are published and
+    # the stage is removed (Windows cannot delete a file that is still open).
+    gc.collect()
     _directory(cfg, cfg.database_file.parent)
     _directory(cfg, cfg.credentials_file.parent)
     for suffix in (".lock", ".meta", ".checkpoint", ""):
@@ -472,15 +524,12 @@ def _finish_pending(cfg: LocalConfig, backend) -> dict:
     # Remove the marker only after the complete live identity validates. A crash
     # after this unlink leaves a harmless private staging directory, not a DB
     # whose administrator's original plaintext credential was discarded.
-    pending_file.unlink()
-    _sync_dir(cfg.runtime_dir)
-    try:
-        shutil.rmtree(stage)
-        _sync_dir(cfg.runtime_dir)
-    except OSError:
-        # The validated live installation is already committed. An unremoved
-        # private preparation directory must not turn success into a failure.
-        pass
+    plat.unlink(pending_file)
+    plat.fsync_dir(cfg.runtime_dir)
+    gc.collect()
+    # The validated live installation is already committed. An unremoved private
+    # preparation directory must not turn success into a failure.
+    plat.rmtree_quietly(stage)
     return _summary(cfg, value, "initialized", backend)
 
 
@@ -492,29 +541,34 @@ def initialize(cfg: LocalConfig, *, username: str = "admin", station_code: str =
     are never adopted or overwritten, even if they contain no users yet.
     """
     pending_restore = cfg.runtime_dir / "restore-pending.json"
-    if pending_restore.exists() or pending_restore.is_symlink():
+    if pending_restore.exists() or plat.is_link(pending_restore):
         raise DatabaseError("Kesilmiş geri yükleme var; önce offline recover komutunu çalıştırın.")
     backend = backend_import(cfg)
     _directory(cfg, cfg.runtime_dir, private=True)
     pending_file = cfg.runtime_dir / "setup-pending.json"
-    if pending_file.exists() or pending_file.is_symlink():
+    if pending_file.exists() or plat.is_link(pending_file):
         return _finish_pending(cfg, backend)
-    if cfg.credentials_file.exists() or cfg.credentials_file.is_symlink():
+    if cfg.credentials_file.exists() or plat.is_link(cfg.credentials_file):
         value = load_credentials(cfg)
         return _summary(cfg, value, "already_initialized", backend)
     for suffix in ("", ".meta", ".lock", ".checkpoint"):
         path = cfg.database_file.with_name(cfg.database_file.name + suffix)
-        if path.exists() or path.is_symlink():
+        if path.exists() or plat.is_link(path):
             raise DatabaseError("Mevcut veritabanı RadioS tarafından yönetilmiyor; üzerine yazılmadı.")
     for value in (username, station_code, station_name, timezone_name):
         if not isinstance(value, str) or not value.strip() or len(value) > 256 or "\x00" in value:
             raise DatabaseError("İlk kullanıcı ve istasyon alanları boş veya geçersiz.")
     try:
-        ZoneInfo(timezone_name)
-    except (ZoneInfoNotFoundError, ValueError) as exc:
+        # Exact-case IANA key of the bundled tzdata: Windows file lookups are
+        # case-insensitive, so "europe/istanbul" would otherwise load and be stored.
+        plat.canonical_timezone(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
         raise DatabaseError("İstasyon saat dilimi geçersiz.") from exc
     stage = cfg.runtime_dir / ("setup-" + uuid4().hex)
-    stage.mkdir(mode=0o700)
+    try:
+        plat.mkdir_private(stage)
+    except OSError as exc:
+        raise DatabaseError("Kurulum hazırlık klasörü oluşturulamadı.") from exc
     try:
         staged_db = stage / cfg.database_file.name
         store = backend.open_radio_store(staged_db, lock_timeout=cfg.connect_timeout_seconds)
@@ -528,21 +582,22 @@ def initialize(cfg: LocalConfig, *, username: str = "admin", station_code: str =
             "endpoint_id": bootstrap["endpoint_id"], "api_token": bootstrap["api_token"],
             "endpoint_token": endpoint_token, "username": username, "station_code": station_code,
             "station_name": station_name, "timezone": timezone_name,
-            "database_file": str(cfg.database_file.relative_to(cfg.project_root)),
+            "database_file": _portable(cfg.database_file, cfg.project_root),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         for label in ("api_token", "endpoint_token"):
             digest = hashlib.sha256(credentials[label].encode("ascii")).hexdigest()
             credentials[label + "_expires_at"] = store.lookup("tokens", "hash", digest)[0]["expires_at"]
         store.checkpoint()
+        # Release the writable store before its files are flushed, hashed and copied.
+        del store, admin
+        gc.collect()
         for path in stage.iterdir():
             _regular(path)
-            path.chmod(0o600)
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+            # Files inherit the private stage DACL; repair one that did not (Linux chmod 0600).
+            if not _private_file(path):
+                plat.make_private(path)
+            plat.fsync_file(path)
         _json_write(stage / "credentials.json", credentials)
         _credentials_validate(cfg, credentials, backend, _store(cfg, backend, staged_db), True)
         _json_write(pending_file, {
@@ -555,7 +610,8 @@ def initialize(cfg: LocalConfig, *, username: str = "admin", station_code: str =
         # A pending installation is preserved with its plaintext credentials.
         # Before publication, an incomplete preparation can be discarded.
         if not pending_file.exists():
-            shutil.rmtree(stage, ignore_errors=True)
+            gc.collect()
+            plat.rmtree_quietly(stage)
         if isinstance(exc, DatabaseError):
             raise
         raise DatabaseError("Veritabanı kurulumu tamamlanamadı; mevcut veriler korunuyor.") from exc

@@ -15,18 +15,17 @@ archive without holding it. It needs whole-store engine administration
 """
 from __future__ import annotations
 
+import atexit
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import subprocess
-import sys
 import threading
 import time
 from uuid import uuid4
 
-from . import desktop_api as api
+from . import _platform, desktop_api as api
 from .monitoring import require_engine_manager
 from .storage import StoreError
 
@@ -61,12 +60,17 @@ class _Job:
         self.finished = None
         self.result = None
         self.message = None
+        # Set by cancel_running(); the scrub child is killed at its next poll.
+        self.cancel = threading.Event()
+        self.done = threading.Event()
+        self.process = None
 
     def finish(self, state, message, result=None):
         with _LOCK:
             self.state, self.message, self.result = state, message, result
             self.finished_at, self.finished = _now(), time.monotonic()
             _prune_locked()
+        self.done.set()
 
     def view(self):
         with _LOCK:
@@ -137,10 +141,28 @@ def _budgets(store, verify_media):
 _PACKAGE_DIR = Path(__file__).resolve().parent
 _SOURCE_ROOT = _PACKAGE_DIR.parent
 _SCAN_TIMEOUT = 4 * 3600
+# How often the waiting job thread checks for a cancellation request.
+_POLL_SECONDS = 1.0
 
 
 class _ScanError(RuntimeError):
     """The separate scrub process ended without a report."""
+
+
+class _ScanCancelled(RuntimeError):
+    """The data service is stopping; the scrub child was ended."""
+
+
+def _kill(process):
+    """End the read-only scrub child (killing it is safe: it writes nothing) and reap it."""
+    try:
+        process.kill()
+    except OSError:
+        pass                                  # it has already exited
+    try:
+        process.communicate(timeout=10)
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        pass
 
 
 def _scan(store, job):
@@ -149,20 +171,52 @@ def _scan(store, job):
     The replayed copy of the database, its memory and its CPU time stay out of
     the live service: no interpreter lock stall for other requests, and the
     memory returns when the child exits. The child reads the database files
-    under the same shared store lock (writers wait while it reads them)."""
-    environment = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONPATH=str(_SOURCE_ROOT))
-    command = [sys.executable, "-m", _PACKAGE_DIR.name + ".cli", "--db", str(store.journal), "integrity",
-               "--max-records", str(job.max_records), "--max-bytes", str(job.max_bytes)]
+    under the same shared store lock (writers wait while it reads them).
+
+    The child is the bundled interpreter with -E -s -B -X utf8 (PYTHONPATH is
+    ignored), so ``-m sdbase.cli`` imports from its working directory, the source
+    root of this package. It gets no console window from the windowless service,
+    its output is UTF-8 and it is ended when the service stops."""
+    command = _platform.python_child_argv(
+        "-m", _PACKAGE_DIR.name + ".cli", "--db", str(Path(store.journal).absolute()), "integrity",
+        "--max-records", str(job.max_records), "--max-bytes", str(job.max_bytes))
     if not job.verify_media:
         command.append("--skip-media")
-    completed = subprocess.run(command, capture_output=True, text=True, env=environment,
-                               timeout=_SCAN_TIMEOUT, check=False)
+    process = _platform.popen_no_window(command, cwd=str(_SOURCE_ROOT), env=_platform.python_child_env(),
+                                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
+    with _LOCK:
+        job.process = process
+    try:
+        deadline = time.monotonic() + _SCAN_TIMEOUT
+        while True:
+            if job.cancel.is_set():
+                _kill(process)
+                raise _ScanCancelled()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill(process)
+                raise subprocess.TimeoutExpired(command, _SCAN_TIMEOUT)
+            try:
+                stdout, stderr = process.communicate(timeout=min(_POLL_SECONDS, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
+    except BaseException:
+        if process.poll() is None:
+            _kill(process)
+        raise
+    finally:
+        with _LOCK:
+            job.process = None
+    if job.cancel.is_set() and process.returncode not in (0, 2):
+        raise _ScanCancelled()                # killed by cancel_running() while it waited
     # 0: sound; 2: the scrub ran and reports problems or stopped incomplete.
-    if completed.returncode in (0, 2):
-        return json.loads(completed.stdout)
-    lines = completed.stderr.strip().splitlines()
+    if process.returncode in (0, 2):
+        return json.loads(stdout)
+    lines = (stderr or "").strip().splitlines()
     detail = lines[-1].removeprefix("sdbase: ") if lines else ""
-    raise _ScanError(detail or f"denetim süreci {completed.returncode} koduyla sonlandı")
+    raise _ScanError(detail or f"denetim süreci {process.returncode} koduyla sonlandı")
 
 
 def _run(job, store):
@@ -170,6 +224,8 @@ def _run(job, store):
         report = _scan(store, job)
     except subprocess.TimeoutExpired:
         job.finish("failed", "Tam denetim tamamlanamadı: süre aşıldı.")
+    except _ScanCancelled:
+        job.finish("failed", "Tam denetim durduruldu: veri hizmeti kapanıyor.")
     except _ScanError as exc:
         job.finish("failed", f"Tam denetim tamamlanamadı: {exc}")
     except MemoryError:
@@ -206,6 +262,42 @@ def integrity_start(store, principal, station_id, verify_media=True):
         job.finish("failed", "Tam denetim başlatılamadı.")
         raise StoreError("Tam denetim başlatılamadı.") from exc
     return started
+
+
+def cancel_running(timeout=5.0):
+    """Service stop: end a running full check (its child process is killed; the scrub
+    only reads) so no orphaned scrub keeps the shared store lock after the service
+    has exited. Waits at most ``timeout`` seconds for the job to reach a terminal
+    state; True when no job is left running."""
+    with _LOCK:
+        job = _RUNNING if _running_locked() else None
+        process = job.process if job is not None else None
+    if job is None:
+        return True
+    job.cancel.set()
+    if process is not None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+    return job.done.wait(max(0.0, float(timeout)))
+
+
+def _kill_at_exit():
+    # Interpreter exit ends the daemon job thread but not its child process.
+    with _LOCK:
+        job = _RUNNING if _running_locked() else None
+        process = job.process if job is not None else None
+    if job is not None:
+        job.cancel.set()
+    if process is not None and process.poll() is None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+atexit.register(_kill_at_exit)
 
 
 def integrity_job(store, principal, station_id, job_id):

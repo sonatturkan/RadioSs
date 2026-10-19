@@ -1,8 +1,8 @@
-#define _POSIX_C_SOURCE 200809L
 #include "radios/transfer_ui.h"
 #include "radios/data.h"
 #include "radios/import_profiles_ui.h"
 #include "radios/settings_sync.h"
+#include "radios/platform.h"
 #include <string.h>
 
 /* Ayarlar › Export / Import: one .st transfer package in each direction.
@@ -518,9 +518,18 @@ static void export_clicked(GtkButton *button, gpointer data)
     if (!folder || !g_file_test(folder, G_FILE_TEST_IS_DIR)) { status_set(page, "Hedef klasör seçin."); g_free(folder); return; }
     gchar *name = g_strstrip(g_strdup(gtk_entry_get_text(GTK_ENTRY(page->name))));
     if (!*name) { g_free(name); name = default_name(page); }
-    if (!g_str_has_suffix(name, ".st")) { gchar *fixed = g_strconcat(name, ".st", NULL); g_free(name); name = fixed; }
-    if (strchr(name, '/') || *name == '.' || strlen(name) > 200) {
-        status_set(page, "Dosya adı '/' içeremez, nokta ile başlayamaz ve 200 karakteri aşamaz."); g_free(name); g_free(folder); return;
+    /* Windows names are case-insensitive: "Paket.ST" already has the suffix. */
+    gsize length = strlen(name);
+    if (length >= 3 && g_ascii_strcasecmp(name + length - 3, ".st") == 0) memcpy(name + length - 3, ".st", 3);
+    else { gchar *fixed = g_strconcat(name, ".st", NULL); g_free(name); name = fixed; }
+    /* The same rules on every system, so packages stay interchangeable:
+     * no \ / : * ? " < > | or control characters, no reserved device name
+     * (CON, NUL, COM1 ...), no trailing dot or space (NTFS would drop it),
+     * no leading dot, at most 200 bytes. */
+    if (!radios_path_component_valid(name) || *name == '.' || strlen(name) > 200) {
+        status_set(page, "Dosya adı \\ / : * ? \" < > | içeremez, ayrılmış aygıt adı (CON, NUL, COM1…) olamaz, "
+            "nokta ile başlayamaz, nokta/boşlukla bitemez ve 200 karakteri aşamaz.");
+        g_free(name); g_free(folder); return;
     }
     gtk_entry_set_text(GTK_ENTRY(page->name), name);
     gboolean selected = active(page->scope_selected), media = page->media_count > 0 && active(page->media);
@@ -672,6 +681,16 @@ static void page_free(gpointer data)
     TransferPage *page = data;
     g_free(page->default_name); g_free(page->package_path); g_free(page->job_id); g_free(page);
 }
+/* Known folder (SHGetKnownFolderPath through GLib: Belgeler, Müzik), else the
+ * profile folder.  g_get_home_dir() alone could be an MSYS2/Git-Bash HOME. */
+static const gchar *default_folder(GUserDirectory directory)
+{
+    const gchar *known = g_get_user_special_dir(directory);
+    if (known && g_file_test(known, G_FILE_TEST_IS_DIR)) return known;
+    known = g_get_user_special_dir(G_USER_DIRECTORY_DOCUMENTS);
+    if (known && g_file_test(known, G_FILE_TEST_IS_DIR)) return known;
+    return g_get_home_dir();
+}
 static GtkWidget *folder_chooser(const gchar *title, const gchar *name, const gchar *initial)
 {
     GtkWidget *chooser = named(gtk_file_chooser_button_new(title, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER), name);
@@ -739,7 +758,7 @@ GtkWidget *radios_transfer_export_page_new(RadioSViewContext *ctx)
     GtkWidget *target = section_new("Hedef");
     const gchar *backups = ctx->config ? ctx->config->backup_root : NULL;
     page->destination = folder_chooser("Hedef klasör", "transfer-export-destination",
-        backups && g_file_test(backups, G_FILE_TEST_IS_DIR) ? backups : g_get_home_dir());
+        backups && g_file_test(backups, G_FILE_TEST_IS_DIR) ? backups : default_folder(G_USER_DIRECTORY_DOCUMENTS));
     pack(target, field_row("Klasör", page->destination), FALSE);
     page->name = named(gtk_entry_new(), "transfer-export-name");
     gtk_entry_set_max_length(GTK_ENTRY(page->name), 200);
@@ -760,7 +779,7 @@ GtkWidget *radios_transfer_import_page_new(RadioSViewContext *ctx)
     page->package = named(gtk_file_chooser_button_new("Aktarım paketi", GTK_FILE_CHOOSER_ACTION_OPEN), "transfer-import-package");
     gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(page->package), TRUE);
     GtkFileFilter *filter = gtk_file_filter_new(); gtk_file_filter_set_name(filter, "RadioS aktarım paketi (*.st)");
-    gtk_file_filter_add_pattern(filter, "*.st"); gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(page->package), filter);
+    gtk_file_filter_add_pattern(filter, "*.[sS][tT]"); gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(page->package), filter);
     pack(source, field_row("Dosya", page->package), FALSE);
     pack(page->page, source, FALSE);
     page->summary = named(section_new("Paket içeriği"), "transfer-import-summary");
@@ -777,10 +796,9 @@ GtkWidget *radios_transfer_import_page_new(RadioSViewContext *ctx)
     page->media = named(gtk_check_button_new_with_label("Medyayı yerleştir"), "transfer-import-media");
     gtk_widget_set_tooltip_text(page->media, "Şarkılar hedef ana klasörün altına albüm ve alt klasör düzeniyle yerleşir");
     pack(page->options, page->media, FALSE);
-    const gchar *music = g_get_user_special_dir(G_USER_DIRECTORY_MUSIC);
-    page->media_root = folder_chooser("Hedef ana klasör", "transfer-import-media-root", music ? music : g_get_home_dir());
+    page->media_root = folder_chooser("Hedef ana klasör", "transfer-import-media-root", default_folder(G_USER_DIRECTORY_MUSIC));
     gchar *chosen = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(page->media_root));
-    if (!chosen) gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(page->media_root), g_get_home_dir());
+    if (!chosen) gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(page->media_root), default_folder(G_USER_DIRECTORY_DOCUMENTS));
     g_free(chosen);
     page->media_root_row = named(field_row("Ana klasör", page->media_root), "transfer-import-media-root-row");
     gtk_widget_set_margin_start(page->media_root_row, 28);

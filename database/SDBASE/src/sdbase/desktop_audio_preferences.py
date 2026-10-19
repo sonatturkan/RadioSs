@@ -6,8 +6,7 @@ Scheduling uses local civil minutes in the persisted IANA timezone; an equal
 start/end is a full selected day and overnight windows belong to their start day.
 """
 
-from zoneinfo import ZoneInfo
-
+from . import _platform
 from . import desktop_api as api
 from .storage import StoreError
 
@@ -63,7 +62,9 @@ def validate_loudness_policy(policy):
     try:
         if len(zone.encode("utf-8")) > 127:
             raise ValueError("timezone byte length")
-        ZoneInfo(zone)
+        # Exact-case key of the bundled tz database: Windows lookups are
+        # case-insensitive and would accept and persist "europe/istanbul".
+        _platform.canonical_timezone(zone)
     except (ValueError, KeyError, UnicodeError) as exc:
         raise StoreError("loudness policy timezone must be an IANA identifier of at most 127 UTF-8 bytes") from exc
     for window in api._list(policy["windows"], "loudness policy windows", 16):

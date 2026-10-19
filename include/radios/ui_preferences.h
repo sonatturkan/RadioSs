@@ -30,7 +30,7 @@ typedef struct {
  * follows its width key (files from before the separate height settings kept
  * one uniform scale). Errors leave out unchanged.
  * Files are limited to 8 KiB; external directory links and all file links are
- * rejected. Save replaces the file atomically with private (0600) permissions.
+ * rejected. Save replaces the file atomically with private (owner-only ACL) permissions.
  * No application config, credentials, database or audio state is modified. */
 void radios_ui_preferences_default(RadioSUIPreferences *out);
 gboolean radios_ui_preferences_load(const gchar *project_root,

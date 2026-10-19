@@ -12,9 +12,9 @@ endif()
 if(BUILD_TESTING AND RADIOS_GUI_TESTS)
     add_executable(test_media_archive_ui tests/test_media_archive_ui.c)
     target_link_libraries(test_media_archive_ui PRIVATE radios_ui radios_warnings)
-    add_test(NAME native_media_archive COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME native_media_archive COMMAND ${RADIOS_TEST_PYTHON_COMMAND}
         ${CMAKE_SOURCE_DIR}/tests/run_data_ui.py $<TARGET_FILE:test_media_archive_ui>)
     set_tests_properties(native_media_archive PROPERTIES TIMEOUT 240
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+        ENVIRONMENT "G_DEBUG=fatal-warnings")
 endif()

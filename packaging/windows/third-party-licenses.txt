@@ -1,0 +1,82 @@
+# RadioS - licence texts shipped with the Windows package (share/licenses/, THIRD-PARTY-NOTICES.txt).
+#
+# Read by packaging/windows/cmake/finalize-package-stage.cmake. Every DLL/EXE in the package's
+# bin/ and pixbuf loader directory (except RadioS.exe) must match exactly one rule, otherwise
+# packaging fails: a new dependency needs its licence recorded here before it can ship.
+#
+# Format (one rule per line, fields separated by " | "):
+#   <regex on the lower-case file name, or @always> | <component> | <SPDX expression> | <texts>
+# <texts>: comma-separated, each one of
+#   msys2:<path below RADIOS_MSYS2_PREFIX/share/licenses>   copied to share/licenses/<path>
+#   ffmpeg:<path below RADIOS_FFMPEG_PREFIX>                 copied to share/licenses/ffmpeg/<file>
+#   wheel:<path inside the pinned tzdata wheel>              copied to share/licenses/tzdata/<file>
+#   package:<path inside the package>                        already shipped; must exist
+#   -                                                        no licence text available (notice only)
+# A trailing "/*" (msys2:, ffmpeg:) copies every file of that folder.
+#
+# GTK 3 stack (MSYS2 UCRT64, versions in msys2-packages.lock)
+^libatk-1\.0-0\.dll$ | ATK (at-spi2-core) | LGPL-2.1-or-later | msys2:at-spi2-core/COPYING
+^libbrotli(common|dec|enc)\.dll$ | Brotli | MIT | msys2:brotli/LICENSE
+^libbz2-1\.dll$ | bzip2 | bzip2-1.0.6 | msys2:bzip2/LICENSE
+^libcairo(-gobject)?-2\.dll$ | cairo | LGPL-2.1-only OR MPL-1.1 | msys2:cairo/COPYING, msys2:cairo/COPYING-LGPL-2.1, msys2:cairo/COPYING-MPL-1.1
+^libdatrie-1\.dll$ | libdatrie | LGPL-2.1-or-later | msys2:libdatrie/COPYING
+^libdeflate\.dll$ | libdeflate | MIT | msys2:libdeflate/COPYING
+^libepoxy-0\.dll$ | libepoxy | MIT | msys2:libepoxy/COPYING
+^libexpat-1\.dll$ | Expat | MIT | msys2:expat/COPYING
+^libffi-8\.dll$ | libffi | MIT | msys2:libffi/LICENSE
+^libfontconfig-1\.dll$ | Fontconfig | HPND-sell-variant | msys2:fontconfig/COPYING
+^libfreetype-6\.dll$ | FreeType | FTL OR GPL-2.0-or-later | msys2:freetype/FTL.TXT, msys2:freetype/GPLv2.TXT
+^libfribidi-0\.dll$ | GNU FriBidi | LGPL-2.1-or-later | msys2:fribidi/COPYING
+^libgcc_s_seh-1\.dll$ | GCC runtime (libgcc) | GPL-3.0-or-later WITH GCC-exception-3.1 | msys2:libgcc/COPYING.RUNTIME, msys2:libgcc/COPYING3
+^libstdc\+\+-6\.dll$ | GCC runtime (libstdc++) | GPL-3.0-or-later WITH GCC-exception-3.1 | msys2:libstdc++/COPYING.RUNTIME, msys2:libstdc++/COPYING3
+^lib(gdk|gtk)-3-0\.dll$ | GTK 3 | LGPL-2.1-or-later | msys2:gtk3/COPYING
+^libgdk_pixbuf-2\.0-0\.dll$ | GdkPixbuf | LGPL-2.1-or-later | msys2:gdk-pixbuf2/COPYING
+^(lib(gio|glib|gmodule|gobject|gthread)-2\.0-0\.dll|gspawn-win64-helper(-console)?\.exe)$ | GLib | LGPL-2.1-or-later | msys2:glib2/COPYING
+^libgraphite2\.dll$ | Graphite2 | LGPL-2.1-or-later OR MPL-2.0 OR GPL-2.0-or-later | msys2:graphite2/COPYING, msys2:graphite2/LICENSE
+^libharfbuzz-0\.dll$ | HarfBuzz | MIT | msys2:harfbuzz/COPYING
+^libiconv-2\.dll$ | GNU libiconv | LGPL-2.1-or-later | msys2:libiconv/COPYING.LIB
+^libintl-8\.dll$ | GNU gettext runtime (libintl) | LGPL-2.1-or-later | msys2:gettext-runtime/intl/COPYING.LIB
+# libjbig (GPL-2.0-or-later) is pulled in by MSYS2's libtiff (JBIG support) -> gdk-pixbuf -> GTK.
+# Shipping it puts the package under GPL-2.0 obligations: see packaging/README.md (open licence item).
+^libjbig-0\.dll$ | JBIG-KIT | GPL-2.0-or-later | msys2:jbigkit/COPYING
+^libjpeg-8\.dll$ | libjpeg-turbo | IJG AND BSD-3-Clause AND Zlib | msys2:libjpeg-turbo/LICENSE.md, msys2:libjpeg-turbo/README.ijg
+^liblerc\.dll$ | LERC | Apache-2.0 | msys2:lerc/LICENSE
+^liblzma-5\.dll$ | XZ Utils (liblzma) | 0BSD | msys2:xz/COPYING, msys2:xz/COPYING.0BSD
+^libpango(cairo|ft2|win32)?-1\.0-0\.dll$ | Pango | LGPL-2.1-or-later | msys2:pango/COPYING
+^libpcre2-8-0\.dll$ | PCRE2 | BSD-3-Clause WITH PCRE2-exception | msys2:pcre2/LICENCE.md
+^libpixman-1-0\.dll$ | pixman | MIT | msys2:pixman/COPYING
+^libpng16-16\.dll$ | libpng | libpng-2.0 | msys2:libpng/LICENSE
+^(librsvg-2-2|pixbufloader_svg)\.dll$ | librsvg | LGPL-2.1-or-later | msys2:librsvg/COPYING.LIB
+^lib(sharpyuv-0|webp-7|webpmux-3|webpdemux-2)\.dll$ | libwebp | BSD-3-Clause | msys2:libwebp/COPYING
+^libthai-0\.dll$ | libthai | LGPL-2.1-or-later | msys2:libthai/COPYING
+^libtiff-6\.dll$ | LibTIFF | libtiff | msys2:libtiff/LICENSE.md
+^libwinpthread-1\.dll$ | mingw-w64 winpthreads | MIT AND BSD-3-Clause | msys2:libwinpthread/COPYING
+^libxml2-16\.dll$ | libxml2 | MIT | msys2:libxml2/COPYING
+^libzstd\.dll$ | Zstandard | BSD-3-Clause OR GPL-2.0-only | msys2:zstd/LICENSE
+^zlib1\.dll$ | zlib | Zlib | msys2:zlib/LICENSE
+^libjson-glib-1\.0-0\.dll$ | JSON-GLib | LGPL-2.1-or-later | msys2:json-glib/COPYING
+# libcurl and its TLS/HTTP stack
+^libcurl-4\.dll$ | curl | curl | msys2:curl/LICENSE
+^lib(crypto|ssl)-3-x64\.dll$ | OpenSSL | Apache-2.0 | msys2:openssl/LICENSE
+^libnghttp2-14\.dll$ | nghttp2 | MIT | msys2:nghttp2/COPYING
+^libnghttp3-9\.dll$ | nghttp3 | MIT | msys2:nghttp3/COPYING
+^libngtcp2(_crypto_ossl)?-[0-9]+\.dll$ | ngtcp2 | MIT | msys2:ngtcp2/COPYING
+^libpsl-5\.dll$ | libpsl | MIT | msys2:libpsl/COPYING
+^libssh2-1\.dll$ | libssh2 | BSD-3-Clause | msys2:libssh2/LICENSE
+^libunistring-5\.dll$ | GNU libunistring | LGPL-3.0-or-later OR GPL-2.0-or-later | msys2:libunistring/LICENSE.LIB, msys2:libunistring/LICENSE
+# MSYS2 ships no licence file for libidn2; it is LGPL-3.0-or-later OR GPL-2.0-or-later like
+# libunistring, whose LGPL-3.0/GPL-3.0 texts are copied above.
+^libidn2-0\.dll$ | GNU Libidn2 | LGPL-3.0-or-later OR GPL-2.0-or-later | msys2:libunistring/LICENSE.LIB, msys2:libunistring/LICENSE
+# FFmpeg: only the LGPL build of DECISIONS D10 (RADIOS_FFMPEG_PREFIX) may ship. The build script
+# must install its licence texts into <prefix>/share/licenses/ffmpeg/.
+^(avcodec|avformat|avutil|avfilter|swresample|swscale)-[0-9]+\.dll$ | FFmpeg (LGPL build) | LGPL-2.1-or-later | ffmpeg:share/licenses/ffmpeg/*
+# LAME (libmp3lame, LGPL-2.0-or-later; MSYS2 ships no text - the LGPL-2.1 text of GLib applies).
+^libmp3lame-0\.dll$ | LAME | LGPL-2.0-or-later | msys2:glib2/COPYING
+# Data shipped in every package
+@always | Adwaita icon theme | LGPL-3.0-only OR CC-BY-SA-3.0 | msys2:adwaita-icon-theme/*
+@always | Adwaita legacy icon theme | LGPL-3.0-only OR CC-BY-SA-3.0 | msys2:adwaita-icon-theme-legacy/*
+@always | hicolor icon theme (index) | GPL-2.0-only | msys2:hicolor-icon-theme/COPYING
+@always | CA certificates (Mozilla NSS root store, etc/ssl/certs/ca-bundle.crt) | MPL-2.0 | -
+@always | CPython 3.14.8 embeddable (python/) | PSF-2.0 | package:python/LICENSE.txt
+@always | tzdata 2026.5 (python/Lib/tzdata, share/zoneinfo) | Apache-2.0 AND LicenseRef-Public-Domain | wheel:tzdata-2026.5.dist-info/licenses/LICENSE, wheel:tzdata-2026.5.dist-info/licenses/licenses/LICENSE_APACHE
+@always | Inter 4.1 font (assets/fonts/InterVariable.ttf) | OFL-1.1 | package:assets/fonts/LICENSE.txt

@@ -64,6 +64,12 @@ class HTTPConnectionPool:
                 not isfinite(timeout) or not 0 < timeout <= 3600:
             raise ValueError("timeout must be positive and at most 3600 seconds")
         self._scheme, self._host, self._port = parsed.scheme, parsed.hostname, parsed.port
+        if self._scheme == "http" and self._host.lower() == "localhost":
+            # Windows resolves "localhost" to ::1 first and needs about 2 s to
+            # fall back to the IPv4 loopback listener on every new connection.
+            # Plain HTTP has no certificate name to verify, so connect to the
+            # literal; HTTPS keeps the name for host verification.
+            self._host = "127.0.0.1"
         self._prefix = parsed.path.rstrip("/")
         self._limit, self._timeout = max_connections, float(timeout)
         self._condition = Condition()

@@ -8,21 +8,18 @@ The hash protects against accidental damage; it is not an authenticity proof.
 
 from __future__ import annotations
 
-import ctypes
 from datetime import datetime, timedelta, timezone
-import errno
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import secrets
-import shutil
 import stat
-import tempfile
-from typing import Any, Mapping
+from typing import Any, BinaryIO, Mapping
 from uuid import uuid4
 
+from . import _platform
 from .media import object_root
 from .schema import open_radio_store
 from .storage import Store, StoreError, _atomic_json
@@ -49,43 +46,68 @@ def _json_bytes(value: Any) -> bytes:
 
 
 def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    """Directory durability point (NTFS journals the rename; see _platform)."""
+    _platform.fsync_dir(path)
 
 
 def _fsync_tree(root: Path) -> None:
-    for directory, _subdirs, _files in os.walk(root, topdown=False):
-        _fsync_dir(Path(directory))
+    _platform.fsync_tree(root)
 
 
 def _safe_source(root: Path, relative: str) -> Path:
-    """Reject backup/source symlinks in every path component."""
-    parts = Path(relative).parts
-    if not parts or any(part in {"", ".", ".."} for part in parts) or Path(relative).is_absolute():
-        raise BackupError("unsafe backup path")
+    """Reject unsafe relative paths and links/junctions in every component.
+
+    ``relative`` is a stored portable path ('/' separators).  The parser is
+    host independent: a drive, a backslash, an alternate data stream, a
+    reserved device name or a dot component is refused on every system.
+    """
+    try:
+        parts = _platform.safe_relative_parts(relative)
+    except ValueError as exc:
+        raise BackupError("unsafe backup path") from exc
     current = root
-    if current.is_symlink():
+    if _platform.is_link(current):
         raise BackupError("backup root must not be a symlink")
     for part in parts:
         current = current / part
-        if current.is_symlink():
+        if _platform.is_link(current):
             raise BackupError("backup path must not contain symlinks")
     return current
 
 
 def _open_regular(path: Path) -> int:
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    """No-follow, share-delete, binary read descriptor of a regular file."""
     try:
-        fd = os.open(path, flags)
+        fd = _platform.open_fd(path, os.O_RDONLY, nofollow=True)
+    except IsADirectoryError as exc:
+        raise BackupError(f"backup component is not a regular file: {path}") from exc
     except OSError as exc:
         raise BackupError(f"cannot read backup component: {path}") from exc
-    if not stat.S_ISREG(os.fstat(fd).st_mode):
+    try:
+        regular = stat.S_ISREG(os.fstat(fd).st_mode)
+    except BaseException:
+        os.close(fd)
+        raise
+    if not regular:
         os.close(fd)
         raise BackupError(f"backup component is not a regular file: {path}")
     return fd
+
+
+def _create_private(path: Path) -> BinaryIO:
+    """Create a new owner-only file (the Linux ``open("xb")`` + ``chmod 0600``).
+
+    The handle is binary, non-inheritable and created atomically with the
+    private security descriptor; an existing name raises FileExistsError and a
+    link is never followed.
+    """
+    fd = _platform.open_fd(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                           nofollow=True, private=True)
+    try:
+        return os.fdopen(fd, "wb")
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 def _digest_file(path: Path) -> tuple[str, int]:
@@ -108,36 +130,44 @@ def _copy_file(source: Path, target: Path, *, expected_sha: str | None = None,
     source_fd = _open_regular(source)
     digest = hashlib.sha256()
     size = 0
+    created = False
     try:
-        before = os.fstat(source_fd)
-        with os.fdopen(source_fd, "rb") as input_stream, target.open("xb") as output_stream:
-            os.chmod(target, 0o600)
-            for block in iter(lambda: input_stream.read(_CHUNK), b""):
-                output_stream.write(block)
-                digest.update(block)
-                size += len(block)
-            output_stream.flush()
-            os.fsync(output_stream.fileno())
+        with os.fdopen(source_fd, "rb") as input_stream:
+            before = os.fstat(input_stream.fileno())
+            with _create_private(target) as output_stream:
+                created = True
+                for block in iter(lambda: input_stream.read(_CHUNK), b""):
+                    output_stream.write(block)
+                    digest.update(block)
+                    size += len(block)
+                output_stream.flush()
+                os.fsync(output_stream.fileno())
             after = os.fstat(input_stream.fileno())
         if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != \
                 (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
             raise BackupError(f"backup source changed during copy: {source}")
     except BaseException:
-        target.unlink(missing_ok=True)
+        # Remove only what this call created (an existing target is never
+        # deleted) and never mask the original error with a cleanup failure
+        # (a scanner may still hold the new file); the stage owner removes it.
+        if created:
+            _platform.unlink_quietly(target)
         raise
     result = {"sha256": digest.hexdigest(), "size_bytes": size}
     if expected_sha is not None and result["sha256"] != expected_sha:
-        target.unlink(missing_ok=True)
+        _platform.unlink_quietly(target)
         raise BackupError(f"backup object hash mismatch: {source}")
     if expected_size is not None and size != expected_size:
-        target.unlink(missing_ok=True)
+        _platform.unlink_quietly(target)
         raise BackupError(f"backup object size mismatch: {source}")
     return result
 
 
 def _destination(path: str | Path) -> Path:
     raw = Path(path).expanduser()
-    if raw.name in {"", ".", ".."}:
+    if raw.name in {"", ".", ".."} or not _platform.valid_new_name(raw.name):
+        # Windows would silently strip a trailing dot/space or open a device
+        # (CON, NUL, ...) instead of creating the requested directory.
         raise BackupError("target must name a new directory")
     try:
         parent = raw.parent.resolve(strict=True)
@@ -152,19 +182,17 @@ def _destination(path: str | Path) -> Path:
 
 
 def _publish_absent(stage: Path, target: Path) -> None:
-    """Publish atomically without replacing a concurrently created target."""
-    libc = ctypes.CDLL(None, use_errno=True)
-    renameat2 = getattr(libc, "renameat2", None)
-    if renameat2 is None:
-        raise BackupError("atomic no-replace directory rename is unavailable")
-    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
-                          ctypes.c_char_p, ctypes.c_uint]
-    renameat2.restype = ctypes.c_int
-    if renameat2(-100, os.fsencode(stage), -100, os.fsencode(target), 1) != 0:
-        code = ctypes.get_errno()
-        if code == errno.EEXIST:
-            raise BackupError("target directory appeared during publication")
-        raise BackupError(f"could not publish backup directory: {os.strerror(code)}")
+    """Publish atomically without replacing a concurrently created target.
+
+    A single no-replace rename (never overwrites; transient sharing violations
+    from scanners are retried by the platform layer).
+    """
+    try:
+        _platform.publish_dir_noreplace(stage, target)
+    except FileExistsError as exc:
+        raise BackupError("target directory appeared during publication") from exc
+    except OSError as exc:
+        raise BackupError(f"could not publish backup directory: {exc.strerror or exc}") from exc
     _fsync_dir(target.parent)
 
 
@@ -208,8 +236,7 @@ def _write_manifest(stage: Path, manifest: dict) -> None:
     for name, content in (("manifest.json", encoded),
                           ("manifest.sha256", (hashlib.sha256(encoded).hexdigest() + "\n").encode("ascii"))):
         path = stage / name
-        with path.open("xb") as stream:
-            os.chmod(path, 0o600)
+        with _create_private(path) as stream:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
@@ -225,8 +252,8 @@ def create_backup(store: Store, destination: str | Path, *, checkpoint: bool = T
     Media copy checks every byte against its committed SHA-256 and size.
     """
     target = _destination(destination)
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".partial",
-                                  dir=target.parent))
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".partial",
+                                           dir=target.parent))
     database = store.journal.name
     try:
         if checkpoint:
@@ -275,8 +302,8 @@ def create_backup(store: Store, destination: str | Path, *, checkpoint: bool = T
         return {"path": str(target), "store_id": store_id, "sequence": sequence,
                 "media_objects": len(objects), "files": len(files)}
     finally:
-        if stage.exists():
-            shutil.rmtree(stage)
+        if os.path.lexists(stage):
+            _platform.rmtree(stage, ignore_errors=True)
 
 
 def _read_manifest(root: Path) -> dict:
@@ -309,7 +336,8 @@ def _validate_manifest(manifest: dict) -> tuple[str, dict[str, dict], list[dict]
     database = manifest.get("database")
     if not isinstance(database, str) or not database.endswith(".sdb") or \
             database in {".sdb", "..sdb"} or Path(database).name != database or \
-            "/" in database or "\\" in database or "\x00" in database:
+            "/" in database or "\\" in database or "\x00" in database or \
+            not _platform.component_valid(database):
         raise BackupError("unsafe database filename in manifest")
     sequence = manifest.get("sequence")
     if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
@@ -384,7 +412,10 @@ def _validate_manifest(manifest: dict) -> tuple[str, dict[str, dict], list[dict]
                     not isinstance(entry["path"], str) or entry["path"] not in files or \
                     files[entry["path"]] != entry or entry["path"] in expected_paths:
                 raise BackupError("invalid or duplicated cold history file")
-            parts = Path(entry["path"]).parts
+            try:
+                parts = _platform.safe_relative_parts(entry["path"])
+            except ValueError as exc:
+                raise BackupError("unsafe cold history path") from exc
             if len(parts) != 3 or parts[0] != database + ".archives" or \
                     parts[2] not in {"records.jsonl", "manifest.json"}:
                 raise BackupError("unsafe cold history path")
@@ -412,7 +443,7 @@ def _inventory(root: Path) -> tuple[set[str], set[str]]:
                 for entry in entries:
                     path = Path(entry.path)
                     relative = path.relative_to(root).as_posix()
-                    if entry.is_symlink():
+                    if _platform.entry_is_link(entry):
                         raise BackupError("backup archive contains a symlink")
                     if entry.is_dir(follow_symlinks=False):
                         directories.add(relative)
@@ -429,7 +460,7 @@ def _inventory(root: Path) -> tuple[set[str], set[str]]:
 def verify_backup(backup_dir: str | Path) -> dict:
     """Hash every backed-up file and replay the exact committed SDBASE state."""
     raw = Path(backup_dir).expanduser()
-    if raw.is_symlink() or not raw.is_dir():
+    if _platform.is_link(raw) or not raw.is_dir():
         raise BackupError("backup directory is absent or a symlink")
     root = raw.resolve(strict=True)
     manifest = _read_manifest(root)
@@ -438,7 +469,7 @@ def verify_backup(backup_dir: str | Path) -> dict:
     expected_files = set(files) | {"manifest.json", "manifest.sha256"}
     expected_directories = {
         parent.as_posix() for relative in expected_files
-        for parent in list(Path(relative).parents)[:-1]
+        for parent in list(PurePosixPath(relative).parents)[:-1]
     }
     if actual_files != expected_files or actual_directories != expected_directories:
         raise BackupError("backup archive contains missing or unreferenced files")
@@ -446,7 +477,7 @@ def verify_backup(backup_dir: str | Path) -> dict:
         digest, size = _digest_file(_safe_source(root, relative))
         if digest != entry["sha256"] or size != entry["size_bytes"]:
             raise BackupError(f"backup file checksum/size mismatch: {relative}")
-    with tempfile.TemporaryDirectory(prefix="sdbase-verify-") as temporary:
+    with _platform.temporary_directory(prefix="sdbase-verify-") as temporary:
         scratch = Path(temporary)
         database_paths = {database, database + ".meta", database + ".checkpoint"}
         for relative in database_paths & files.keys():
@@ -671,8 +702,8 @@ def restore_backup(backup_dir: str | Path, target_dir: str | Path, *,
     from .schema import SCHEMA_VERSION
     if manifest.get("schema_version", 1) != SCHEMA_VERSION:
         raise BackupError("backup schema differs from this package; use migrate-backup for v1 data")
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".restore",
-                                  dir=target.parent))
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".restore",
+                                           dir=target.parent))
     try:
         for relative, entry in files.items():
             _copy_file(_safe_source(source, relative), stage / relative,
@@ -717,5 +748,5 @@ def restore_backup(backup_dir: str | Path, target_dir: str | Path, *,
                 **credential,
                 **({"source_store_id": manifest["store_id"]} if provision_copy else {})}
     finally:
-        if stage.exists():
-            shutil.rmtree(stage)
+        if os.path.lexists(stage):
+            _platform.rmtree(stage, ignore_errors=True)

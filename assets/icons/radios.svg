@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RadioS application mark (32 px and larger). Paths only: no font is needed to render it. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d252d"/>
+      <stop offset="1" stop-color="#080c11"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="48" ry="48" fill="url(#tile)" stroke="#38d4ff" stroke-width="6"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M190.3 84.4A76 76 0 0 1 190.3 171.6M65.7 84.4A76 76 0 0 0 65.7 171.6" stroke="#38d4ff" stroke-width="12"/>
+    <path d="M214.6 78A100 100 0 0 1 214.6 178M41.4 78A100 100 0 0 0 41.4 178" stroke="#38d4ff" stroke-opacity="0.55" stroke-width="12"/>
+    <path d="M163 78A37 37 0 1 0 128 127A38 38 0 1 1 92 177" stroke="#e3e8ee" stroke-width="24"/>
+  </g>
+</svg>

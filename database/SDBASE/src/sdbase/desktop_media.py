@@ -10,12 +10,15 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import math
 import json
+import ntpath
 import os
-from pathlib import Path
+from pathlib import PureWindowsPath
+import posixpath
 import re
 import stat
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
+from . import _platform
 from .catalog import NotFound, require_shared_item_permission
 from .desktop_api import (_bool, _consistent_read, _id, _int, _list, _number,
                           _object, _stamp, _station, _text, add_operation,
@@ -193,6 +196,24 @@ def _bound(data, state):
     return media, version
 
 
+def _provenance_matches(path, root, relative):
+    """Host-independent check of stored import provenance (no filesystem access).
+
+    New records hold native Windows paths (drive letter or UNC, compared without
+    regard to case like NTFS does). Records migrated from the Linux database keep
+    their POSIX paths and stay valid as historical text (exact comparison)."""
+    if any(not isinstance(value, str) or not value or len(value) > 8192 or "\0" in value for value in (path, root)):
+        return False
+    flavour = _platform.stored_path_flavour(root)
+    if flavour is None or _platform.stored_path_flavour(path) != flavour:
+        return False
+    module = ntpath if flavour == "windows" else posixpath
+    if any(module.normpath(value) != value for value in (path, root)):
+        return False
+    joined = module.normpath(module.join(root, *relative.split("/")))
+    return _platform.path_equal(joined, path) if flavour == "windows" else joined == path
+
+
 def validate_library(data, state):
     _bound(data, state)
     provenance = {key: data[key] for key in ("source_path", "source_root", "source_relative_path") if key in data}
@@ -203,10 +224,7 @@ def validate_library(data, state):
         if not isinstance(relative, str) or not relative or len(relative) > 4096 or "\\" in relative or "\0" in relative or \
                 relative.startswith("/") or any(part in {"", ".", ".."} for part in relative.split("/")):
             raise StoreError("library source relative path is invalid")
-        path, root = provenance["source_path"], provenance["source_root"]
-        if any(not isinstance(value, str) or not value.startswith("/") or len(value) > 8192 or "\0" in value or \
-               os.path.normpath(value) != value for value in (path, root)) or \
-                os.path.normpath(os.path.join(root, relative)) != path:
+        if not _provenance_matches(provenance["source_path"], provenance["source_root"], relative):
             raise StoreError("library source path does not match its root")
     _metadata({**{key: data[key] for key in _METADATA_KEYS - {"title", "kind"}},
                "title": "Bound catalog title", "kind": "other"})
@@ -328,8 +346,8 @@ def _managed_path(store, media):
     try:
         location = media_service._managed_location(store, media["_id"], digest)
         path = media_service.object_path(store, digest)
-        if location["status"] != "verified" or media_service.object_root(store).is_symlink() or \
-                path.parent.is_symlink() or path.is_symlink() or not path.is_file():
+        if location["status"] != "verified" or _platform.is_link(media_service.object_root(store)) or \
+                _platform.is_link(path.parent) or _platform.is_link(path) or not path.is_file():
             return None
         actual_sha, size = media_service._digest(path)
         return str(path) if actual_sha == digest and size == media.get("size_bytes") else None
@@ -530,28 +548,22 @@ def _person(store, tx, sid, name, now):
 
 def _source(store, import_path):
     name = _text(import_path, "import_path", 240, True)
-    if name in {".", ".."} or "/" in name or "\\" in name or Path(name).name != name:
+    if name in {".", ".."} or "/" in name or "\\" in name or not _platform.component_valid(name):
         raise StoreError("import_path must be a staged import filename")
     root = getattr(store, "desktop_import_root", None)
     if root is None:
         raise StoreError("desktop import root is not configured")
-    descriptor = None
     try:
-        directory_fd = os.open(Path(root), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        try:
-            descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
-        finally:
-            os.close(directory_fd)
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_BYTES:
-            os.close(descriptor)
-            descriptor = None
-            raise StoreError("staged import must be a bounded regular file")
-        return descriptor, info
+        # openat replacement: the import folder is pinned and must not be a link
+        # (symlink or junction), the file is opened relative to it, must be a
+        # regular disk file and nobody may keep write access while it is staged.
+        descriptor, info = _platform.open_beneath(os.fspath(root), name, deny_write=True)
     except OSError as exc:
-        if descriptor is not None:
-            os.close(descriptor)
         raise StoreError("staged import file is unavailable or unsafe") from exc
+    if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_BYTES:
+        os.close(descriptor)
+        raise StoreError("staged import must be a bounded regular file")
+    return descriptor, info
 
 
 def import_media(store, principal, station_id, import_path, source_name, idempotency_key, metadata, analysis,
@@ -593,9 +605,12 @@ def _import_media(store, principal, station_id, import_path, source_name, idempo
     clean_metadata, clean_analysis = _metadata(metadata), (_probe(analysis) if deferred else _analysis(analysis))
     provenance = {}
     if source_path is not None or source_root is not None:
-        source = Path(_text(source_path, "source_path", 4096, True))
-        root = Path(_text(source_root, "source_root", 4096, True))
-        if not source.is_absolute() or not root.is_absolute() or ".." in source.parts or ".." in root.parts:
+        source_text = _text(source_path, "source_path", 4096, True)
+        root_text = _text(source_root, "source_root", 4096, True)
+        if not _platform.is_absolute(source_text) or not _platform.is_absolute(root_text):
+            raise StoreError("source provenance must use absolute normalized paths")
+        source, root = PureWindowsPath(source_text), PureWindowsPath(root_text)
+        if ".." in source.parts or ".." in root.parts:
             raise StoreError("source provenance must use absolute normalized paths")
         try:
             relative = source.relative_to(root).as_posix()
@@ -605,7 +620,8 @@ def _import_media(store, principal, station_id, import_path, source_name, idempo
             raise StoreError("source path must name a file")
         provenance = {"source_path": str(source), "source_root": str(root), "source_relative_path": relative}
     source_name = _text(source_name, "source_name", 240, True)
-    if source_name in {".", ".."} or "/" in source_name or "\\" in source_name:
+    if source_name in {".", ".."} or "/" in source_name or "\\" in source_name or \
+            not _platform.component_valid(source_name):
         raise StoreError("source_name must be a safe original basename")
     payload = {"import_path": import_path, "source_name": source_name,
                "metadata": clean_metadata, "analysis": clean_analysis}
@@ -619,9 +635,10 @@ def _import_media(store, principal, station_id, import_path, source_name, idempo
     try:
         if before.st_size != clean_analysis["size_bytes"]:
             raise StoreError("staged bytes do not match measured source size")
-        # The descriptor pins a non-symlink regular file. The existing stager
-        # rehashes this inode, detects writes during copy and fsyncs object bytes.
-        digest, size, target, reused = media_service._stage_object(store, Path(f"/proc/self/fd/{descriptor}"))
+        # The descriptor pins a non-link regular file that nobody can write. The
+        # stager copies and hashes these bytes, detects changes during the copy
+        # and flushes the object bytes before publishing them.
+        digest, size, target, reused = media_service._stage_object(store, descriptor)
         if digest != clean_analysis["sha256"] or size != clean_analysis["size_bytes"]:
             raise StoreError("staged bytes do not match measured source SHA-256")
         actual_sha, actual_size = media_service._digest(target)

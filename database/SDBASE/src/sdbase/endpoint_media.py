@@ -9,7 +9,8 @@ import tempfile
 from typing import Any, BinaryIO
 from uuid import UUID
 
-from .endpoint_journal import EndpointError, EndpointJournal, _fsync_directory
+from . import _platform
+from .endpoint_journal import EndpointError, EndpointJournal
 
 
 class MediaIntegrityError(EndpointError):
@@ -25,7 +26,8 @@ def _media_uuid(value: str | UUID) -> str:
 
 def _digest(path: Path) -> str:
     value = hashlib.sha256()
-    with path.open("rb") as stream:
+    # Share-delete reader: hashing never blocks a concurrent replace of the object.
+    with _platform.open_read(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(chunk)
     return value.hexdigest()
@@ -55,8 +57,8 @@ class EndpointMediaStore:
             raise EndpointError("media is not required by an installed snapshot")
         target = self._object_path(spec["sha256"])
         target.parent.mkdir(exist_ok=True)
-        if target.is_symlink() or target.parent.is_symlink():
-            raise EndpointError("local media path must not be a symlink")
+        if _platform.is_link(target) or _platform.is_link(target.parent):
+            raise EndpointError("local media path must not be a symlink or junction")
         if (target.is_file() and target.stat().st_size == spec["size_bytes"] and
                 _digest(target) == spec["sha256"]):
             if spec["status"] != "verified":
@@ -80,17 +82,19 @@ class EndpointMediaStore:
                     digest.update(chunk)
                     output.write(chunk)
                 output.flush()
-                os.fsync(output.fileno())
+                _platform.fsync(output)
             if size != spec["size_bytes"] or digest.hexdigest() != spec["sha256"]:
                 raise MediaIntegrityError("media size or SHA-256 differs from snapshot")
-            os.replace(temp, target)
-            _fsync_directory(target.parent)
+            # The external playout process may still be reading a corrupt object
+            # being re-staged: POSIX-semantics replace with the sharing retry budget.
+            # NTFS journals the rename itself; there is no directory flush on Windows.
+            _platform.replace(temp, target)
             self.journal.append("media_status", {"media_file_id": media_id,
                                                  "status": "verified"})
             return {"media_file_id": media_id, "path": str(target),
                     "sha256": spec["sha256"], "replayed": False}
         finally:
-            temp.unlink(missing_ok=True)
+            _platform.unlink_quietly(temp)
 
     def stage_media_stream(self, media_file_id: str | UUID,
                            stream: BinaryIO) -> dict[str, Any]:
@@ -105,7 +109,7 @@ class EndpointMediaStore:
         if not resolved.is_file() or not any(resolved.is_relative_to(root)
                                               for root in self.allowed_source_roots):
             raise EndpointError("source is outside configured roots")
-        with resolved.open("rb") as stream:
+        with _platform.open_read(resolved) as stream:
             before = os.fstat(stream.fileno())
             result = self._publish_stream(_media_uuid(media_file_id), stream)
             after = os.fstat(stream.fileno())
@@ -128,7 +132,7 @@ class EndpointMediaStore:
         if spec is None:
             raise EndpointError("media is absent from installed snapshots")
         path = self._object_path(spec["sha256"])
-        if path.is_symlink() or path.parent.is_symlink():
+        if _platform.is_link(path) or _platform.is_link(path.parent):
             status = "corrupt"
         elif not path.is_file():
             status = "missing"

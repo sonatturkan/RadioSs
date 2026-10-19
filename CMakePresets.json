@@ -1,0 +1,104 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "description": "MSYS2 UCRT64 GCC + Ninja from C:/msys64/ucrt64 only (C:\\MinGW and registry Pythons are never used).",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;C:/msys64/usr/bin;$penv{PATH}",
+        "PKG_CONFIG_PATH": "",
+        "PKG_CONFIG_LIBDIR": "C:/msys64/ucrt64/lib/pkgconfig;C:/msys64/ucrt64/share/pkgconfig"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "C:/msys64/ucrt64/bin/gcc.exe",
+        "CMAKE_RC_COMPILER": "C:/msys64/ucrt64/bin/windres.exe",
+        "CMAKE_MAKE_PROGRAM": "C:/msys64/ucrt64/bin/ninja.exe",
+        "CMAKE_OBJDUMP": "C:/msys64/ucrt64/bin/objdump.exe",
+        "PKG_CONFIG_EXECUTABLE": "C:/msys64/ucrt64/bin/pkg-config.exe",
+        "RADIOS_MSYS2_PREFIX": "C:/msys64/ucrt64",
+        "RADIOS_BUILD_PYTHON": "C:/msys64/ucrt64/bin/python.exe",
+        "RADIOS_TEST_PYTHON": "${sourceDir}/runtime/python/python.exe",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "displayName": "Debug (testler; GUI testleri kapalı)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "BUILD_TESTING": "ON", "RADIOS_GUI_TESTS": "OFF" }
+    },
+    {
+      "name": "windows-debug-gui",
+      "displayName": "Debug + GUI testleri (etkileşimli masaüstü; yayın bilgisayarında değil)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/gui",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "BUILD_TESTING": "ON", "RADIOS_GUI_TESTS": "ON" }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Release (uygulama, runtime, taşınabilir ZIP, kurulum; LGPL FFmpeg)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "OFF",
+        "RADIOS_GUI_TESTS": "OFF",
+        "RADIOS_FFMPEG_PREFIX": "${sourceDir}/packaging/windows/cache/ffmpeg-9.0.2-lgpl-radios"
+      }
+    },
+    {
+      "name": "windows-release-tests",
+      "displayName": "Release + bütün testler (kabul; LGPL FFmpeg)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/release-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON",
+        "RADIOS_GUI_TESTS": "ON",
+        "RADIOS_FFMPEG_PREFIX": "${sourceDir}/packaging/windows/cache/ffmpeg-9.0.2-lgpl-radios"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-debug", "configurePreset": "windows-debug" },
+    { "name": "windows-debug-gui", "configurePreset": "windows-debug-gui" },
+    { "name": "windows-release", "configurePreset": "windows-release", "targets": [ "radios" ] },
+    { "name": "windows-runtime", "configurePreset": "windows-release", "targets": [ "radios_runtime" ] },
+    { "name": "windows-portable", "configurePreset": "windows-release", "targets": [ "radios_portable" ] },
+    { "name": "windows-installer", "configurePreset": "windows-release", "targets": [ "radios_installer" ] },
+    { "name": "windows-release-tests", "configurePreset": "windows-release-tests" }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 4, "noTestsAction": "error" },
+      "filter": { "exclude": { "label": "hardware" } }
+    },
+    { "name": "windows-debug-gui", "inherits": "windows-debug", "configurePreset": "windows-debug-gui" },
+    { "name": "windows-release-tests", "inherits": "windows-debug", "configurePreset": "windows-release-tests" },
+    {
+      "name": "windows-hardware",
+      "displayName": "Gerçek ses aygıtlarıyla testler (yalnız operatör onayıyla; en çok -60 dBFS)",
+      "configurePreset": "windows-debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 1, "noTestsAction": "error" },
+      "filter": { "include": { "label": "hardware" } }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "windows-installer",
+      "steps": [
+        { "type": "configure", "name": "windows-release" },
+        { "type": "build", "name": "windows-installer" }
+      ]
+    }
+  ]
+}

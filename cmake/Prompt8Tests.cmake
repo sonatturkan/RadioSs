@@ -9,12 +9,12 @@ if(BUILD_TESTING AND RADIOS_GUI_TESTS)
         string(REPLACE "|" ";" parts "${player_case}")
         list(GET parts 0 test_name)
         list(GET parts 1 glib_case)
-        add_test(NAME ${test_name} COMMAND ${Python3_EXECUTABLE}
+        add_test(NAME ${test_name} COMMAND ${RADIOS_TEST_PYTHON_COMMAND}
             ${CMAKE_SOURCE_DIR}/tests/run_playout_ui.py $<TARGET_FILE:test_playout_ui>
             -p /native-playout/${glib_case})
         set_tests_properties(${test_name} PROPERTIES TIMEOUT 90 LABELS "prompt8"
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;G_DEBUG=fatal-warnings;GDK_BACKEND=x11")
+            ENVIRONMENT "G_DEBUG=fatal-warnings")
     endforeach()
     unset(PROMPT8_PLAYER_CASES)
 endif()

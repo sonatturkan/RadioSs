@@ -1,16 +1,14 @@
-#define _GNU_SOURCE
 #include "radios/recovery.h"
+#include "radios/platform.h"
 #include <errno.h>
-#include <fcntl.h>
 #include <string.h>
-#include <stdio.h>
-#include <sys/file.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <gio/gio.h>
 
 #define FILE_LIMIT (6u * 1024 * 1024 + 16384u)
 #define ENTRY_LIMIT 512u
+/* Owner-only object (owner = current user, no access for others): the Windows
+ * form of "st_uid == getuid() && !(st_mode & 077)". */
+#define PRIVATE_CHECKS (RADIOS_PRIVATE_OWNER | RADIOS_PRIVATE_NO_OTHERS)
 struct RadioSRecovery { gchar *directory, *store, *station, *user, *endpoint; };
 
 static const gchar *str(JsonObject *o, const gchar *key)
@@ -130,25 +128,33 @@ void radios_recovery_free(RadioSRecovery *r)
     if (!r) return;
     g_free(r->directory); g_free(r->store); g_free(r->station); g_free(r->user); g_free(r->endpoint); g_free(r);
 }
-/* Walk every component with openat/O_NOFOLLOW. Parent project directories can
- * be public; the recovery tree must be owned and private. No path-based reopen. */
+/* Walk every component from the volume root (C:\, \\server\share\) with
+ * no-follow opens. Parent project directories can be public; the recovery
+ * tree must be owned and private. No path-based reopen.
+ * The tree is <root>\data\recovery\<store>\<user>: the last four components
+ * (data is created when missing, recovery/<store>/<user> are created private
+ * and verified private), decided by position so a project that itself lives
+ * below a folder named "recovery" is not mistaken for the outbox tree. */
 static gint directory_open(RadioSRecovery *r, gboolean create, GError **error)
 {
-    gchar **parts = g_strsplit(r->directory, "/", -1);
-    gint dir = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    gboolean private = FALSE;
-    for (guint i = 0; dir >= 0 && parts[i]; ++i) {
-        if (!*parts[i]) continue;
-        if (g_str_equal(parts[i], "recovery")) private = TRUE;
-        if (create && (private || (parts[i + 1] && g_str_equal(parts[i + 1], "recovery")))) {
-            gint made = mkdirat(dir, parts[i], 0700);
-            if ((made < 0 && errno != EEXIST) || (made == 0 && fsync(dir) < 0)) { close(dir); dir = -1; break; }
+    gchar **parts = NULL;
+    gint dir = -1;
+    if (radios_path_component_valid(r->store) && radios_path_component_valid(r->user))
+        dir = radios_fs_open_root(r->directory, &parts);
+    else
+        errno = EINVAL;
+    guint count = parts ? g_strv_length(parts) : 0;
+    if (dir >= 0 && count < 4) { close(dir); dir = -1; errno = EINVAL; }
+    for (guint i = 0; dir >= 0 && i < count; ++i) {
+        gboolean private = i + 3 >= count;
+        if (create && i + 4 >= count) {
+            gint made = radios_fs_mkdirat(dir, parts[i], 0700);
+            if ((made < 0 && errno != EEXIST) || (made == 0 && radios_fd_sync_dir(dir) < 0)) { close(dir); dir = -1; break; }
         }
-        gint next = openat(dir, parts[i], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        if (next < 0) { close(dir); dir = -1; break; }
-        struct stat info;
-        if (private && (fstat(next, &info) < 0 || info.st_uid != getuid() || (info.st_mode & 077))) {
-            close(next); close(dir); dir = -1; break;
+        gint next = radios_fs_openat(dir, parts[i], RADIOS_O_RDONLY | RADIOS_O_DIRECTORY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0);
+        if (next < 0) { gint saved = errno; close(dir); errno = saved; dir = -1; break; }
+        if (private && !radios_fd_is_private(next, PRIVATE_CHECKS)) {
+            gint saved = errno; close(next); close(dir); errno = saved; dir = -1; break;
         }
         close(dir); dir = next;
     }
@@ -156,36 +162,43 @@ static gint directory_open(RadioSRecovery *r, gboolean create, GError **error)
     if (dir < 0 && (create || saved != ENOENT)) error_io(error);
     return dir;
 }
+/* Regular, owner-only file with exactly one name (no hard link elsewhere). */
+static gboolean private_file(gint fd, RadioSFileInfo *info)
+{
+    return radios_fd_stat(fd, info) == 0 && info->type == RADIOS_FILE_TYPE_REGULAR && info->nlink == 1 &&
+        radios_fd_is_private(fd, PRIVATE_CHECKS);
+}
+/* Exclusive per-user lock (LockFileEx region shared with the Python tools);
+ * released with radios_fd_close(). */
 static gint lock_open(gint dir, GError **error)
 {
-    gint fd = openat(dir, ".lock", O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0600);
-    struct stat info;
-    if (fd < 0 || fstat(fd, &info) < 0 || !S_ISREG(info.st_mode) || info.st_uid != getuid() ||
-        (info.st_mode & 077) || info.st_nlink != 1 || flock(fd, LOCK_EX) < 0) {
-        if (fd >= 0) close(fd);
+    gint fd = radios_fs_openat(dir, ".lock", RADIOS_O_RDWR | RADIOS_O_CREAT | RADIOS_O_NOFOLLOW | RADIOS_O_NONBLOCK | RADIOS_O_CLOEXEC, 0600);
+    RadioSFileInfo info;
+    if (fd < 0 || !private_file(fd, &info) || radios_fd_lock(fd, RADIOS_LOCK_EX) < 0) {
+        if (fd >= 0) radios_fd_close(fd);
         error_io(error); return -1;
     }
     return fd;
 }
 static JsonNode *read_entry(gint dir, const gchar *name, GError **error)
 {
-    gint fd = openat(dir, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-    struct stat info;
+    gint fd = radios_fs_openat(dir, name, RADIOS_O_RDONLY | RADIOS_O_NOFOLLOW | RADIOS_O_NONBLOCK | RADIOS_O_CLOEXEC, 0);
+    RadioSFileInfo info;
     if (fd < 0) { if (errno != ENOENT) error_io(error); return NULL; }
-    if (fstat(fd, &info) < 0 || !S_ISREG(info.st_mode) || info.st_uid != getuid() ||
-        (info.st_mode & 077) || info.st_nlink != 1 || info.st_size < 2 || info.st_size > FILE_LIMIT) {
+    if (!private_file(fd, &info) || info.size < 2 || info.size > (gint64)FILE_LIMIT) {
         close(fd); error_io(error); return NULL;
     }
-    gchar *bytes = g_malloc((gsize)info.st_size + 1); gsize used = 0;
-    while (used < (gsize)info.st_size) {
-        ssize_t n = read(fd, bytes + used, (gsize)info.st_size - used);
+    gsize size = (gsize)info.size;
+    gchar *bytes = g_malloc(size + 1); gsize used = 0;
+    while (used < size) {
+        gint n = read(fd, bytes + used, (guint)(size - used));
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) break;
         used += (gsize)n;
     }
     close(fd); bytes[used] = 0;
     JsonParser *p = json_parser_new(); json_parser_set_strict(p, TRUE);
-    gboolean valid = used == (gsize)info.st_size && !memchr(bytes, 0, used) &&
+    gboolean valid = used == size && !memchr(bytes, 0, used) &&
         g_utf8_validate(bytes, used, NULL) && json_parser_load_from_data(p, bytes, used, NULL);
     JsonNode *node = valid ? json_node_copy(json_parser_get_root(p)) : NULL;
     if (!node || !JSON_NODE_HOLDS_OBJECT(node)) { g_clear_pointer(&node, json_node_free); error_io(error); }
@@ -219,27 +232,32 @@ static gboolean atomic_write(gint dir, const gchar *name, JsonNode *node, GError
     gchar *digest = checksum(node); json_object_set_string_member(json_node_get_object(node), "sha256", digest); g_free(digest);
     gchar *uuid = g_uuid_string_random(), *temp = g_strconcat(".write-", uuid, NULL); g_free(uuid);
     gchar *bytes = json_to_string(node, FALSE); gsize length = strlen(bytes), used = 0;
-    gint fd = openat(dir, temp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-    gboolean ok = fd >= 0 && length <= FILE_LIMIT;
+    /* 0600: created with the private owner-only descriptor. */
+    gint fd = radios_fs_openat(dir, temp, RADIOS_O_WRONLY | RADIOS_O_CREAT | RADIOS_O_EXCL | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC, 0600);
+    gboolean ok = fd >= 0 && length <= FILE_LIMIT, renamed = FALSE;
     while (ok && used < length) {
-        ssize_t n = write(fd, bytes + used, length - used);
+        gint n = write(fd, bytes + used, (guint)(length - used));
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) { ok = FALSE; break; }
         used += (gsize)n;
     }
-    if (ok) ok = fsync(fd) == 0;
+    if (ok) ok = radios_fd_sync(fd) == 0;
     if (fd >= 0 && close(fd) < 0) ok = FALSE;
-    if (ok) ok = renameat(dir, temp, dir, name) == 0 && fsync(dir) == 0;
-    unlinkat(dir, temp, 0); g_free(temp); g_free(bytes);
+    /* Atomic replacement (POSIX-semantics rename, retried while a scanner
+     * holds the target briefly); the temporary name is removed on failure. */
+    if (ok) ok = renamed = radios_fs_renameat(dir, temp, dir, name) == 0;
+    if (ok) ok = radios_fd_sync_dir(dir) == 0;
+    if (fd >= 0 && !renamed) (void)radios_fs_unlinkat(dir, temp, 0);
+    g_free(temp); g_free(bytes);
     return ok ? TRUE : error_io(error);
 }
 static gint entry_count(gint dir)
 {
-    GError *unused = NULL; gchar *path = g_strdup_printf("/proc/self/fd/%d", dir); GDir *d = g_dir_open(path, 0, &unused); g_free(path);
-    if (!d) { g_clear_error(&unused); return -1; }
-    gint count = 0; const gchar *name;
-    while ((name = g_dir_read_name(d))) if (g_str_has_suffix(name, ".json")) ++count;
-    g_dir_close(d); return count;
+    GError *unused = NULL; GPtrArray *names = radios_fd_list_names(dir, &unused);
+    if (!names) { g_clear_error(&unused); return -1; }
+    gint count = 0;
+    for (guint i = 0; i < names->len; ++i) if (g_str_has_suffix(g_ptr_array_index(names, i), ".json")) ++count;
+    g_ptr_array_unref(names); return count;
 }
 gboolean radios_recovery_prepare(RadioSRecovery *r, const gchar *method, const gchar *path, JsonNode *body, GError **error)
 {
@@ -267,7 +285,7 @@ gboolean radios_recovery_prepare(RadioSRecovery *r, const gchar *method, const g
             ok = atomic_write(dir, name, node, error); json_node_free(node);
         }
     }
-    g_clear_pointer(&old, json_node_free); g_free(name); close(lock); close(dir); return ok;
+    g_clear_pointer(&old, json_node_free); g_free(name); radios_fd_close(lock); close(dir); return ok;
 }
 gboolean radios_recovery_finish(RadioSRecovery *r, JsonNode *body, gboolean acknowledged, gint rejection_code, GError **error)
 {
@@ -280,7 +298,7 @@ gboolean radios_recovery_finish(RadioSRecovery *r, JsonNode *body, gboolean ackn
     if (node) {
         ok = matches(r, node, name) && json_node_equal(json_object_get_member(json_node_get_object(node), "body"), body);
         if (!ok) error_io(error);
-        else if (acknowledged) ok = unlinkat(dir, name, 0) == 0 && fsync(dir) == 0;
+        else if (acknowledged) ok = radios_fs_unlinkat(dir, name, 0) == 0 && radios_fd_sync_dir(dir) == 0;
         else if (rejection_code) {
             json_object_set_string_member(json_node_get_object(node), "state", "blocked");
             json_object_set_int_member(json_node_get_object(node), "rejection_code", rejection_code);
@@ -288,7 +306,7 @@ gboolean radios_recovery_finish(RadioSRecovery *r, JsonNode *body, gboolean ackn
         }
         if (!ok && (!error || !*error)) error_io(error);
     }
-    g_clear_pointer(&node, json_node_free); g_free(name); close(lock); close(dir); return ok;
+    g_clear_pointer(&node, json_node_free); g_free(name); radios_fd_close(lock); close(dir); return ok;
 }
 static gint chronological(gconstpointer left, gconstpointer right)
 {
@@ -313,9 +331,10 @@ static JsonNode *scan(RadioSRecovery *r, gboolean status, GError **error)
     if (dir >= 0) {
         gint lock = lock_open(dir, error);
         if (lock < 0) { close(dir); json_array_unref(rows); json_node_free(result); return NULL; }
-        gchar *path = g_strdup_printf("/proc/self/fd/%d", dir); GDir *d = g_dir_open(path, 0, error); g_free(path);
-        GPtrArray *sorted = g_ptr_array_new_with_free_func((GDestroyNotify)json_node_free); const gchar *name;
-        while (d && (name = g_dir_read_name(d))) {
+        GPtrArray *names = radios_fd_list_names(dir, error);
+        GPtrArray *sorted = g_ptr_array_new_with_free_func((GDestroyNotify)json_node_free);
+        for (guint index = 0; names && index < names->len; ++index) {
+            const gchar *name = g_ptr_array_index(names, index);
             if (!g_str_has_suffix(name, ".json")) continue;
             JsonNode *node = read_entry(dir, name, error);
             if (!node || !matches(r, node, name) || sorted->len >= ENTRY_LIMIT) {
@@ -323,7 +342,7 @@ static JsonNode *scan(RadioSRecovery *r, gboolean status, GError **error)
             }
             g_ptr_array_add(sorted, node);
         }
-        if (d) g_dir_close(d);
+        if (names) g_ptr_array_unref(names);
         g_ptr_array_sort(sorted, chronological);
         GHashTable *blocked_resources = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
         for (guint i = 0; i < sorted->len; ++i) {
@@ -343,7 +362,7 @@ static JsonNode *scan(RadioSRecovery *r, gboolean status, GError **error)
             } else if (waiting && !dependent) json_array_add_element(rows, json_node_copy(node));
         }
         g_hash_table_unref(blocked_resources);
-        g_ptr_array_unref(sorted); close(lock); close(dir);
+        g_ptr_array_unref(sorted); radios_fd_close(lock); close(dir);
     }
     if (error && *error) { json_array_unref(rows); json_node_free(result); return NULL; }
     if (status) {
@@ -357,17 +376,20 @@ JsonNode *radios_recovery_pending(RadioSRecovery *r, GError **error) { return sc
 JsonNode *radios_recovery_status(RadioSRecovery *r, GError **error) { return scan(r, TRUE, error); }
 gint radios_recovery_gui_lock(const RadioSConfig *config, GError **error)
 {
-    gint root = open(config->project_root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-    gint data = root >= 0 ? openat(root, "data", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) : -1;
-    gint dir = data >= 0 ? openat(data, "database-service", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) : -1;
+    const gint directory = RADIOS_O_RDONLY | RADIOS_O_DIRECTORY | RADIOS_O_NOFOLLOW | RADIOS_O_CLOEXEC;
+    gint root = config && config->project_root ? radios_fs_open(config->project_root, directory, 0) : -1;
+    gint data = root >= 0 ? radios_fs_openat(root, "data", directory, 0) : -1;
+    gint dir = data >= 0 ? radios_fs_openat(data, "database-service", directory, 0) : -1;
     if (root >= 0) close(root);
     if (data >= 0) close(data);
-    struct stat info; gint fd = -1;
-    if (dir >= 0 && fstat(dir, &info) == 0 && info.st_uid == getuid() && !(info.st_mode & 077)) {
-        fd = openat(dir, "gui.lock", O_RDWR | O_CREAT | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC, 0600);
-        if (fd >= 0 && (fstat(fd, &info) < 0 || !S_ISREG(info.st_mode) || info.st_uid != getuid() ||
-            (info.st_mode & 077) || info.st_nlink != 1 || flock(fd, LOCK_SH | LOCK_NB) < 0 ||
-            fstatat(dir, "restore-pending.json", &info, AT_SYMLINK_NOFOLLOW) == 0 || errno != ENOENT)) { close(fd); fd = -1; }
+    RadioSFileInfo info; gint fd = -1;
+    /* The service creates data\database-service owner-only; the GUI holds a
+     * shared lock on gui.lock for its lifetime, the offline restore takes it
+     * exclusively (same LockFileEx region in C and Python). */
+    if (dir >= 0 && radios_fd_is_private(dir, PRIVATE_CHECKS)) {
+        fd = radios_fs_openat(dir, "gui.lock", RADIOS_O_RDWR | RADIOS_O_CREAT | RADIOS_O_NOFOLLOW | RADIOS_O_NONBLOCK | RADIOS_O_CLOEXEC, 0600);
+        if (fd >= 0 && (!private_file(fd, &info) || radios_fd_lock(fd, RADIOS_LOCK_SH | RADIOS_LOCK_NB) < 0 ||
+            radios_fs_statat(dir, "restore-pending.json", FALSE, &info) == 0 || errno != ENOENT)) { radios_fd_close(fd); fd = -1; }
     }
     if (dir >= 0) close(dir);
     if (fd < 0) g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY,

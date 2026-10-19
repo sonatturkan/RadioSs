@@ -1,22 +1,15 @@
-#define _XOPEN_SOURCE 700
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include "radios/media_archive.h"
 #include <glib/gstdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
-typedef struct { gchar *temporary, *root, *archive_a, *archive_b, *index; } Fixture;
+#include "radios_test_support.h"
 
-static void remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) || !g_file_test(path, G_FILE_TEST_IS_DIR)) { g_assert_cmpint(g_remove(path), ==, 0); return; }
-    GDir *directory = g_dir_open(path, 0, NULL); g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory)) != NULL) { gchar *child = g_build_filename(path, name, NULL); remove_tree(child); g_free(child); }
-    g_dir_close(directory);
-    g_assert_cmpint(g_rmdir(path), ==, 0);
-}
+/* file_link: the file symbolic link of the fixture could be created (it needs
+ * Developer Mode or the SeCreateSymbolicLinkPrivilege; directory links fall
+ * back to junctions and always exist). */
+typedef struct { gchar *temporary, *root, *archive_a, *archive_b, *index; gboolean file_link; } Fixture;
 
 static void write_file(const gchar *path, const gchar *contents)
 {
@@ -24,15 +17,35 @@ static void write_file(const gchar *path, const gchar *contents)
     GError *error = NULL; g_file_set_contents(path, contents, -1, &error); g_assert_no_error(error);
 }
 
+/* root + a '/'-separated relative path, built one component at a time so the
+ * result has native separators and compares equal to the paths the scanner reports. */
 static gchar *child(const gchar *root, const gchar *relative)
-{ return g_build_filename(root, relative, NULL); }
+{
+    gchar **parts = g_strsplit(relative, "/", -1);
+    GPtrArray *elements = g_ptr_array_new();
+    g_ptr_array_add(elements, (gpointer)root);
+    for (guint i = 0; parts[i]; ++i) g_ptr_array_add(elements, parts[i]);
+    g_ptr_array_add(elements, NULL);
+    gchar *path = g_build_filenamev((gchar **)elements->pdata);
+    g_ptr_array_free(elements, TRUE); g_strfreev(parts);
+    return path;
+}
+
+static void set_hidden(const gchar *path)
+{
+    gunichar2 *wide = g_utf8_to_utf16(path, -1, NULL, NULL, NULL); g_assert_nonnull(wide);
+    DWORD attributes = GetFileAttributesW((const wchar_t *)wide);
+    g_assert_cmpuint(attributes, !=, INVALID_FILE_ATTRIBUTES);
+    g_assert_true(SetFileAttributesW((const wchar_t *)wide, attributes | FILE_ATTRIBUTE_HIDDEN));
+    g_free(wide);
+}
 
 static void setup(Fixture *fixture, gconstpointer data)
 {
     (void)data; GError *error = NULL;
-    gchar *made = g_dir_make_tmp("radios-media-archive-XXXXXX", &error); g_assert_no_error(error);
-    gchar *physical = realpath(made, NULL); g_assert_nonnull(physical);
-    fixture->temporary = g_strdup(physical); free(physical); g_free(made);
+    /* Physical (final, long) path: archive folders are compared as the scanner reports them. */
+    fixture->temporary = rt_make_tmp_dir("radios-media-archive-XXXXXX", &error); g_assert_no_error(error);
+    g_assert_nonnull(fixture->temporary);
     fixture->root = child(fixture->temporary, "RadioS proje");
     gchar *config = child(fixture->root, "config"); g_assert_cmpint(g_mkdir_with_parents(config, 0700), ==, 0); g_free(config);
     fixture->archive_a = child(fixture->temporary, "arşiv A");
@@ -43,16 +56,22 @@ static void setup(Fixture *fixture, gconstpointer data)
     path = child(fixture->archive_a, "top.OGG"); write_file(path, "ogg-top"); g_free(path);
     path = child(fixture->archive_a, "notes.txt"); write_file(path, "not ses"); g_free(path);
     path = child(fixture->archive_a, ".hidden.mp3"); write_file(path, "gizli"); g_free(path);
+    /* Windows hidden attribute (like $RECYCLE.BIN / System Volume Information on archive disks). */
+    path = child(fixture->archive_a, "gizli öznitelik.mp3"); write_file(path, "gizli-öznitelik"); set_hidden(path); g_free(path);
     path = child(fixture->archive_a, "sub/y.wav"); write_file(path, "wav-y"); g_free(path);
     path = child(fixture->archive_a, "sub/copy.flac"); write_file(path, "mp3-x"); g_free(path); /* same bytes as x.mp3 */
     path = child(fixture->archive_b, "z.flac"); write_file(path, "flac-z"); g_free(path);
     gchar *target = child(fixture->archive_a, "x.mp3"), *link = child(fixture->archive_b, "link.mp3");
-    g_assert_cmpint(symlink(target, link), ==, 0); g_free(target); g_free(link);
+    fixture->file_link = rt_symlink(target, link, FALSE, NULL); g_free(target); g_free(link);
+    /* A directory link (junction without the privilege) into archive A: following
+     * it would add sub/y.wav and sub/copy.flac a second time. */
+    target = child(fixture->archive_a, "sub"); link = child(fixture->archive_b, "bağ");
+    g_assert_true(rt_symlink(target, link, TRUE, &error)); g_assert_no_error(error); g_free(target); g_free(link);
 }
 
 static void teardown(Fixture *fixture, gconstpointer data)
 {
-    (void)data; remove_tree(fixture->temporary);
+    (void)data; rt_remove_tree(fixture->temporary);
     g_free(fixture->temporary); g_free(fixture->root); g_free(fixture->archive_a); g_free(fixture->archive_b); g_free(fixture->index);
 }
 
@@ -95,11 +114,11 @@ static void test_settings_roundtrip(Fixture *fixture, gconstpointer data)
     g_free(settings.kind); settings.kind = g_strdup("advertisement");
     settings.folder_playlists = TRUE; settings.watch = TRUE; settings.watch_minutes = 15;
     g_assert_true(radios_media_archive_settings_save(fixture->root, &settings, &error)); g_assert_no_error(error);
-    GStatBuf info; g_assert_cmpint(g_stat(file, &info), ==, 0); g_assert_cmpint(info.st_mode & 0777, ==, 0600);
+    rt_assert_private_file(file);
     g_assert_true(radios_media_archive_settings_load(fixture->root, &loaded, &error)); g_assert_no_error(error);
     g_assert_cmpuint(loaded.folders->len, ==, 2);
-    g_assert_cmpstr(g_ptr_array_index(loaded.folders, 0), ==, fixture->archive_a);
-    g_assert_cmpstr(g_ptr_array_index(loaded.folders, 1), ==, fixture->archive_b);
+    rt_assert_path_equal(g_ptr_array_index(loaded.folders, 0), fixture->archive_a);
+    rt_assert_path_equal(g_ptr_array_index(loaded.folders, 1), fixture->archive_b);
     g_assert_cmpstr(loaded.kind, ==, "advertisement"); g_assert_true(loaded.folder_playlists); g_assert_true(loaded.watch);
     g_assert_cmpuint(loaded.watch_minutes, ==, 15);
     write_file(file, "[archive]\nversion=2\n");
@@ -157,21 +176,23 @@ static void test_scan(Fixture *fixture, gconstpointer data)
     const gchar *folders[] = {fixture->archive_a, fixture->archive_b, missing, NULL};
     GPtrArray *files = radios_media_archive_scan(folders, fixture->index, NULL, progress, &seen, &stats, &error);
     g_assert_no_error(error); g_assert_nonnull(files);
-    /* Hidden entries, non-audio names and the symbolic link are skipped. */
+    /* Hidden entries (dot names and the hidden attribute), non-audio names and
+     * the links (file link when available, directory link always) are skipped. */
     g_assert_cmpuint(files->len, ==, 5); g_assert_cmpuint(stats.files, ==, 5); g_assert_cmpuint(stats.hashed, ==, 5);
-    g_assert_cmpuint(stats.folders_missing, ==, 1); g_assert_cmpuint(stats.skipped_links, ==, 1); g_assert_cmpuint(stats.unreadable, ==, 0);
+    g_assert_cmpuint(stats.folders_missing, ==, 1); g_assert_cmpuint(stats.skipped_links, ==, fixture->file_link ? 2 : 1);
+    g_assert_cmpuint(stats.unreadable, ==, 0);
     g_assert_false(stats.truncated); g_assert_cmpuint(stats.bytes, ==, 5 + 7 + 5 + 5 + 6);
     g_assert_cmpuint(seen.calls, >=, 2); g_assert_cmpuint(seen.last_total, ==, 5);
     /* Sorted by path; the group is the first folder below the archive folder. */
     gchar *expected = child(fixture->archive_a, "sub/copy.flac");
-    g_assert_cmpstr(file_at(files, 0)->path, ==, expected); g_free(expected);
-    g_assert_cmpstr(file_at(files, 0)->group, ==, "sub"); g_assert_cmpstr(file_at(files, 0)->folder, ==, fixture->archive_a);
-    expected = child(fixture->archive_a, "sub/y.wav"); g_assert_cmpstr(file_at(files, 1)->path, ==, expected); g_free(expected);
-    expected = child(fixture->archive_a, "top.OGG"); g_assert_cmpstr(file_at(files, 2)->path, ==, expected); g_free(expected);
+    rt_assert_path_equal(file_at(files, 0)->path, expected); g_free(expected);
+    g_assert_cmpstr(file_at(files, 0)->group, ==, "sub"); rt_assert_path_equal(file_at(files, 0)->folder, fixture->archive_a);
+    expected = child(fixture->archive_a, "sub/y.wav"); rt_assert_path_equal(file_at(files, 1)->path, expected); g_free(expected);
+    expected = child(fixture->archive_a, "top.OGG"); rt_assert_path_equal(file_at(files, 2)->path, expected); g_free(expected);
     g_assert_cmpstr(file_at(files, 2)->group, ==, "");
-    expected = child(fixture->archive_a, "x.mp3"); g_assert_cmpstr(file_at(files, 3)->path, ==, expected); g_free(expected);
-    expected = child(fixture->archive_b, "z.flac"); g_assert_cmpstr(file_at(files, 4)->path, ==, expected); g_free(expected);
-    g_assert_cmpstr(file_at(files, 4)->folder, ==, fixture->archive_b);
+    expected = child(fixture->archive_a, "x.mp3"); rt_assert_path_equal(file_at(files, 3)->path, expected); g_free(expected);
+    expected = child(fixture->archive_b, "z.flac"); rt_assert_path_equal(file_at(files, 4)->path, expected); g_free(expected);
+    rt_assert_path_equal(file_at(files, 4)->folder, fixture->archive_b);
     gchar *digest = g_compute_checksum_for_string(G_CHECKSUM_SHA256, "mp3-x", -1);
     g_assert_cmpstr(file_at(files, 3)->sha256, ==, digest); g_assert_cmpstr(file_at(files, 0)->sha256, ==, digest);
     g_assert_cmpint(file_at(files, 3)->size, ==, 5);

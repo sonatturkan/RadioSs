@@ -61,7 +61,11 @@ gboolean radios_external_probe_sync(const gchar *url, const gchar *ca_file,
     SET(CURLOPT_HEADERFUNCTION, header_received); SET(CURLOPT_HEADERDATA, &probe);
     SET(CURLOPT_NOPROGRESS, 0L); SET(CURLOPT_XFERINFOFUNCTION, progress); SET(CURLOPT_XFERINFODATA, &probe);
     SET(CURLOPT_USERAGENT, "RadioS HTTPS reachability");
+    /* An explicit CA file (tests, private CAs) is used alone. Otherwise trust the Windows
+     * certificate store: libcurl's compiled-in bundle path points into the build prefix and
+     * does not exist on an installed system. */
     if (ca_file) SET(CURLOPT_CAINFO, ca_file);
+    else SET(CURLOPT_SSL_OPTIONS, (long)CURLSSLOPT_NATIVE_CA);
 #undef SET
     CURLcode result = setup == CURLE_OK ? curl_easy_perform(curl) : setup;
     long status = 0;

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from uuid import UUID, uuid4
 
+from . import _platform
 from .identity import Principal, require
 from .rekordbox import PathMapRule
 from .storage import Conflict, Store, StoreError
@@ -17,6 +18,8 @@ _CUE_POLICIES = {"ignore", "preserve_as_dj", "propose_radio_cues"}
 _VIEWS = {"library", "archive", "on_air"}
 _COLUMNS = {"title", "artist", "kind", "category", "duration_ms", "version_label",
             "lifecycle", "ready", "media_status", "last_played_at"}
+LINUX_ROOTS_MESSAGE = ("İçe aktarım profili Linux klasör yolları içeriyor; "
+                       "Windows klasörlerini yeniden seçin.")
 
 
 def _id(value: str, name: str) -> str:
@@ -26,7 +29,28 @@ def _id(value: str, name: str) -> str:
         raise StoreError(f"{name} must be a UUID") from exc
 
 
-def validate_import_config(value: Mapping[str, Any]) -> dict:
+def _validate_allowed_roots(roots: Any, *, persisted: bool) -> None:
+    """New profiles name Windows folders (drive or UNC, no NUL).  A stored profile
+    created on Linux keeps its POSIX roots so the database stays valid (integrity
+    scrub, factory-reset retirement), but it cannot be used for an import."""
+    if not isinstance(roots, list) or any(not isinstance(root, str) for root in roots):
+        raise StoreError("allowed_roots must contain absolute paths")
+    for root in roots:
+        if "\0" in root:
+            raise StoreError("allowed_roots must contain absolute paths")
+        flavour = _platform.stored_path_flavour(root)
+        if flavour == "windows":
+            continue
+        if flavour == "legacy-posix":
+            if persisted:
+                continue
+            raise StoreError(LINUX_ROOTS_MESSAGE)
+        raise StoreError("allowed_roots must contain absolute paths")
+
+
+def validate_import_config(value: Mapping[str, Any], *, persisted: bool = False) -> dict:
+    """Validate an import profile config.  ``persisted`` accepts stored Linux-created
+    POSIX ``allowed_roots`` (schema validator); new saves require Windows folders."""
     if not isinstance(value, Mapping):
         raise StoreError("import profile config must be an object")
     allowed = {"selected_node_paths", "selected_track_ids", "field_policy_overrides",
@@ -63,10 +87,7 @@ def validate_import_config(value: Mapping[str, Any]) -> dict:
                 (rule.get("case_sensitive") is not None and
                  not isinstance(rule.get("case_sensitive"), bool)):
             raise StoreError("invalid import path rule")
-    roots = config.get("allowed_roots", [])
-    if not isinstance(roots, list) or any(not isinstance(root, str) or not Path(root).is_absolute()
-                                           for root in roots):
-        raise StoreError("allowed_roots must contain absolute paths")
+    _validate_allowed_roots(config.get("allowed_roots", []), persisted=persisted)
     if config.get("cue_policy", "preserve_as_dj") not in _CUE_POLICIES:
         raise StoreError("invalid cue import policy")
     return config
@@ -109,7 +130,10 @@ def import_options(store: Store, principal: Principal, station_id: str,
     row = store.get("import_profiles", profile_id)
     if row is None or row["station_id"] != station_id or row["status"] != "active":
         raise StoreError("active import profile not found in station")
-    config = validate_import_config(row["config"])
+    config = validate_import_config(row["config"], persisted=True)
+    if any(_platform.stored_path_flavour(root) != "windows"
+           for root in config.get("allowed_roots", [])):
+        raise StoreError(LINUX_ROOTS_MESSAGE)
     config["path_rules"] = [PathMapRule(**rule) for rule in config.get("path_rules", [])]
     config["allowed_roots"] = [Path(root) for root in config.get("allowed_roots", [])]
     return {"profile_id": profile_id, "config_version": row["config_version"],

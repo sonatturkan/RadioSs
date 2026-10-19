@@ -6,9 +6,8 @@ if(BUILD_TESTING)
     target_link_libraries(test_local_ini PRIVATE radios_core radios_warnings)
     add_test(NAME local_ini COMMAND test_local_ini)
     set_tests_properties(local_ini PROPERTIES TIMEOUT 30 ENVIRONMENT "G_DEBUG=fatal-warnings")
-    add_test(NAME storage_locations_service COMMAND ${Python3_EXECUTABLE}
+    add_test(NAME storage_locations_service COMMAND ${RADIOS_TEST_PYTHON_COMMAND}
              ${CMAKE_SOURCE_DIR}/tests/test_storage_locations.py)
     set_tests_properties(storage_locations_service PROPERTIES TIMEOUT 120
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()

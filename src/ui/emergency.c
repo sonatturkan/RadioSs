@@ -1163,12 +1163,10 @@ editor_load(EmergencyState *state, EmergencyItem *item, GtkListBoxRow *row)
     }
     g_object_set_data_full(G_OBJECT(state->file), "em-media-binding", binding, (GDestroyNotify)json_object_unref);
     gtk_widget_set_sensitive(state->fields[3], binding == NULL);
-    gchar *basename = item != NULL && item->file != NULL ? g_path_get_basename(item->file) : NULL;
     gtk_button_set_label(GTK_BUTTON(state->file), binding ? "Doğrulanmış medya seçildi" : "Kütüphaneden medya seç");
     gtk_label_set_text(GTK_LABEL(state->heading), item != NULL ? "Seçili öğe · Taslak" : "Yeni öğe");
     gtk_label_set_text(GTK_LABEL(state->error), binding ? "Medya kimliği ve SHA-256 kayıtlı. Devralma sırasında kaynak yeniden doğrulanır." : "Çalınabilir acil öğe için kütüphaneden doğrulanmış medya seçin.");
     gtk_widget_queue_draw(state->wave);
-    g_free(basename);
 }
 
 static void
@@ -1239,6 +1237,10 @@ format_time(double seconds)
     return g_strdup_printf("%02u:%02u.%03u", milliseconds / 60000, milliseconds / 1000 % 60, milliseconds % 1000);
 }
 
+/* The size of cairo's default toy font (10 user units), now drawn through
+ * Pango so the labels use the application font on Windows. */
+#define WAVE_LABEL_PX 10.0
+
 static gboolean
 wave_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
@@ -1262,12 +1264,13 @@ wave_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
             double x = 8 + position / duration * MAX(1, width - 16);
             cairo_set_source_rgb(cr, i == state->marker ? 0.85 : 0.45, 0.65, 0.25);
             cairo_move_to(cr, x, 2); cairo_line_to(cr, x, height - 2); cairo_stroke(cr);
-            cairo_move_to(cr, CLAMP(x + 3, 8, width - 15), 15); cairo_show_text(cr, names[i]);
+            cairo_move_to(cr, CLAMP(x + 3, 8, width - 15), 15);
+            radios_ui_cairo_show_text(cr, names[i], WAVE_LABEL_PX, PANGO_WEIGHT_NORMAL, FALSE);
         }
     }
     cairo_set_source_rgb(cr, 0.6, 0.6, 0.6);
     cairo_move_to(cr, 10, height - 10);
-    cairo_show_text(cr, "Zaman cizgisi taslagi / waveform analizi bekleniyor");
+    radios_ui_cairo_show_text(cr, "Zaman cizgisi taslagi / waveform analizi bekleniyor", WAVE_LABEL_PX, PANGO_WEIGHT_NORMAL, FALSE);
     return FALSE;
 }
 
@@ -2007,8 +2010,7 @@ export_clicked(GtkButton *button, gpointer data)
     gtk_window_set_destroy_with_parent(GTK_WINDOW(state->export_dialog), TRUE);
     gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(state->export_dialog), TRUE);
     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(state->export_dialog), "RadioS-acil-hazirlik.ini");
-    if (state->ctx->config != NULL && state->ctx->config->project_root != NULL)
-        gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(state->export_dialog), state->ctx->config->project_root);
+    radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(state->export_dialog), state->ctx);
     g_object_set_data_full(G_OBJECT(state->export_dialog), "export-contents", contents, g_free);
     g_signal_connect(state->export_dialog, "response", G_CALLBACK(export_response), state);
     g_signal_connect(state->export_dialog, "destroy", G_CALLBACK(owned_dialog_destroyed), state);
@@ -2265,6 +2267,23 @@ static void emergency_save(EmergencyState *state)
     if (!state->document || state->loading || !radios_data_document_ready(state->document)) return;
     JsonNode *config = emergency_configuration(state); radios_data_document_save(state->document, config); json_node_free(config);
 }
+/* Typed member access for the stored document: a missing or mistyped member
+ * reads as absent instead of a json-glib critical (fatal in tests) and a NULL
+ * dereference further down. */
+static JsonArray *em_array_member(JsonObject *object, const gchar *key)
+{
+    JsonNode *node = object ? json_object_get_member(object, key) : NULL;
+    return node && JSON_NODE_HOLDS_ARRAY(node) ? json_node_get_array(node) : NULL;
+}
+static JsonObject *em_object_member(JsonObject *object, const gchar *key)
+{
+    JsonNode *node = object ? json_object_get_member(object, key) : NULL;
+    return node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL;
+}
+static JsonNode *em_array_element(JsonArray *array, guint index)
+{
+    return array && index < json_array_get_length(array) ? json_array_get_element(array, index) : NULL;
+}
 static void emergency_apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, gpointer data)
 {
     (void)ctx; (void)owner; EmergencyState *state = data;
@@ -2275,15 +2294,23 @@ static void emergency_apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject
         gtk_label_set_text(GTK_LABEL(state->error), "Acil hazırlık veritabanında kayıtlı; yayın motoru başlatılmadı."); return;
     }
     state->loading = TRUE; state->editing = NULL;
-    JsonArray *queues = json_object_get_array_member(config, "queues");
+    JsonArray *queues = em_array_member(config, "queues");
     for (guint i = 0; i < 2; ++i) {
         GList *rows = gtk_container_get_children(GTK_CONTAINER(state->lists[i]));
         for (GList *row = rows; row; row = row->next) gtk_widget_destroy(row->data);
-        g_list_free(rows); JsonArray *queue = json_array_get_array_element(queues, i);
-        for (guint j = 0; j < json_array_get_length(queue); ++j) {
-            JsonObject *entry = json_array_get_object_element(queue, j); JsonArray *values = json_object_get_array_member(entry, "values");
+        g_list_free(rows); JsonNode *queue_node = em_array_element(queues, i);
+        JsonArray *queue = queue_node && JSON_NODE_HOLDS_ARRAY(queue_node) ? json_node_get_array(queue_node) : NULL;
+        guint length = queue ? json_array_get_length(queue) : 0;
+        for (guint j = 0; j < length; ++j) {
+            JsonNode *entry_node = json_array_get_element(queue, j);
+            if (!JSON_NODE_HOLDS_OBJECT(entry_node)) continue;
+            JsonObject *entry = json_node_get_object(entry_node); JsonArray *values = em_array_member(entry, "values");
             EmergencyItem *item = g_new0(EmergencyItem, 1); item->kind = (gint)radios_json_int(entry, "kind", 0);
-            for (guint k = 0; k < 9; ++k) item->values[k] = g_strdup(json_array_get_string_element(values, k));
+            for (guint k = 0; k < 9; ++k) {
+                JsonNode *value = em_array_element(values, k);
+                item->values[k] = g_strdup(value && JSON_NODE_HOLDS_VALUE(value) && json_node_get_value_type(value) == G_TYPE_STRING ?
+                    json_node_get_string(value) : "");
+            }
             item->file = g_strdup(radios_json_string(entry, "file", ""));
             if (json_object_has_member(entry, "id")) item->id = g_strdup(radios_json_string(entry, "id", ""));
             for (guint k = 0; k < G_N_ELEMENTS(binding_keys); ++k)
@@ -2291,7 +2318,7 @@ static void emergency_apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject
             queue_append(state, i, item);
         }
     }
-    JsonObject *preparation = json_object_get_object_member(config, "preparation"); GList *keys = json_object_get_members(preparation);
+    JsonObject *preparation = em_object_member(config, "preparation"); GList *keys = preparation ? json_object_get_members(preparation) : NULL;
     g_clear_pointer(&state->preparation, g_key_file_unref); state->preparation = g_key_file_new();
     for (GList *key = keys; key; key = key->next) {
         gchar **parts = g_strsplit(key->data, "/", 2);

@@ -1,36 +1,14 @@
-#define _XOPEN_SOURCE 700
-
 #include "radios/ui_preferences.h"
 
 #include <gio/gio.h>
 #include <glib/gstdio.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
+
+#include "radios_test_support.h"
 
 typedef struct {
     gchar *temporary, *root, *config, *file;
 } Fixture;
-
-static void
-remove_tree(const gchar *path)
-{
-    if (g_file_test(path, G_FILE_TEST_IS_SYMLINK) ||
-        !g_file_test(path, G_FILE_TEST_IS_DIR)) {
-        g_assert_cmpint(g_remove(path), ==, 0);
-        return;
-    }
-    GDir *directory = g_dir_open(path, 0, NULL);
-    g_assert_nonnull(directory);
-    const gchar *name;
-    while ((name = g_dir_read_name(directory)) != NULL) {
-        gchar *child = g_build_filename(path, name, NULL);
-        remove_tree(child);
-        g_free(child);
-    }
-    g_dir_close(directory);
-    g_assert_cmpint(g_rmdir(path), ==, 0);
-}
 
 static void
 setup(Fixture *fixture, gconstpointer data)
@@ -49,7 +27,7 @@ static void
 teardown(Fixture *fixture, gconstpointer data)
 {
     (void)data;
-    remove_tree(fixture->temporary);
+    rt_remove_tree(fixture->temporary);
     g_free(fixture->temporary);
     g_free(fixture->root);
     g_free(fixture->config);
@@ -100,20 +78,22 @@ roundtrip(Fixture *fixture, gconstpointer data)
     GError *error = NULL;
     g_assert_true(radios_ui_preferences_save(fixture->root, &original, &error));
     g_assert_no_error(error);
-    struct stat first, second;
-    g_assert_cmpint(g_stat(fixture->file, &first), ==, 0);
-    g_assert_cmpuint(first.st_mode & 0777, ==, 0600);
+    rt_assert_private_file(fixture->file);
+    RtFileId first = rt_file_id(fixture->file);
     g_assert_true(radios_ui_preferences_load(fixture->root, &value, &error));
     g_assert_no_error(error);
     assert_preferences(&value, 2, 8, 7, 5, 100, 100, 100, 100, 100);
-    g_assert_cmpint(g_chmod(fixture->file, 0644), ==, 0);
+    /* Saving again must produce an owner-only file even when the previous
+     * one had become readable by others. */
+    rt_make_world_readable(fixture->file);
     original = (RadioSUIPreferences){.content_scale_percent = 100, .mixer_scale_percent = 100, .effector_scale_percent = 100,
         .mixer_height_percent = 100, .effector_height_percent = 100};
     g_assert_true(radios_ui_preferences_save(fixture->root, &original, &error));
     g_assert_no_error(error);
-    g_assert_cmpint(g_stat(fixture->file, &second), ==, 0);
-    g_assert_cmpuint(second.st_mode & 0777, ==, 0600);
-    g_assert_true(first.st_ino != second.st_ino);
+    rt_assert_private_file(fixture->file);
+    /* Replaced atomically (a new file), not rewritten in place. */
+    RtFileId second = rt_file_id(fixture->file);
+    g_assert_false(first.volume == second.volume && memcmp(first.id, second.id, sizeof first.id) == 0);
     g_assert_true(radios_ui_preferences_load(fixture->root, &value, &error));
     assert_preferences(&value, 0, 0, 0, 0, 100, 100, 100, 100, 100);
     GDir *directory = g_dir_open(fixture->config, 0, NULL);
@@ -462,7 +442,11 @@ file_links(Fixture *fixture, gconstpointer data)
     (void)data;
     gchar *external = g_build_filename(fixture->temporary, "external.ini", NULL);
     write_file(external, "external sentinel\n");
-    g_assert_cmpint(symlink(external, fixture->file), ==, 0);
+    if (!rt_symlink(external, fixture->file, FALSE, NULL)) {
+        g_free(external);
+        g_test_skip("symbolic links unavailable");
+        return;
+    }
     RadioSUIPreferences value = {2, 7, 6, 5, 100, 100, 100, 100, 100};
     GError *error = NULL;
     g_assert_false(radios_ui_preferences_load(fixture->root, &value, &error));
@@ -476,7 +460,7 @@ file_links(Fixture *fixture, gconstpointer data)
     g_assert_true(g_file_get_contents(external, &contents, NULL, NULL));
     g_assert_cmpstr(contents, ==, "external sentinel\n");
     g_free(contents);
-    g_assert_true(g_file_test(fixture->file, G_FILE_TEST_IS_SYMLINK));
+    g_assert_true(rt_is_link(fixture->file));
     g_assert_cmpint(g_remove(external), ==, 0);
     /* Dangling links must not be mistaken for a missing preference file. */
     g_assert_false(radios_ui_preferences_load(fixture->root, &value, &error));
@@ -492,9 +476,11 @@ directory_links(Fixture *fixture, gconstpointer data)
     gchar *external = g_build_filename(fixture->temporary, "outside", NULL);
     g_assert_cmpint(g_mkdir(external, 0700), ==, 0);
     g_assert_cmpint(g_rmdir(fixture->config), ==, 0);
-    g_assert_cmpint(symlink(external, fixture->config), ==, 0);
-    RadioSUIPreferences value = {2, 7, 6, 5, 100, 100, 100, 100, 100};
     GError *error = NULL;
+    /* Directory links fall back to junctions without the symbolic-link privilege. */
+    g_assert_true(rt_symlink(external, fixture->config, TRUE, &error));
+    g_assert_no_error(error);
+    RadioSUIPreferences value = {2, 7, 6, 5, 100, 100, 100, 100, 100};
     g_assert_false(radios_ui_preferences_load(fixture->root, &value, &error));
     g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA);
     g_clear_error(&error);
@@ -508,7 +494,9 @@ directory_links(Fixture *fixture, gconstpointer data)
     g_assert_cmpint(g_remove(fixture->config), ==, 0);
     gchar *internal = g_build_filename(fixture->root, "local config", NULL);
     g_assert_cmpint(g_mkdir(internal, 0700), ==, 0);
-    g_assert_cmpint(symlink("local config", fixture->config), ==, 0);
+    /* Relative link inside the root (a junction fallback is absolute, still inside). */
+    g_assert_true(rt_symlink("local config", fixture->config, TRUE, &error));
+    g_assert_no_error(error);
     g_assert_true(radios_ui_preferences_save(fixture->root, &value, &error));
     g_assert_no_error(error);
     value = (RadioSUIPreferences){0};

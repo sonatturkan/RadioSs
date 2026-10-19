@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-import shutil
-import tempfile
 
+from . import _platform
 from .backup import (BackupError, _copy_file, _destination, _fence_restored_store,
                      _fsync_tree, _issue_provision_admin, _publish_absent,
                      _read_manifest, _revoke_other_tokens, _rotate_store_identity,
@@ -128,10 +127,14 @@ def recover_point_in_time(base_backup: str | Path, wal_directory: str | Path,
                                    through_sequence=preview["target_sequence"],
                                    source_store_id=preview["source_store_id"],
                                    timeline_id=preview["source_timeline_id"], epoch=preview["source_epoch"])
-    stage = Path(tempfile.mkdtemp(prefix=f".{target.name}.", suffix=".pitr", dir=target.parent))
+    # Owner-only stage (explicit user-SID DACL, also when elevated).
+    stage = Path(_platform.mkdtemp_private(prefix=f".{target.name}.", suffix=".pitr", dir=target.parent))
     try:
         for relative, entry in files.items():
-            _copy_file(_safe_source(source, relative), stage / relative,
+            source_path = _safe_source(source, relative)
+            # Manifest keys are '/'-separated on every host; never let pathlib
+            # reinterpret a drive or rooted form while joining.
+            _copy_file(source_path, stage.joinpath(*_platform.safe_relative_parts(relative)),
                        expected_sha=entry["sha256"], expected_size=entry["size_bytes"])
         # Detach the source archiver before any staging commits: it is external
         # to a base backup and belongs to the old primary timeline.
@@ -187,5 +190,6 @@ def recover_point_in_time(base_backup: str | Path, wal_directory: str | Path,
                 "replayed_records": len(records), "checkpoint_barriers": preview["checkpoint_barriers"],
                 "target_anchor_sha256": preview["target_anchor_sha256"], **counts, **credential}
     finally:
+        # Never mask the recovery error; the stage name is a recognisable leftover.
         if stage.exists():
-            shutil.rmtree(stage)
+            _platform.rmtree(stage, ignore_errors=True)

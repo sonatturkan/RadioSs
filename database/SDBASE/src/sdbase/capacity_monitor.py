@@ -23,6 +23,7 @@ from typing import Any, Mapping
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from . import _platform
 from .diagnostics import record_diagnostic
 from .identity import Principal, require
 from .media import object_root
@@ -178,15 +179,15 @@ def _snapshot(store: Store, station_id: str, policy: CapacityPolicy,
     metadata_bytes = _file_size(store.meta_file)
     database_bytes = (journal_bytes + checkpoint_bytes + metadata_bytes
                       if None not in (journal_bytes, checkpoint_bytes, metadata_bytes) else None)
+    # Bytes available to this user (GetDiskFreeSpaceExW, quota-aware), not the
+    # volume's total free space.
     try:
-        filesystem = os.statvfs(store.root)
-        database_free_bytes = filesystem.f_bavail * filesystem.f_frsize
+        database_free_bytes = _platform.disk_usage(store.root)[1]
     except OSError:
         database_free_bytes = None
     media_root = object_root(store)
     try:
-        media_filesystem = os.statvfs(media_root if media_root.exists() else store.root)
-        media_free_bytes = media_filesystem.f_bavail * media_filesystem.f_frsize
+        media_free_bytes = _platform.disk_usage(media_root if media_root.exists() else store.root)[1]
     except OSError:
         media_free_bytes = None
     free_bytes = (min(database_free_bytes, media_free_bytes)

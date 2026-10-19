@@ -1,9 +1,11 @@
 """Read-only DeviceSQL USB/SD export.pdb track and playlist reader."""
 
 from hashlib import sha256
-from pathlib import PurePosixPath
+from pathlib import PureWindowsPath
+import re
 import struct
 
+from . import _platform
 from .rekordbox import (LossRecord, PlaylistEntry, PlaylistNode, RekordboxLibrary,
                        SourceValue, TRACK_FIELD_SPECS, Track, _value)
 from .storage import StoreError
@@ -123,21 +125,45 @@ def _names(rows, kind):
     return result
 
 
-def _media_path(root, path):
+def _media_path(root, path, track_id, losses):
+    """The Windows path of a DeviceSQL track location (``/Contents/...``) below usb_root.
+
+    A backslash, a ``..`` part or a drive in the first part escapes the stick and
+    fails the whole library (unchanged). A name that cannot exist on a Windows
+    volume (``:``, ``*``, ``CON``, trailing dot ...) only costs that track its
+    location, reported as a loss."""
     if not path:
         return None
-    if "\\" in path or any(part == ".." for part in path.split("/")) or ":" in path.split("/")[0]:
+    raw_parts = path.split("/")
+    if "\\" in path or any(part == ".." for part in raw_parts) or ":" in raw_parts[0]:
         raise StoreError("Device Library media path escapes its USB root")
-    return str(PurePosixPath(root) / path.lstrip("/"))
+    parts = [part for part in raw_parts if part and part != "."]
+    if not parts or not all(_platform.component_valid(part) for part in parts):
+        losses.append(LossRecord("unsupported", track_id, "Location",
+                                 "Device path is not representable on Windows"))
+        return None
+    return str(PureWindowsPath(root).joinpath(*parts))
+
+
+def _checked_usb_root(usb_root):
+    """usb_root is the folder holding PIONEER\\ on the stick: a canonical absolute Windows
+    path, a drive root such as ``E:\\`` or a UNC share included."""
+    if not isinstance(usb_root, str) or len(usb_root) > 4096 or \
+            any(ord(character) < 32 for character in usb_root) or \
+            not _platform.is_absolute(usb_root) or \
+            any(part in (".", "..") for part in re.split(r"[\\/]", usb_root)) or \
+            not _platform.is_canonical(usb_root):
+        raise StoreError("usb_root must be an absolute USB/SD folder such as E:\\")
+    return usb_root
 
 
 def parse_device_library(contents, usb_root):
-    if not isinstance(usb_root, str) or not usb_root.startswith("/") or len(usb_root) > 4096 or \
-            any(ord(character) < 32 for character in usb_root) or ".." in usb_root.split("/"):
-        raise StoreError("usb_root must be an absolute mounted USB/SD directory")
+    usb_root = _checked_usb_root(usb_root)
     tables = _rows(contents)
     names = {kind: _names(tables.get(kind, []), kind) for kind in (1, 2, 3, 4, 5)}
     tracks = {}
+    losses = [LossRecord("reader_unavailable", "device", "ANLZ",
+                         "Tracklists and metadata read from export.pdb; waveform, beatgrid and hot cues in ANLZ are not read.")]
     for row in tables[0]:
         if len(row) < 136:
             raise StoreError("Device Library track row is truncated")
@@ -145,7 +171,7 @@ def parse_device_library(contents, usb_root):
         if identifier in tracks or len(tracks) >= 50000:
             raise StoreError("Device Library track identities are duplicated or exceed 50000")
         strings = {position: _string(row, _number(row, 94 + position * 2, 2)) for position in (10, 14, 16, 17, 20)}
-        source_path = _media_path(usb_root, strings[20])
+        source_path = _media_path(usb_root, strings[20], identifier, losses)
         attributes = {"TrackID": identifier, "Name": strings[17], "Comments": strings[16],
                       "Artist": names[2].get(_number(row, 68), ""),
                       "Composer": names[2].get(_number(row, 12), ""),
@@ -160,7 +186,12 @@ def parse_device_library(contents, usb_root):
                       "Size": str(_number(row, 16)), "BitRate": str(_number(row, 48)),
                       "SampleRate": str(_number(row, 8)), "DateAdded": strings[10]}
         fields = {spec.source: _value(attributes.get(spec.source), spec.kind) for spec in TRACK_FIELD_SPECS}
-        fields["Location"] = SourceValue("value", source_path, strings[20]) if source_path else SourceValue("empty", raw="")
+        if source_path:
+            fields["Location"] = SourceValue("value", source_path, strings[20])
+        elif strings[20]:
+            fields["Location"] = SourceValue("invalid", raw=strings[20])
+        else:
+            fields["Location"] = SourceValue("empty", raw="")
         tracks[identifier] = Track(identifier, fields, source_path, (), (),
                                    {"device_path": strings[20], "analysis_path": strings[14]})
     tree = {}
@@ -201,7 +232,5 @@ def parse_device_library(contents, usb_root):
     root_nodes = tuple(node(identifier, (index,)) for index, identifier in enumerate(roots))
     if len(seen) != len(tree):
         raise StoreError("Device Library contains an unreachable or cyclic playlist hierarchy")
-    losses = (LossRecord("reader_unavailable", "device", "ANLZ",
-                        "Tracklists and metadata read from export.pdb; waveform, beatgrid and hot cues in ANLZ are not read."),)
     return RekordboxLibrary("DeviceSQL", "rekordbox USB/SD", None, "AlphaTheta",
-                            sha256(contents).hexdigest(), READER_VERSION, tracks, root_nodes, losses)
+                            sha256(contents).hexdigest(), READER_VERSION, tracks, root_nodes, tuple(losses))

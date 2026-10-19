@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from . import _platform
 from .identity import Principal, require
 from .media import _digest, object_path
 from .schedules import _local_instant
@@ -412,9 +413,15 @@ def _verified_media(store: Store, job: dict, media_file_id: str) -> dict:
     if len(locations) != 1 or locations[0]["status"] != "verified":
         raise Conflict("recording media has no verified managed location")
     path = object_path(store, digest)
-    if path.is_symlink() or not path.is_file():
+    # A link of any kind (symlink or junction) is never a managed object.
+    if _platform.is_link(path) or not path.is_file():
         raise Conflict("recording media object is missing")
-    actual_digest, actual_size = _digest(path)
+    try:
+        actual_digest, actual_size = _digest(path)
+    except OSError as exc:
+        # Removed or locked between the check and the read (retention, repair, a
+        # scanner): a verification conflict, not an internal error.
+        raise Conflict("recording media object cannot be read for verification") from exc
     if actual_digest != digest or actual_size != size:
         raise Conflict("recording media object failed SHA-256 or size verification")
     return {"media_file_id": media["_id"], "version_id": media["version_id"],

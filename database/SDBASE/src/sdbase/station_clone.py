@@ -13,8 +13,9 @@ import hashlib
 import json
 from typing import Any
 from uuid import UUID, NAMESPACE_URL, uuid5
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfoNotFoundError
 
+from . import _platform
 from .identity import Forbidden, Principal, require
 from .storage import Conflict, Store, StoreError
 
@@ -94,8 +95,10 @@ def _input(store: Store, principal: Principal, source_station_id: str, *,
     if not isinstance(tz, str):
         raise StoreError("timezone_name must be an IANA timezone")
     try:
-        ZoneInfo(tz)
-    except ZoneInfoNotFoundError as exc:
+        # Exact-case IANA key (Windows tzdata lookups are case-insensitive); an
+        # empty or malformed key raises ValueError, which must not escape as a 500.
+        _platform.canonical_timezone(tz)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
         raise StoreError("unknown IANA timezone") from exc
     key = _label(idempotency_key, "idempotency_key", max_length=128)
     key_hash = _digest(key)

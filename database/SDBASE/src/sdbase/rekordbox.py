@@ -19,6 +19,8 @@ from typing import Mapping, Sequence
 from urllib.parse import unquote_to_bytes, urlsplit
 import xml.etree.ElementTree as ET
 
+from . import _platform
+
 
 READER_VERSION = "0.2.0"
 SUPPORTED_XML_VERSIONS = frozenset({"1.0.0"})
@@ -315,6 +317,12 @@ def _source_path(uri: SourceValue, track_id: str, losses: list[LossRecord]) -> s
             path = f"//{host}{path}"
         elif re.match(r"^/[A-Za-z]:/", path):
             path = path[1:]  # Windows drive in a file://localhost/C:/... URI
+        if path.startswith("//") or _WINDOWS_DRIVE_RE.match(path):
+            # Drive and UNC locations become native text (C:\x, \\host\share\x) so they
+            # match other native paths (display, duplicate detection).  Separators only:
+            # empty/./.. components stay visible to the mapping checks.  macOS/Linux
+            # locations stay POSIX text (foreign references).
+            path = path.replace("/", "\\")
         return path
     except (ValueError, UnicodeDecodeError):
         losses.append(LossRecord("invalid", track_id, "Location", "URI is not a supported UTF-8 file URI."))
@@ -532,8 +540,9 @@ def read_rekordbox_xml(path: str | os.PathLike[str], *, max_bytes: int = DEFAULT
     if max_bytes < 1:
         raise ValueError("max_bytes must be positive")
     source = Path(path)
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(source, flags)
+    # Binary, non-inheritable, share-delete fd; a link (symlink or junction) as the
+    # last component is refused with ELOOP.
+    descriptor = _platform.open_fd(source, os.O_RDONLY, nofollow=True)
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
@@ -545,8 +554,9 @@ def read_rekordbox_xml(path: str | os.PathLike[str], *, max_bytes: int = DEFAULT
         after = os.fstat(descriptor)
         if len(data) > max_bytes:
             raise SourceTooLargeError(f"XML snapshot exceeds {max_bytes} bytes")
-        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
-            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns
+        # st_ctime is the creation time on Windows, not a change time: not compared.
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+            after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns
         ):
             raise SourceChangedError("Exported XML changed during read; retry from a stable snapshot")
     finally:
@@ -662,10 +672,15 @@ def map_media_path(
         if candidate != prefix and not candidate.startswith(prefix + "/"):
             continue
         relative = source[len(source_root):].lstrip("/")
+        components = relative.split("/") if relative else []
+        if any(not _platform.component_valid(component) for component in components):
+            # e.g. a macOS name with ':' (an NTFS alternate data stream), '*', '?',
+            # a trailing dot/space or a reserved device name such as CON or NUL.mp3.
+            return PathMapping("invalid", source_path, None, "Mapped name is not valid on Windows.")
         target_root = Path(rule.target_root).resolve()
-        target = target_root.joinpath(*relative.split("/")) if relative else target_root
+        target = target_root.joinpath(*components) if components else target_root
         target = target.resolve()
-        if not any(target.is_relative_to(allowed) for allowed in permitted):
+        if not any(_platform.is_inside(str(allowed), str(target)) for allowed in permitted):
             return PathMapping("invalid", source_path, None, "Mapped destination is outside allowed media roots.")
         return PathMapping("mapped", source_path, str(target), "Path mapped but media availability is unverified.")
     return PathMapping("unmapped", source_path, None, "No configured source-root mapping matches.")

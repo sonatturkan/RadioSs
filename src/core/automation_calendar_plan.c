@@ -1455,8 +1455,15 @@ static gboolean immediate_repeat(JsonObject *previous, JsonObject *row)
  * set once, then use the canonical linear cursor among its legal members. */
 static gboolean policy_has_id(JsonArray *ids, const gchar *id)
 {
-    for (guint i = 0; ids && i < json_array_get_length(ids); ++i)
-        if (!g_ascii_strcasecmp(json_array_get_string_element(ids, i), id)) return TRUE;
+    /* Only string members can match: a non-string element would make
+     * json_array_get_string_element() return NULL and g_ascii_strcasecmp(NULL)
+     * report 0, i.e. a false match. */
+    for (guint i = 0; id && ids && i < json_array_get_length(ids); ++i) {
+        JsonNode *node = json_array_get_element(ids, i);
+        const gchar *value = node && JSON_NODE_HOLDS_VALUE(node) && json_node_get_value_type(node) == G_TYPE_STRING ?
+            json_node_get_string(node) : NULL;
+        if (value && !g_ascii_strcasecmp(value, id)) return TRUE;
+    }
     return FALSE;
 }
 static JsonObject *policy_merge(JsonObject *parent, JsonObject *override)

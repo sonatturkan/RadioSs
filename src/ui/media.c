@@ -5,6 +5,7 @@
 #include "radios/audio_ui.h"
 #include "radios/media_routing.h"
 #include "radios/player_transport.h"
+#include "radios/platform.h"
 #include <string.h>
 
 typedef struct PlaylistDrop PlaylistDrop;
@@ -824,6 +825,24 @@ static gboolean import_available(MediaLibrary *library)
     if (reason) gtk_label_set_text(GTK_LABEL(library->import_status), reason);
     return reason == NULL;
 }
+/* Deepest folder that contains every path.  Root aware: "C:\" and
+ * "\\server\share" end the climb, so files on different drives or shares
+ * (no common root) give NULL and media_jobs.c falls back to each file's own
+ * folder.  The parent check also ends the climb for any path whose dirname
+ * stops shrinking, so the GTK thread can never spin here. */
+static gchar *common_root(GPtrArray *paths)
+{
+    gchar *root = paths->len ? g_path_get_dirname(g_ptr_array_index(paths, 0)) : NULL;
+    for (guint i = 0; root && i < paths->len; ++i) {
+        const gchar *path = g_ptr_array_index(paths, i);
+        while (root && !radios_path_is_inside(root, path)) {
+            gchar *parent = radios_path_is_root(root) || !radios_path_is_absolute(root) ? NULL : g_path_get_dirname(root);
+            if (parent && radios_path_equal(parent, root)) g_clear_pointer(&parent, g_free);
+            g_free(root); root = parent;
+        }
+    }
+    return root;
+}
 /* Takes ownership even when the batch is rejected. Both entry points retain
  * the same sequential worker, durable receipt, cancellation and refresh. */
 static gboolean import_begin(MediaLibrary *library, GPtrArray *paths, const gchar *kind,
@@ -847,14 +866,7 @@ static gboolean import_begin(MediaLibrary *library, GPtrArray *paths, const gcha
     g_object_set_data(G_OBJECT(library->ctx->parent), "radios-media-import-batch", GINT_TO_POINTER(1));
     radios_media_rhythm_library_cancel(library->ctx);
     g_free(library->import_root);
-    library->import_root = library->folder_root ? g_strdup(library->folder_root) : g_path_get_dirname(g_ptr_array_index(paths, 0));
-    for (guint i = 0; i < paths->len && !library->folder_root; ++i) {
-        const gchar *path = g_ptr_array_index(paths, i);
-        while (g_strcmp0(library->import_root, "/") &&
-            (!g_str_has_prefix(path, library->import_root) || path[strlen(library->import_root)] != G_DIR_SEPARATOR)) {
-            gchar *parent = g_path_get_dirname(library->import_root); g_free(library->import_root); library->import_root = parent;
-        }
-    }
+    library->import_root = library->folder_root ? g_strdup(library->folder_root) : common_root(paths);
     g_free(library->last_import_error); library->last_import_error = g_strdup(reason);
     g_free(library->import_kind); library->import_kind = g_strdup(kind && *kind ? kind : "music");
     gtk_widget_set_sensitive(library->import, FALSE); gtk_widget_set_sensitive(library->cancel, TRUE);
@@ -941,16 +953,36 @@ static gboolean audio_file(const gchar *name)
     for (guint i = 0; audio_extensions[i] && !match; ++i) match = g_str_has_suffix(lower, audio_extensions[i]);
     g_free(lower); return match;
 }
-static void folder_collect(const gchar *folder, guint depth, GPtrArray *paths)
+static gint name_compare(gconstpointer a, gconstpointer b)
 {
-    GDir *dir = depth > 6 ? NULL : g_dir_open(folder, 0, NULL); const gchar *name; GPtrArray *names = g_ptr_array_new_with_free_func(g_free);
+    /* Explorer-like order (case-insensitive), bytes break ties: the 256-file
+     * cap then always takes the same files. */
+    gchar *left = g_utf8_casefold(a, -1), *right = g_utf8_casefold(b, -1);
+    gint order = strcmp(left, right); g_free(left); g_free(right);
+    return order ? order : strcmp(a, b);
+}
+/* Collects at most 256 audio files, 6 levels deep, visiting at most @budget
+ * entries (a dropped drive root must not stall the GTK thread).  Links,
+ * junctions and mount points are never followed (no loops through legacy
+ * junctions such as "Documents\My Music"); dot names and HIDDEN/SYSTEM entries
+ * ($RECYCLE.BIN, System Volume Information, desktop.ini, Thumbs.db) are
+ * skipped. */
+static void folder_collect(const gchar *folder, guint depth, GPtrArray *paths, guint *budget)
+{
+    GDir *dir = depth > 6 || !*budget ? NULL : g_dir_open(folder, 0, NULL); const gchar *name; GPtrArray *names = g_ptr_array_new_with_free_func(g_free);
     while (dir && (name = g_dir_read_name(dir))) if (name[0] != '.') g_ptr_array_add(names, g_strdup(name));
     if (dir) g_dir_close(dir);
-    g_ptr_array_sort(names, (GCompareFunc)g_strcmp0);
-    for (guint i = 0; i < names->len && paths->len < 256; ++i) {
-        gchar *path = g_build_filename(folder, g_ptr_array_index(names, i), NULL);
-        if (g_file_test(path, G_FILE_TEST_IS_DIR) && !g_file_test(path, G_FILE_TEST_IS_SYMLINK)) folder_collect(path, depth + 1, paths);
-        else if (g_file_test(path, G_FILE_TEST_IS_REGULAR) && audio_file(path)) { g_ptr_array_add(paths, g_canonicalize_filename(path, NULL)); path = NULL; }
+    g_ptr_array_sort_values(names, name_compare);
+    for (guint i = 0; i < names->len && paths->len < 256 && *budget; ++i) {
+        const gchar *entry = g_ptr_array_index(names, i); --*budget;
+        gchar *path = g_build_filename(folder, entry, NULL); RadioSFileInfo info;
+        if (radios_fs_stat(path, FALSE, &info) == 0 && !radios_file_info_is_hidden(entry, &info)) {
+            if (info.type == RADIOS_FILE_TYPE_DIRECTORY) folder_collect(path, depth + 1, paths, budget);
+            else if (audio_file(entry) && (info.type == RADIOS_FILE_TYPE_REGULAR ||
+                     /* a file link counts like its target, a directory link never */
+                     (info.type == RADIOS_FILE_TYPE_LINK && radios_fs_stat(path, TRUE, &info) == 0 && info.type == RADIOS_FILE_TYPE_REGULAR)))
+                g_ptr_array_add(paths, radios_path_normalize(path));
+        }
         g_free(path);
     }
     g_ptr_array_unref(names);
@@ -980,8 +1012,9 @@ static void drop_jobs_next(MediaLibrary *library)
     DropJob *job = g_queue_pop_head(library->drop_jobs); if (!job) return;
     if (job->folder) {
         g_free(library->folder_root); library->folder_root = g_strdup(job->folder);
-        GPtrArray *paths = g_ptr_array_new_with_free_func(g_free); folder_collect(job->folder, 0, paths);
-        gchar *name = g_path_get_basename(job->folder);
+        GPtrArray *paths = g_ptr_array_new_with_free_func(g_free); guint budget = 20000; folder_collect(job->folder, 0, paths, &budget);
+        /* A dropped drive keeps its root ("E:\") as the name, not "\". */
+        gchar *name = radios_path_is_root(job->folder) ? g_strdup(job->folder) : g_path_get_basename(job->folder);
         if (!paths->len) {
             gchar *text = g_strdup_printf("\"%s\" klasöründe ses dosyası yok; playlist oluşturulmadı.", name);
             library_notify(library, text); g_free(text); g_free(name); g_ptr_array_unref(paths); drop_job_free(job); drop_jobs_next(library); return;
@@ -1032,8 +1065,14 @@ static void import_clicked(GtkButton *widget, gpointer value)
     gtk_window_set_destroy_with_parent(GTK_WINDOW(library->chooser), TRUE); gtk_widget_set_name(library->chooser, "media-import-chooser");
     gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(library->chooser), TRUE); gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(library->chooser), TRUE);
     GtkFileFilter *filter = gtk_file_filter_new(); gtk_file_filter_set_name(filter, "Ses dosyaları");
-    const gchar *extensions[] = { "*.wav", "*.mp3", "*.flac", "*.ogg", "*.opus", "*.m4a", "*.aac", NULL };
-    for (guint i = 0; extensions[i]; ++i) gtk_file_filter_add_pattern(filter, extensions[i]);
+    /* Windows names are case-insensitive (A.WAV): match every case. */
+    for (guint i = 0; audio_extensions[i]; ++i) {
+        GString *pattern = g_string_new("*");
+        for (const gchar *c = audio_extensions[i]; *c; ++c)
+            if (g_ascii_isalpha(*c)) g_string_append_printf(pattern, "[%c%c]", g_ascii_tolower(*c), g_ascii_toupper(*c));
+            else g_string_append_c(pattern, *c);
+        gtk_file_filter_add_pattern(filter, pattern->str); g_string_free(pattern, TRUE);
+    }
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(library->chooser), filter);
     GtkWidget *kind = kind_combo("media-import-kind"); gtk_file_chooser_set_extra_widget(GTK_FILE_CHOOSER(library->chooser), kind);
     g_object_set_data(G_OBJECT(library->chooser), "media-import-kind", kind); g_signal_connect(library->chooser, "response", G_CALLBACK(chooser_response), library); gtk_widget_show_all(library->chooser);
@@ -1169,7 +1208,7 @@ static void folder_chooser_response(GtkDialog *dialog, gint response, gpointer v
         if (library && !library->closed) {
             if (!library->drop_jobs) library->drop_jobs = g_queue_new();
             for (GSList *folder = folders; folder; folder = folder->next) {
-                DropJob *job = g_new0(DropJob, 1); job->folder = g_canonicalize_filename(folder->data, NULL);
+                DropJob *job = g_new0(DropJob, 1); job->folder = radios_path_normalize(folder->data);
                 g_queue_push_tail(library->drop_jobs, job);
             }
             if (library->paths || library->cancellable || library->playlist_drop || library->busy || library->creating)
@@ -1272,24 +1311,28 @@ static void media_drop_received(GtkWidget *widget, GdkDragContext *context, gint
         g_strfreev(uris); gtk_label_set_text(GTK_LABEL(library->import_status), "Tek seferde en fazla 256 ses dosyası bırakabilirsin."); goto finished;
     }
     GPtrArray *paths = g_ptr_array_new_with_free_func(g_free);
+    /* NTFS names are case-insensitive: C:\A.mp3 and c:\a.MP3 are one file. */
     GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     guint rejected = 0, folders = 0; const gchar *reason = NULL;
     if (!library->drop_jobs) library->drop_jobs = g_queue_new();
     for (guint i = 0; i < count; ++i) {
         gchar *host = NULL; gchar *path = g_filename_from_uri(uris[i], &host, NULL);
-        if (!path || (host && *host && g_ascii_strcasecmp(host, "localhost") != 0) || !g_path_is_absolute(path)) {
+        /* GDK turns an Explorer drop (WM_DROPFILES) into file:///C:/... and
+         * file:////server/share/... URIs.  A drive-relative "\x" (from a
+         * file:///x URI of another system) names no definite file: rejected. */
+        if (!path || (host && *host && g_ascii_strcasecmp(host, "localhost") != 0) || !radios_path_is_absolute(path)) {
             ++rejected; reason = "Yalnız bu bilgisayardaki dosyalar kabul edilir; bağlantılar alınmadı."; g_free(path);
         } else if (window_drop && g_file_test(path, G_FILE_TEST_IS_DIR)) {
-            DropJob *job = g_new0(DropJob, 1); job->folder = g_canonicalize_filename(path, NULL); g_free(path);
+            DropJob *job = g_new0(DropJob, 1); job->folder = radios_path_normalize(path); g_free(path);
             g_queue_push_tail(library->drop_jobs, job); ++folders;
         } else if (!g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
             ++rejected; reason = "Klasörler ve bulunamayan dosyalar alınmadı."; g_free(path);
         } else {
-            gchar *canonical = g_canonicalize_filename(path, NULL); g_free(path);
-            if (g_hash_table_contains(seen, canonical)) {
-                ++rejected; reason = "Aynı dosya bir kez içe aktarılır."; g_free(canonical);
+            gchar *canonical = radios_path_normalize(path), *key = radios_media_path_identity(canonical); g_free(path);
+            if (g_hash_table_contains(seen, key)) {
+                ++rejected; reason = "Aynı dosya bir kez içe aktarılır."; g_free(canonical); g_free(key);
             } else {
-                g_hash_table_add(seen, g_strdup(canonical)); g_ptr_array_add(paths, canonical);
+                g_hash_table_add(seen, key); g_ptr_array_add(paths, canonical);
             }
         }
         g_free(host);

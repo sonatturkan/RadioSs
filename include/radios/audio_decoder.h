@@ -25,7 +25,13 @@ GQuark radios_audio_decoder_error_quark(void);
 
 /* All operations belong to one decoder worker, never the audio callback or UI.
  * A mandatory 64-hex SHA-256 is verified over the entire regular local file
- * before decoding. Every path component must be free of symbolic links. */
+ * before decoding. The path must be a drive-absolute or UNC Windows path whose
+ * components are valid Windows names (no alternate data streams, device names
+ * or trailing dots/spaces), and every component must be free of symbolic links
+ * and junctions. Files whose data is only in the cloud (OneDrive placeholders)
+ * are refused with IO. The open handle shares read, write and delete with other
+ * programs: the file may be deleted, renamed or replaced while it is open, and
+ * every read/seek then fails with CHANGED; close releases the handle at once. */
 RadioSAudioDecoder *radios_audio_decoder_open(const gchar *path,
     const gchar *expected_sha256, GCancellable *cancellable, GError **error);
 

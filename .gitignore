@@ -1,12 +1,30 @@
-# C derleme ve paket çıktıları
-/build/*
-!/build/.gitkeep
+# C derleme ve paket çıktıları (CMakePresets.json: build/, build/gui, build/release, ...)
+/build/
 /dist/
 *.o
+*.obj
 *.a
-*.so
+*.res
 *.dll
 *.exe
+*.pdb
+*.ilk
+*.dmp
+
+# Geliştirme çalışma ortamı runtime\ (DECISIONS D4): bin\, lib\, etc\ ve share\ altı
+# "cmake --build --preset windows-runtime" ile kurulur. Ağaçta yalnız gömülü Python'un
+# ikili olmayan dosyaları ve share\zoneinfo (tzdata 2026.5) tutulur.
+/runtime/*
+!/runtime/python/
+!/runtime/share/
+/runtime/share/*
+!/runtime/share/zoneinfo/
+
+# Bağımlılık önbelleği: LGPL FFmpeg derlemesi ve kaynak arşivi (DECISIONS D10)
+/packaging/windows/cache/ffmpeg-*
+
+# Başlatıcının derleme kilidi (tools/radios_launch.py)
+/default-binary.lock
 
 # Çalışma verileri kaynak kodla sürümlenmez
 /data/**
@@ -14,11 +32,16 @@
 !/data/*/
 !/data/*/.gitkeep
 
-# Yerel kullanıcı ayarı ve kimlik bilgileri
+# Yerel kullanıcı/iş istasyonu ayarları ve kimlik bilgileri (DECISIONS D12)
 /config/radios.ini
 /config/ui-preferences.ini
+/config/audio-panel.ini
+/config/media-archive.ini
+/config/library-analysis.ini
+/config/storage.ini
 /config/*.local.ini
 /config/credentials*
+/config/private/
 /.env
 
 # Python yalnız SDBASE ve geliştirme araçlarında kullanılır

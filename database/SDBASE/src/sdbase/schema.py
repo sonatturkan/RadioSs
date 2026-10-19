@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from . import _platform
 from .storage import IndexSpec, Store, StoreError
 
 
@@ -871,9 +872,12 @@ def _validate(collection: str, data: dict, state: Mapping[str, dict]) -> None:
     if collection == "plan_revisions" and data.get("status") == "approved":
         _validate_execution_revision(data, state)
     if collection == "stations":
+        # Exact-case key of the bundled tz database: Windows file lookups are
+        # case-insensitive and ignore trailing dots/spaces, so "europe/istanbul"
+        # would otherwise load here and be persisted for the C side to reject.
         try:
-            ZoneInfo(data["timezone"])
-        except (ZoneInfoNotFoundError, TypeError) as exc:
+            _platform.canonical_timezone(data["timezone"])
+        except (ZoneInfoNotFoundError, TypeError, ValueError, OSError) as exc:
             raise StoreError("unknown IANA station timezone") from exc
     if collection in {"playlists", "smart_blocks"}:
         if any(not isinstance(data[field], str) or not data[field].strip()
@@ -1192,7 +1196,7 @@ def _validate(collection: str, data: dict, state: Mapping[str, dict]) -> None:
         if not isinstance(data["name"], str) or not data["name"].strip() or \
                 not isinstance(data["library_key"], str) or not data["library_key"].strip():
             raise StoreError("import profile name and library key are required")
-        if validate_import_config(data["config"]) != data["config"]:
+        if validate_import_config(data["config"], persisted=True) != data["config"]:
             raise StoreError("import profile config must be normalized")
     if collection == "view_profiles":
         from .settings import _COLUMNS, _VIEWS

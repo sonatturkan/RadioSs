@@ -11,11 +11,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
-from urllib.parse import unquote, urlsplit
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
+from . import _platform
 from .identity import Principal, require
 from .plans import build_snapshot
 from .snapshot_contract import validate_snapshot_contract
@@ -57,21 +58,30 @@ def _verified_uri(value: str, expected: Mapping[str, Any]) -> str:
     if not isinstance(value, str) or not value.strip():
         raise StoreError("every LibreTime file needs an accessible URI")
     source = value.strip()
-    if source.startswith("/"):
-        source = Path(source).as_uri()
+    if _platform.is_absolute(source):
+        # C:\Müzik\a.mp3 -> file:///C:/M%C3%BCzik/a.mp3; \\nas\share\a.mp3 -> file://nas/share/a.mp3
+        source = PureWindowsPath(source).as_uri()
     parsed = urlsplit(source)
     if parsed.scheme == "file":
-        if parsed.netloc not in {"", "localhost"}:
+        try:
+            # Drive letters, UNC hosts and %-escapes; POSIX file URIs are not local here.
+            path = Path.from_uri(source)
+        except ValueError as exc:
+            raise StoreError("LibreTime local file URI is not a valid Windows file path") from exc
+        if parsed.netloc not in {"", "localhost"} and not str(path).startswith("\\\\"):
             raise StoreError("LibreTime local file URI cannot name another host")
-        path = Path(unquote(parsed.path))
-        if not path.is_file() or path.is_symlink():
-            raise StoreError("LibreTime local media file is absent or a symlink")
-        digest = hashlib.sha256()
-        size = 0
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                size += len(chunk)
-                digest.update(chunk)
+        try:
+            if _platform.is_link(path) or not path.is_file():
+                raise StoreError("LibreTime local media file is absent or a symlink")
+            digest = hashlib.sha256()
+            size = 0
+            # Share-delete, link-refusing reader: never blocks the playout side.
+            with _platform.open_read(path, nofollow=True) as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    size += len(chunk)
+                    digest.update(chunk)
+        except (OSError, ValueError) as exc:
+            raise StoreError("LibreTime local media file is absent or a symlink") from exc
         if size != expected["size_bytes"] or digest.hexdigest() != expected["sha256"]:
             raise Conflict("LibreTime local file differs from the approved media manifest")
     elif parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password:

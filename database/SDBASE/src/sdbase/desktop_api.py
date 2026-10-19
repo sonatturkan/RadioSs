@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
+import errno
 import hashlib
 import json
 import math
@@ -15,12 +16,12 @@ import os
 from pathlib import Path
 import re
 import secrets
-import stat
 from functools import wraps
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from . import _platform
 from .catalog import NotFound
 from .identity import Forbidden, Principal, require
 from .storage import Conflict, Store, StoreError
@@ -400,8 +401,12 @@ def _routing_text(value, name, limit):
     return value
 
 
-def _validate_routing_patchbay(graph):
-    """Schema 2 patchbay: multi-instance blocks; mirrors routing_graph.c."""
+def _validate_routing_patchbay(graph, *, persisted=False):
+    """Schema 2 patchbay: multi-instance blocks; mirrors routing_graph.c.
+
+    A recorder folder is a native absolute Windows folder (radios_path_is_absolute).
+    Documents already stored by a Linux installation keep their POSIX folder text
+    readable (the recorder treats it as missing); new saves need a Windows folder."""
     _object(graph, {"nodes", "edges"}, {"nodes", "edges"})
     nodes, counts = {}, {}
     for node in _list(graph["nodes"], "routing blocks", 48):
@@ -429,10 +434,12 @@ def _validate_routing_patchbay(graph):
             _bool(settings["as_microphone"], "as_microphone")
         elif kind == "recorder":
             folder = _routing_text(settings["folder"], "recorder folder", 512)
-            if folder and not folder.startswith("/"):
+            if folder and not (_platform.is_absolute(folder) or
+                               (persisted and _platform.stored_path_flavour(folder) == "legacy-posix")):
                 raise StoreError("recorder folder must be empty or absolute")
             prefix = _routing_text(settings["prefix"], "recorder prefix", 80)
-            if not prefix or prefix.startswith(".") or "/" in prefix or "\\" in prefix:
+            if not prefix or prefix.startswith(".") or "/" in prefix or "\\" in prefix or \
+                    (not persisted and not _platform.component_valid(prefix)):
                 raise StoreError("recorder prefix must be one visible file name part")
             _int(settings["split_minutes"], "split_minutes", 0, 1440)
         elif kind == "stream":
@@ -535,7 +542,7 @@ def _validate_routing_patchbay(graph):
                 raise StoreError("routing would feed audio back into its own input")
 
 
-def _validate_audio_routing_v2(config):
+def _validate_audio_routing_v2(config, *, persisted=False):
     # Named patchbay configurations; never authority to start capture.
     _object(config, {"schema_version", "active", "configs"}, {"schema_version", "active", "configs"})
     names = set()
@@ -545,7 +552,7 @@ def _validate_audio_routing_v2(config):
         if not name or name in names or name != item["name"]:
             raise StoreError("routing configuration names must be distinct, trimmed and non-empty")
         names.add(name)
-        _validate_routing_patchbay(item["graph"])
+        _validate_routing_patchbay(item["graph"], persisted=persisted)
     if config["active"] not in names:
         raise StoreError("active routing configuration must name a stored configuration")
 
@@ -652,9 +659,9 @@ def validate_configuration(kind, config, station_id, state, *, persisted=False, 
     elif kind == "dj_mixer":
         _validate_dj_mixer(config)
     elif kind == "audio_routing" and isinstance(config, dict) and config.get("schema_version") == 2:
-        _validate_audio_routing_v2(config)
+        _validate_audio_routing_v2(config, persisted=persisted)
     elif kind == "audio_routing":
-        # This is a saved selection, not authority to resume capture. Pulse
+        # This is a saved selection, not authority to resume capture. Device
         # indices and running/recording gates belong to the native session.
         keys = {"schema_version", "application_name", "application_binary",
                 "output_sink", "microphone_source", "application_enabled",
@@ -1466,21 +1473,22 @@ def create_user(store,principal,station_id,username,display_name,role,additional
     user_id,token_id,token = str(uuid4()),str(uuid4()),secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
     expires = (now+timedelta(days=30)).isoformat()
-    directory = Path(store.root)/"private-user-keys"
-    directory.mkdir(mode=0o700,exist_ok=True)
-    info = directory.lstat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-        raise StoreError("private user credential directory must be an owned real directory")
-    directory.chmod(0o700)
+    directory = _private_key_directory(store)
     credential_file = directory/(user_id+".json")
     secret = {"user_id":user_id,"station_id":station_id,"token_id":token_id,"token":token,"expires_at":expires}
-    descriptor = os.open(credential_file,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    # CREATE_NEW never follows an existing name; the file is born with the private
+    # DACL (owner = this user, SYSTEM, Administrators), the Windows form of 0600.
+    descriptor = _platform.open_fd(credential_file,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600,nofollow=True,private=True)
     try:
-        with os.fdopen(descriptor,"w",encoding="utf-8") as stream:
-            json.dump(secret,stream,ensure_ascii=False,allow_nan=False);stream.write("\n");stream.flush();os.fsync(stream.fileno())
-        folder = os.open(directory,os.O_RDONLY|os.O_DIRECTORY)
-        try: os.fsync(folder)
-        finally: os.close(folder)
+        try:
+            stream = os.fdopen(descriptor,"w",encoding="utf-8",newline="\n")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        with stream:
+            json.dump(secret,stream,ensure_ascii=False,allow_nan=False);stream.write("\n");stream.flush()
+            _platform.fsync(stream.fileno())
+        # NTFS journals the directory entry; there is no directory flush on Windows.
         result = {"user_id":user_id,"token_id":token_id,"station_id":station_id,"expires_at":expires,"credential_file":str(credential_file),"permissions":permissions}
         tx = store.begin(actor=principal.user_id)
         tx.expect_sequence(sequence)
@@ -1496,10 +1504,30 @@ def create_user(store,principal,station_id,username,display_name,role,additional
         # only a preparation whose user definitively does not exist.
         try:
             if store.get("users",user_id) is None:
-                credential_file.unlink(missing_ok=True)
+                _platform.unlink_quietly(credential_file)
         except (StoreError,OSError):
             pass
         raise
+
+
+def _private_key_directory(store):
+    """<database>\\private-user-keys: a real directory owned by this user with the
+    private DACL (Linux: an owned 0700 directory). Volumes without persistent ACLs
+    (FAT/exFAT) cannot keep a key private, so they fail closed."""
+    directory = Path(store.root)/"private-user-keys"
+    try:
+        _platform.mkdir_private(directory,exist_ok=True)
+    except (FileExistsError,PermissionError) as exc:
+        raise StoreError("private user credential directory must be an owned real directory") from exc
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise StoreError("private user credential directory must be an owned real directory") from exc
+        raise
+    # mkdir_private verified link, type and owner and re-applied the private DACL; a
+    # volume without persistent ACLs has nothing it could verify or apply.
+    if not _platform.acl_supported(directory):
+        raise StoreError("private user credential directory requires an NTFS/ReFS volume")
+    return directory
 
 
 def create_campaign_version(store,principal,station_id,campaign_id,expected_revision,name,

@@ -22,7 +22,7 @@ gboolean radios_preferences_audio_validate(const RadioSPreferencesAudio *prefere
  * A missing file returns defaults {44100, 256, 0, 1} without writing. Invalid
  * files leave out unchanged. Reads are bounded to 8 KiB; file links and config
  * links escaping the project are rejected. Save commits by atomic replacement
- * with 0600 permissions. No DB, identity or general UI preference is changed. */
+ * and creates the file private (owner-only ACL, the Windows form of 0600). No DB, identity or general UI preference is changed. */
 gboolean radios_preferences_audio_load(const gchar *project_root,
                                       RadioSPreferencesAudio *out, GError **error);
 gboolean radios_preferences_audio_save(const gchar *project_root,

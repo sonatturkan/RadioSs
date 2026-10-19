@@ -3,6 +3,9 @@
 No client-supplied path is opened on the server. A private exclusive temporary
 source carries the supplied bytes through the existing parser and hash-fenced
 apply function. Source media paths remain unverified references.
+
+The temporary source is written through a binary handle, so the bytes the parser
+hashes are exactly the bytes the client reviewed (no newline translation).
 """
 from __future__ import annotations
 
@@ -12,13 +15,16 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
-import tempfile
+import time
 
+from . import _platform
 from . import desktop_api as api
 from .storage import StoreError
 
 MAX_SOURCE_BYTES = 1024 * 1024
 MAX_RESULT_BYTES = 4 * 1024 * 1024
+_TEMP_PREFIX = ".native-transfer-"
+_STALE_SOURCE_SECONDS = 3600
 
 
 @contextmanager
@@ -31,13 +37,43 @@ def _source(store, source_base64, suffix=".csv"):
         raise StoreError("source file encoding is invalid") from exc
     if not 1 <= len(raw) <= MAX_SOURCE_BYTES:
         raise StoreError("source file must contain 1..1048576 bytes")
-    with tempfile.TemporaryDirectory(prefix=".native-transfer-", dir=store.root) as temporary:
-        source = Path(temporary) / ("source" + suffix)
-        descriptor = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    temporary = Path(_platform.mkdtemp_private(prefix=_TEMP_PREFIX, dir=store.root))
+    try:
+        source = temporary / ("source" + suffix)
+        descriptor = _platform.open_fd(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600,
+                                       nofollow=True, private=True)
         with os.fdopen(descriptor, "wb") as output:
             output.write(raw)
             output.flush()
         yield source
+    finally:
+        # A virus scanner holding source.csv for a moment must not turn a computed
+        # preview/apply into an error; leftovers are removed by the start-up sweep.
+        _platform.rmtree_quietly(temporary)
+
+
+def sweep_stale_sources(store, *, max_age_seconds: float = _STALE_SOURCE_SECONDS) -> int:
+    """Remove ``.native-transfer-*`` folders left behind by an interrupted service
+    (older than max_age_seconds). Links are never followed. Never raises; returns the
+    number of folders removed."""
+    removed = 0
+    cutoff = time.time() - max_age_seconds
+    try:
+        with os.scandir(store.root) as entries:
+            for entry in entries:
+                if not entry.name.startswith(_TEMP_PREFIX) or _platform.entry_is_link(entry):
+                    continue
+                try:
+                    if not entry.is_dir(follow_symlinks=False) or \
+                            entry.stat(follow_symlinks=False).st_mtime >= cutoff:
+                        continue
+                except OSError:
+                    continue
+                if _platform.rmtree_quietly(entry.path):
+                    removed += 1
+    except OSError:
+        pass
+    return removed
 
 
 def _result(value):

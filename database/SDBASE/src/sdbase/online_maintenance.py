@@ -8,17 +8,15 @@ No external database or SQL format is involved.
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import json
 import os
-from pathlib import Path
-import shutil
 import stat
 import struct
 from time import monotonic
 from uuid import UUID, uuid4
 
+from . import _platform
 from .backup import _fsync_dir, _open_regular, _safe_source
 from .storage import Corruption, Store, StoreError, WriteRejected, _atomic_json, _FORMAT, _MAX_FRAME
 
@@ -37,21 +35,21 @@ def _job_lock(store):
     with store._locked(exclusive=False):
         store._assert_writable_locked()
         root = _root(store)
-        if root.is_symlink():
+        if _platform.is_link(root):
             raise StoreError("maintenance root must not be a symlink")
-        root.mkdir(mode=0o700, exist_ok=True)
-    fd = os.open(root / "maintenance.lock", os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        _platform.mkdir_private(root, exist_ok=True)
+    fd = _platform.open_fd(root / "maintenance.lock", os.O_RDWR | os.O_CREAT, 0o600, nofollow=True)
     try:
         lock_stat = os.fstat(fd)
         if not stat.S_ISREG(lock_stat.st_mode) or lock_stat.st_nlink != 1:
             raise StoreError("maintenance lock must be a singly linked regular file")
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _platform.flock(fd, _platform.LOCK_EX | _platform.LOCK_NB)
         except BlockingIOError as exc:
             raise StoreError("another online maintenance job is active") from exc
         yield root
     finally:
-        os.close(fd)
+        _platform.unlock_and_close(fd)
 
 
 def _identity(meta):
@@ -80,8 +78,8 @@ def _prepare_checkpoint(path, payload):
     encoder = json.JSONEncoder(ensure_ascii=False, sort_keys=True,
                               separators=(",", ":"), allow_nan=False)
     digest = hashlib.sha256()
+    # The job stage is a private directory: the file inherits its owner-only DACL.
     with path.open("xb") as stream:
-        os.chmod(path, 0o600)
         stream.write(b'{"payload":')
         for chunk in encoder.iterencode(payload):
             encoded = chunk.encode("utf-8")
@@ -103,7 +101,6 @@ def _journal_tail(store, path, base_sequence, offset, max_bytes, max_frames):
     written = frames = 0
     expected = base_sequence + 1
     with os.fdopen(fd, "rb") as source, path.open("xb") as output:
-        os.chmod(path, 0o600)
         source.seek(offset)
         while header := source.read(4):
             if len(header) != 4:
@@ -153,7 +150,7 @@ def checkpoint_online(store: Store, *, max_tail_bytes: int = 64 * 1024**2,
     with _job_lock(store) as root:
         job_id = str(uuid4())
         stage = root / job_id
-        stage.mkdir(mode=0o700)
+        _platform.mkdir_private(stage)
         try:
             capture_started = monotonic()
             payload, captured = _capture(store)
@@ -211,12 +208,14 @@ def checkpoint_online(store: Store, *, max_tail_bytes: int = 64 * 1024**2,
                 job.update(phase="publishing", current_sequence=store._sequence,
                            tail_bytes=tail_bytes, tail_frames=tail_frames)
                 _atomic_json(stage / "job.json", job)
-                os.replace(stage / "checkpoint.pending", store.checkpoint_file)
+                # POSIX-semantics replace: a share-delete reader (or a scanner
+                # that allows it) keeps the old bytes; sharing violations retry.
+                _platform.replace(stage / "checkpoint.pending", store.checkpoint_file)
                 _fsync_dir(store.root)
                 _after_publish("checkpoint_published")
                 # A crash here leaves the new checkpoint and the complete old
                 # journal. Normal replay skips the already represented prefix.
-                os.replace(stage / "journal.pending", store.journal)
+                _platform.replace(stage / "journal.pending", store.journal)
                 _fsync_dir(store.root)
                 _after_publish("journal_published")
                 meta = store._meta()
@@ -240,7 +239,9 @@ def checkpoint_online(store: Store, *, max_tail_bytes: int = 64 * 1024**2,
             store.metrics.observe("online_checkpoint_publish_ms", publish_ms)
             return result
         finally:
-            shutil.rmtree(stage)
+            # Never mask the job's own error; recover_online_jobs removes a
+            # stage that a scanner kept busy past the retry budget.
+            _platform.rmtree(stage, ignore_errors=True)
 
 
 def recover_online_jobs(store: Store, *, cleanup: bool = False) -> dict:
@@ -256,7 +257,7 @@ def recover_online_jobs(store: Store, *, cleanup: bool = False) -> dict:
         for stage in sorted(root.iterdir()):
             if stage.name == "maintenance.lock":
                 continue
-            if stage.is_symlink() or not stage.is_dir():
+            if _platform.is_link(stage) or not stage.is_dir():
                 continue
             try:
                 if str(UUID(stage.name)) != stage.name:
@@ -267,11 +268,12 @@ def recover_online_jobs(store: Store, *, cleanup: bool = False) -> dict:
                 with os.fdopen(_open_regular(marker), "rb") as stream:
                     job = json.load(stream)
                 if job.get("format") != _JOB_FORMAT or job.get("job_id") != stage.name or \
-                        job.get("database") != str(store.journal) or \
+                        not isinstance(job.get("database"), str) or \
+                        not _platform.path_equal(job["database"], str(store.journal)) or \
                         job.get("phase") not in {"preparing", "prepared", "publishing"} or \
                         type(job.get("sequence")) is not int or job["sequence"] < 0 or \
                         not isinstance(job.get("identity"), list) or len(job["identity"]) != 5 or \
-                        any(path.is_symlink() or not path.is_file() or path.name not in
+                        any(_platform.is_link(path) or not path.is_file() or path.name not in
                             {"job.json", "checkpoint.pending", "journal.pending"} for path in stage.iterdir()):
                     continue
             except (OSError, StoreError, ValueError, TypeError, AttributeError):
@@ -279,7 +281,7 @@ def recover_online_jobs(store: Store, *, cleanup: bool = False) -> dict:
             recovered.append({"job_id": stage.name, "phase": job["phase"],
                               "captured_sequence": job["sequence"], "removed": cleanup})
             if cleanup:
-                shutil.rmtree(stage)
+                _platform.rmtree(stage)
         if cleanup:
             _fsync_dir(root)
         return {"jobs": recovered, "cleanup": cleanup, "database_unchanged": True}

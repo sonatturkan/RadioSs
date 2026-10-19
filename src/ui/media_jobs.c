@@ -1,5 +1,6 @@
 #include "radios/media_jobs.h"
 #include "radios/media.h"
+#include "radios/platform.h"
 #include <glib/gstdio.h>
 #include <string.h>
 
@@ -127,8 +128,8 @@ static gchar *media_job_work(gpointer value, const RadioSCancelToken *cancel, GE
                 json_object_set_int_member(probe, "bitrate", analysis->bitrate);
                 json_object_set_object_member(object, "probe", probe);
             } else json_object_set_member(object, "analysis", radios_media_analysis_to_json(analysis));
-            gchar *source = g_canonicalize_filename(job->source, NULL);
-            gchar *root = job->source_root ? g_canonicalize_filename(job->source_root, NULL) : g_path_get_dirname(source);
+            gchar *source = radios_path_normalize(job->source);
+            gchar *root = job->source_root ? radios_path_normalize(job->source_root) : g_path_get_dirname(source);
             json_object_set_string_member(object, "source_path", source);
             json_object_set_string_member(object, "source_root", root);
             g_free(source); g_free(root);
@@ -186,7 +187,7 @@ static GCancellable *import_async(RadioSViewContext *ctx, GtkWidget *owner,
         sources = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
         g_object_set_data_full(G_OBJECT(parent), "radios-media-active-sources", sources, (GDestroyNotify)g_hash_table_unref);
     }
-    gchar *identity = g_canonicalize_filename(source, NULL);
+    gchar *identity = radios_media_path_identity(source);
     if (g_hash_table_contains(sources, identity)) {
         if (ctx->notify) ctx->notify(ctx->notify_data, "Bu dosyanın içe aktarma işlemi sürüyor; sonucu bekleyin.");
         radios_data_client_unref(client); g_free(identity); if (destroy) destroy(user); return NULL;
@@ -229,3 +230,12 @@ GCancellable *radios_media_import_staged_async(RadioSViewContext *ctx, GtkWidget
     const gchar *source, const gchar *source_root, const gchar *kind, const gchar *title,
     RadioSDataCallback callback, gpointer user, GDestroyNotify destroy)
 { return import_async(ctx, owner, source, source_root, TRUE, kind, title, callback, user, destroy); }
+
+gchar *radios_media_path_identity(const gchar *path)
+{
+    gchar *normalized = radios_path_normalize(path);
+    GString *key = g_string_sized_new(strlen(normalized));
+    for (const gchar *cursor = normalized; *cursor; cursor = g_utf8_next_char(cursor))
+        g_string_append_unichar(key, g_unichar_toupper(g_utf8_get_char(cursor)));
+    g_free(normalized); return g_string_free(key, FALSE);
+}

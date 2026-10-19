@@ -1,6 +1,9 @@
 #include "radios/external_access_ui.h"
 #include "radios/external_access.h"
 #include "radios/widgets.h"
+#include <gdk/gdkwin32.h>
+#include <objbase.h>
+#include <shellapi.h>
 #include <string.h>
 
 typedef struct {
@@ -97,6 +100,35 @@ static void probe(GtkButton *button, gpointer value)
     gtk_label_set_text(GTK_LABEL(access->facts[6]), "HTTPS bağlantısı denetleniyor… (en fazla 10 saniye)");
     g_task_run_in_thread(task, worker); g_object_unref(task);
 }
+/* The shell's "open" verb is the reference way to start the user's default
+ * browser on Windows (UserChoice/ProgID associations included, which GLib's
+ * Win32 app-info lookup behind gtk_show_uri_on_window() can miss).  The URL
+ * is an already validated HTTPS address, so the shell resolves it through the
+ * https protocol handler only.  Error boxes are suppressed: the caller reports
+ * the failure in the panel instead of a system dialog over the on-air UI. */
+static gboolean shell_open_url(GtkWindow *parent, const gchar *url)
+{
+    gunichar2 *wide = g_utf8_to_utf16(url, -1, NULL, NULL, NULL);
+    if (!wide) return FALSE;
+    HWND owner = NULL;
+    GdkWindow *window = parent ? gtk_widget_get_window(GTK_WIDGET(parent)) : NULL;
+    if (window && GDK_IS_WIN32_WINDOW(window)) owner = gdk_win32_window_get_handle(window);
+    /* Handlers behind the verb may be COM shell extensions (documented
+     * ShellExecuteEx requirement); RPC_E_CHANGED_MODE keeps the thread's model. */
+    HRESULT com = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    SHELLEXECUTEINFOW info;
+    memset(&info, 0, sizeof info);
+    info.cbSize = sizeof info;
+    info.fMask = SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI;
+    info.hwnd = owner;
+    info.lpVerb = L"open";
+    info.lpFile = (LPCWSTR)wide;
+    info.nShow = SW_SHOWNORMAL;
+    BOOL opened = ShellExecuteExW(&info);
+    if (SUCCEEDED(com)) CoUninitialize();
+    g_free(wide);
+    return opened != FALSE;
+}
 static void open_panel(GtkButton *button, gpointer value)
 {
     Access *access = value; (void)button;
@@ -104,10 +136,12 @@ static void open_panel(GtkButton *button, gpointer value)
     if (!radios_external_https_url_valid(url)) {
         gtk_label_set_text(GTK_LABEL(access->facts[6]), "Panel için geçerli bir HTTPS adresi girin."); return;
     }
+    /* GTK's launcher first (tests wrap it), the Windows shell as fallback. */
     GError *error = NULL;
     if (!gtk_show_uri_on_window(access->ctx->parent, url, GDK_CURRENT_TIME, &error)) {
-        gtk_label_set_text(GTK_LABEL(access->facts[6]), "Dış tarayıcı açılamadı; masaüstündeki varsayılan tarayıcıyı kontrol edin.");
         g_clear_error(&error);
+        if (!shell_open_url(access->ctx->parent, url))
+            gtk_label_set_text(GTK_LABEL(access->facts[6]), "Dış tarayıcı açılamadı; Windows varsayılan tarayıcı ayarını kontrol edin.");
     }
 }
 void radios_external_access_ui_refresh(GtkWidget *form)

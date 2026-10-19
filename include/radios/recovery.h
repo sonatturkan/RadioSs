@@ -18,8 +18,10 @@ gboolean radios_recovery_finish(RadioSRecovery *recovery, JsonNode *body,
 /* Owned array of envelopes; invalid files fail closed and remain intact. */
 JsonNode *radios_recovery_pending(RadioSRecovery *recovery, GError **error);
 JsonNode *radios_recovery_status(RadioSRecovery *recovery, GError **error);
-/* Shared process lifetime lock; close returned fd after GUI shutdown. Offline
- * restore holds the exclusive lock. Refuse a pending restore even after crash. */
+/* Shared process lifetime lock on data\database-service\gui.lock (LockFileEx
+ * region shared with the Python tools); release the returned fd with
+ * radios_fd_close() after GUI shutdown. Offline restore holds the exclusive
+ * lock. Refuse a pending restore even after crash. */
 gint radios_recovery_gui_lock(const RadioSConfig *config, GError **error);
 G_END_DECLS
 #endif

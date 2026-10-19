@@ -15,10 +15,11 @@ import math
 import os
 from pathlib import Path
 import re
-import tempfile
+import stat
 from typing import Any, Mapping
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from . import _platform
 from .catalog import require_shared_item_permission
 from .identity import Forbidden, Principal, require
 from .storage import Conflict, Store, StoreError
@@ -56,7 +57,8 @@ def _utc_now() -> str:
 def _digest(path: Path) -> tuple[str, int]:
     sha = hashlib.sha256()
     size = 0
-    with path.open("rb") as source:
+    # Share-delete reader: hashing an object never blocks its repair/replacement.
+    with _platform.open_read(path) as source:
         for chunk in iter(lambda: source.read(_CHUNK), b""):
             sha.update(chunk)
             size += len(chunk)
@@ -64,11 +66,7 @@ def _digest(path: Path) -> tuple[str, int]:
 
 
 def _fsync_dir(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    _platform.fsync_dir(path)
 
 
 def object_root(store: Store) -> Path:
@@ -130,7 +128,12 @@ def _validate_source(source: Path, allowed_roots: list[Path] | tuple[Path, ...])
     return resolved
 
 
-def _stage_object(store: Store, source: Path) -> tuple[str, int, Path, bool]:
+def _stage_object(store: Store, source: Path | int) -> tuple[str, int, Path, bool]:
+    """Copy `source` into the content-addressed object store.
+
+    `source` is a validated path, or an already opened (no-follow) descriptor of
+    a regular file that the caller keeps owning; it is read from offset 0.
+    """
     # Physical object publication must respect the same role/epoch fence as
     # transactions. Hold a shared lock during copy so handover cannot turn
     # this node into a standby midway through a managed-object replacement.
@@ -139,20 +142,36 @@ def _stage_object(store: Store, source: Path) -> tuple[str, int, Path, bool]:
         return _stage_object_locked(store, source)
 
 
-def _stage_object_locked(store: Store, source: Path) -> tuple[str, int, Path, bool]:
+def _open_source(source: Path | int):
+    if isinstance(source, int) and not isinstance(source, bool):
+        try:
+            if not stat.S_ISREG(os.fstat(source).st_mode):
+                raise MediaError("source is not a regular file")
+            os.lseek(source, 0, os.SEEK_SET)
+        except OSError as exc:
+            raise MediaError("source descriptor is not readable") from exc
+        return os.fdopen(source, "rb", closefd=False)
+    try:
+        # Share-delete reader: the copy does not block the owner of the file.
+        return _platform.open_read(source)
+    except PermissionError as exc:
+        raise MediaError("source is locked by another program") from exc
+
+
+def _stage_object_locked(store: Store, source: Path | int) -> tuple[str, int, Path, bool]:
     root = object_root(store)
     staging = root / ".staging"
     new_root = not root.exists()
     staging.mkdir(parents=True, exist_ok=True)
     if new_root:
         _fsync_dir(root.parent)
-    fd, name = tempfile.mkstemp(prefix="media-", suffix=".partial", dir=staging)
+    fd, name = _platform.mkstemp_private(dir=staging, prefix="media-", suffix=".partial")
     temp = Path(name)
     sha = hashlib.sha256()
     size = 0
     try:
         try:
-            input_stream = source.open("rb")
+            input_stream = _open_source(source)
         except BaseException:
             os.close(fd)
             raise
@@ -174,7 +193,7 @@ def _stage_object_locked(store: Store, source: Path) -> tuple[str, int, Path, bo
         target.parent.mkdir(exist_ok=True)
         if new_prefix:
             _fsync_dir(target.parent.parent)
-        if target.parent.is_symlink() or target.is_symlink():
+        if _platform.is_link(target.parent) or _platform.is_link(target):
             raise MediaError("managed object path must not be a symlink")
         if target.is_file():
             old_digest, old_size = _digest(target)
@@ -182,11 +201,18 @@ def _stage_object_locked(store: Store, source: Path) -> tuple[str, int, Path, bo
                 return digest, size, target, True
             # A corrupt object is replaced only with newly validated source
             # bytes for the same content address.
-        os.replace(temp, target)
+        try:
+            _platform.replace(temp, target)
+        except PermissionError as exc:
+            # The player (FFmpeg) or an HTTP media stream still holds the old
+            # object without FILE_SHARE_DELETE after the retry budget.
+            raise MediaError("managed object is in use; retry after playback/stream ends") from exc
         _fsync_dir(target.parent)
         return digest, size, target, False
     finally:
-        temp.unlink(missing_ok=True)
+        # Never mask the original error (an antivirus scan may still hold the temp).
+        if os.path.lexists(temp):
+            _platform.unlink_quietly(temp)
 
 
 def stage_media(store: Store, principal: Principal, station_id: str | UUID,
@@ -326,7 +352,7 @@ def verify_and_promote_media(store: Store, principal: Principal,
         raise MediaError("media lacks a valid SHA-256")
     location = _managed_location(store, media_id, digest)
     target = object_path(store, digest)
-    if target.is_symlink() or not target.is_file():
+    if _platform.is_link(target) or not target.is_file():
         raise MediaError("managed media object is missing")
     actual_sha, actual_size = _digest(target)
     if actual_sha != digest or actual_size != media.get("size_bytes"):
@@ -374,7 +400,7 @@ def verified_media_path(store: Store, principal: Principal,
     if location.get("status") != "verified":
         raise Conflict("managed media location is not verified")
     target = object_path(store, digest)
-    if target.is_symlink() or not target.is_file():
+    if _platform.is_link(target) or not target.is_file():
         raise MediaError("managed media object is missing")
     actual_sha, actual_size = _digest(target)
     if actual_sha != digest or actual_size != media.get("size_bytes"):
@@ -456,7 +482,7 @@ def reconcile_media(store: Store, principal: Principal,
             outcomes["corrupt"].append(media_id)
             continue
         target = object_path(store, digest)
-        if target.is_symlink() or not target.is_file():
+        if _platform.is_link(target) or not target.is_file():
             status = "missing"
         else:
             actual_sha, actual_size = _digest(target)
@@ -496,10 +522,10 @@ def reconcile_media(store: Store, principal: Principal,
     root = object_root(store)
     if root.exists():
         for child in root.iterdir():
-            if child.name == ".staging" or not child.is_dir() or child.is_symlink():
+            if child.name == ".staging" or not child.is_dir() or _platform.is_link(child):
                 continue
             for path in child.iterdir():
-                if path.is_file() and not path.is_symlink() and \
+                if path.is_file() and not _platform.is_link(path) and \
                         _SHA256.fullmatch(path.name) and path.name not in referenced:
                     outcomes["orphans"].append(str(path))
     return {key: sorted(set(value)) for key, value in outcomes.items()}

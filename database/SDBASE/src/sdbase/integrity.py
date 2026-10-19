@@ -9,16 +9,15 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime
-import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import stat
 import struct
-import time
 from uuid import UUID
 
+from . import _platform
 from .backup import _open_regular, _safe_source
 from .schema import INDEXES, KINDS, REFERENCES, REQUIRED, SCHEMA_VERSION, STATUS
 from .storage import Corruption, Store, StoreError, _FORMAT, _MAX_FRAME, _index_key, _json_bytes, _unique_key_digest
@@ -83,15 +82,10 @@ def _load(database, work):
     lock_path = database.with_name(database.name + ".lock")
     lock_fd = _open_regular(_safe_source(root, lock_path.name))
     try:
-        deadline = time.monotonic() + 30
-        while True:
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    raise _Incomplete("source lock wait exceeded 30 seconds")
-                time.sleep(0.01)
+        try:
+            _platform.lock(lock_fd, exclusive=False, timeout=30)
+        except TimeoutError:
+            raise _Incomplete("source lock wait exceeded 30 seconds") from None
         meta_path = _safe_source(root, database.name + ".meta")
         checkpoint_path = _safe_source(root, database.name + ".checkpoint")
         journal_path = _safe_source(root, database.name)
@@ -185,7 +179,7 @@ def _load(database, work):
         work.files += 1
         return replay, meta
     finally:
-        os.close(lock_fd)
+        _platform.unlock_and_close(lock_fd)
 
 
 def _references(collection, key, data, replay):
@@ -401,7 +395,7 @@ def inspect_integrity(store_or_path: Store | str | Path, *, max_records: int = 1
         raise StoreError("verification switches must be booleans")
     requested = store_or_path.journal if isinstance(store_or_path, Store) else Path(store_or_path).expanduser()
     requested = Path(requested).absolute()
-    database = requested if requested.suffix == ".sdb" else requested / "RadioS.sdb"
+    database = requested if requested.suffix.lower() == ".sdb" else requested / "RadioS.sdb"
     work = _Work(max_bytes, max_records)
     checks = {name: {"status": "pending"} for name in
               ("storage", "records", "indexes", "managed_media", "cold_history")}
@@ -417,7 +411,7 @@ def inspect_integrity(store_or_path: Store | str | Path, *, max_records: int = 1
             issues.append({"code": code, "detail": str(detail), **({"collection": collection, "key": key}
                            if collection is not None else {})})
     try:
-        if any(path.is_symlink() for path in (database, *database.parents)):
+        if any(_platform.is_link(path) for path in (database, *database.parents)):
             raise StoreError("database source path must not contain symlinks")
         replay, meta = _load(database, work)
         sequence, store_id, schema_version = replay._sequence, meta["store_id"], meta.get("schema_version", 1)

@@ -1,12 +1,8 @@
-#define _GNU_SOURCE
-
 #include "radios/library_analysis.h"
 #include "radios/local_ini.h"
+#include "radios/platform.h"
 
 #include <stdarg.h>
-#include <sys/resource.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 
 #define SETTINGS_FILE "library-analysis.ini"
 #define SETTINGS_GROUP "analysis"
@@ -139,8 +135,9 @@ static void run_indices(RunState *state)
 static gpointer run_thread(gpointer data)
 {
     RunState *state = data;
-    /* Linux nice values are per thread: analysis must never delay audio. */
-    if (state->lower_priority) (void)setpriority(PRIO_PROCESS, (id_t)syscall(SYS_gettid), 10);
+    /* Analysis must never delay audio: workers run below normal priority
+     * (per thread, THREAD_PRIORITY_BELOW_NORMAL). */
+    if (state->lower_priority) radios_thread_lower_priority();
     run_indices(state);
     return NULL;
 }
@@ -185,7 +182,13 @@ void radios_library_analysis_activity_step(void)
 
 void radios_library_analysis_activity_end(void)
 {
-    if (g_atomic_int_get(&activity_scans) > 0) g_atomic_int_dec_and_test(&activity_scans);
+    /* Never below zero, even when two scans end at the same time: a separate
+     * check and decrement could both pass at 1 and leave -1, after which the
+     * activity of every later scan would be reported as idle. */
+    for (;;) {
+        gint scans = g_atomic_int_get(&activity_scans);
+        if (scans <= 0 || g_atomic_int_compare_and_exchange(&activity_scans, scans, scans - 1)) return;
+    }
 }
 
 gboolean radios_library_analysis_activity(guint *done, guint *total, guint *workers)
