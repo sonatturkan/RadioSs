@@ -4,7 +4,7 @@
 #include "radios/playout_ui.h"
 #include "radios/playout.h"
 #include "radios/stream_metadata.h"
-#include <glib/gstdio.h>
+#include "radios/platform.h"
 #include <string.h>
 
 typedef struct {
@@ -30,6 +30,9 @@ struct RadioSBroadcastController {
     gboolean pending[3], closed, automatic_metadata, returning;
     guint timer;
     RadioSPlayoutResume *resume;
+    /* Receipt scratch buffer (RADIOS_AUDIO_RUN_MAX_RECEIPTS entries, ~110 KiB):
+     * kept on the heap, never on the 100 ms timer's stack. */
+    RadioSAudioRunReceipt *receipts;
     gchar emergency_status[256], metadata_title[1025];
 };
 typedef struct {
@@ -126,8 +129,8 @@ static void emergency_capture(RadioSBroadcastController *p, gboolean allow_repea
 {
     BroadcastRun *run = p->runs[2]; if (!run || !run->epoch || run->terminal || p->pending[2]) return;
     RadioSAudioRunSnapshot actual; radios_audio_engine_runner_snapshot(p->engine, &actual);
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = radios_audio_engine_runner_receipts(p->engine, receipts, G_N_ELEMENTS(receipts)); guint64 frames = 0;
+    RadioSAudioRunReceipt *receipts = p->receipts;
+    guint count = radios_audio_engine_runner_receipts(p->engine, receipts, RADIOS_AUDIO_RUN_MAX_RECEIPTS); guint64 frames = 0;
     gboolean completed[RADIOS_AUDIO_RUN_MAX_ITEMS] = {FALSE}, interrupted = FALSE, failed = FALSE;
     for (guint i = 0; i < count; ++i) if (receipts[i].epoch == run->epoch && receipts[i].index < run->count) {
         if (receipts[i].position_frames > run->cue_in[receipts[i].index]) frames += receipts[i].position_frames - run->cue_in[receipts[i].index];
@@ -196,6 +199,23 @@ void radios_broadcast_ui_checkpoint(RadioSViewContext *ctx)
     RadioSBroadcastController *p = controller(ctx); if (!p) return;
     emergency_capture(p, FALSE); event_save(p, 2);
 }
+/* One Windows file name (no separators, no ':' alternate data stream, no
+ * reserved device name, no trailing dot/space) ending in ".wav" in any case. */
+static gboolean recording_name_valid(const gchar *filename)
+{
+    gsize length = strlen(filename);
+    return length > 4 && filename[0] != '.' && radios_path_component_valid(filename) &&
+        g_ascii_strcasecmp(filename + length - 4, ".wav") == 0;
+}
+/* The recording root is never a link/junction itself; missing components are
+ * created private to the current user (the Windows form of mode 0700). */
+static gboolean recording_root_ready(const gchar *root)
+{
+    RadioSFileInfo info;
+    if (!root || !radios_path_is_absolute(root)) return FALSE;
+    if (radios_fs_stat(root, FALSE, &info) == 0 && info.type == RADIOS_FILE_TYPE_LINK) return FALSE;
+    return radios_fs_mkdir_with_parents(root, 0700) == 0;
+}
 static void run_created(RadioSViewContext *ctx, GtkWidget *unused, JsonNode *result, const GError *failure, gpointer value)
 {
     (void)unused; BroadcastJob *job = value; RadioSBroadcastController *p = job->controller; guint index = job->index;
@@ -230,7 +250,8 @@ static void run_created(RadioSViewContext *ctx, GtkWidget *unused, JsonNode *res
                 .mode = RADIOS_AUDIO_RUN_EOF, .now_utc_us = g_get_real_time(), .live = TRUE};
             RadioSPlayoutPlan *plan = radios_playout_plan_build(playback, &request, NULL);
             if (plan) {
-                run->count = plan->entries->len;
+                /* cue_in[] holds RADIOS_AUDIO_RUN_MAX_ITEMS entries (the engine's run limit). */
+                run->count = MIN(plan->entries->len, RADIOS_AUDIO_RUN_MAX_ITEMS);
                 for (guint i = 0; i < run->count; ++i) run->cue_in[i] = ((RadioSPlayoutEntry *)g_ptr_array_index(plan->entries, i))->run.media.cue_in_frame;
                 radios_playout_plan_free(plan);
             }
@@ -243,8 +264,7 @@ static void run_created(RadioSViewContext *ctx, GtkWidget *unused, JsonNode *res
         JsonObject *config = profile;
         if (config && index == 0) {
             const gchar *filename = radios_json_string(config, "filename", "");
-            if (*filename && !strchr(filename, '/') && !strchr(filename, '\\') && g_str_has_suffix(filename, ".wav") && !g_str_has_prefix(filename, ".") &&
-                !g_file_test(ctx->config->recording_root, G_FILE_TEST_IS_SYMLINK) && g_mkdir_with_parents(ctx->config->recording_root, 0700) == 0) {
+            if (recording_name_valid(filename) && recording_root_ready(ctx->config->recording_root)) {
                 gchar *path = g_build_filename(ctx->config->recording_root, filename, NULL);
                 accepted = radios_audio_output_start_record(p->outputs[0], path, &error); g_free(path);
             } else invalid(&error, "Kayıt adı veya proje içi kayıt dizini geçersiz.");
@@ -367,6 +387,7 @@ RadioSBroadcastController *radios_broadcast_ui_new(RadioSViewContext *ctx)
     p->engine = radios_audio_ui_engine_acquire(ctx);
     p->outputs[0] = radios_audio_engine_output_acquire(p->engine, RADIOS_AUDIO_OUTPUT_RECORD);
     p->outputs[1] = radios_audio_engine_output_acquire(p->engine, RADIOS_AUDIO_OUTPUT_STREAM);
+    p->receipts = g_new(RadioSAudioRunReceipt, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
     g_strlcpy(p->emergency_status, "Normal yayın · acil komut verilmedi", sizeof p->emergency_status);
     p->timer = g_timeout_add(100, poll, p); return p;
 }
@@ -398,5 +419,5 @@ void radios_broadcast_ui_unref(RadioSBroadcastController *p)
     radios_broadcast_ui_close(p);
     for (guint i = 0; i < 2; ++i) radios_audio_output_unref(p->outputs[i]);
     for (guint i = 0; i < 3; ++i) run_unref(p->runs[i]);
-    radios_audio_engine_unref(p->engine); radios_playout_ui_resume_free(p->resume); g_free(p);
+    radios_audio_engine_unref(p->engine); radios_playout_ui_resume_free(p->resume); g_free(p->receipts); g_free(p);
 }

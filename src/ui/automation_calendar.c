@@ -603,7 +603,7 @@ static void applied(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config
 static void text_at(cairo_t *cr, GtkWidget *widget, const gchar *text, gdouble x, gdouble y, gint width)
 {
     PangoLayout *layout = gtk_widget_create_pango_layout(widget, text);
-    PangoFontDescription *font = pango_font_description_from_string("Sans 10");
+    PangoFontDescription *font = radios_ui_drawn_font_new(10.0 * 96.0 / 72.0, PANGO_WEIGHT_NORMAL);   /* 10 pt at 96 dpi */
     pango_layout_set_font_description(layout, font); pango_font_description_free(font);
     if (width > 0) { pango_layout_set_width(layout, width * PANGO_SCALE); pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END); }
     cairo_move_to(cr, x, y); pango_cairo_show_layout(cr, layout); g_object_unref(layout);
@@ -1473,7 +1473,8 @@ static gboolean key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
     (void)widget; Calendar *view = data;
     if (event->keyval == GDK_KEY_Menu || (event->keyval == GDK_KEY_F10 && event->state & GDK_SHIFT_MASK)) { block_popup(view, (GdkEvent *)event); return TRUE; }
     if (event->keyval == GDK_KEY_Delete) { remove_programme(NULL, view); return TRUE; }
-    if (event->state & GDK_CONTROL_MASK) {
+    /* Ctrl+Alt is AltGr on Windows keyboards (Turkish Q: AltGr+C/V are not copy/paste). */
+    if ((event->state & GDK_CONTROL_MASK) && !(event->state & GDK_MOD1_MASK)) {
         if (event->keyval == GDK_KEY_c || event->keyval == GDK_KEY_C) { copy_blocks(NULL, view); return TRUE; }
         if (event->keyval == GDK_KEY_v || event->keyval == GDK_KEY_V) { paste_blocks(NULL, view); return TRUE; }
     }
@@ -2556,22 +2557,22 @@ static void preview_dialog(Calendar *view)
     GtkWidget *table = radios_ui_table(columns, G_N_ELEMENTS(columns));
     GtkListStore *store = g_object_get_data(G_OBJECT(table), "list-store");
     JsonArray *entries = json_object_get_array_member(json_node_get_object(view->plan->display), "entries");
+    GTimeZone *zone = radios_time_zone_new(calendar_timezone(view));
     for (guint i = 0; entries && i < json_array_get_length(entries); ++i) {
         JsonObject *entry = json_array_get_object_element(entries, i); GtkTreeIter iter;
         GDateTime *utc = g_date_time_new_from_iso8601(radios_json_string(entry, "start_utc", ""), NULL);
-        GTimeZone *zone = radios_time_zone_new(calendar_timezone(view));
         GDateTime *local = utc && zone ? g_date_time_to_timezone(utc, zone) : NULL;
         gchar *stamp = local ? g_date_time_format(local, "%d.%m.%Y %H:%M:%S") : g_strdup(radios_json_string(entry, "start_utc", ""));
         gchar *order = g_strdup_printf("%u · %s", i + 1, stamp); g_free(stamp);
         if (local) g_date_time_unref(local);
         if (utc) g_date_time_unref(utc);
-        if (zone) g_time_zone_unref(zone);
         gint64 duration = radios_json_int(entry, "duration_ms", 0);
         gchar *time = g_strdup_printf("%02" G_GINT64_FORMAT ":%02" G_GINT64_FORMAT, duration / 60000, duration / 1000 % 60);
         gtk_list_store_append(store, &iter); gtk_list_store_set(store, &iter, 0, order,
             1, radios_json_string(entry, "title", ""), 2, radios_json_string(entry, "artist", ""),
             3, radios_json_string(entry, "kind", ""), 4, time, -1); g_free(order); g_free(time);
     }
+    if (zone) g_time_zone_unref(zone);
     GtkWidget *box = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
     if (view->preview_notes) {
         GtkWidget *notes = radios_ui_label(view->preview_notes, "task-help");
