@@ -34,7 +34,9 @@ src/core/platform.c, src/core/platform_win32.c) — keep both sides identical:
 
 Errors are ``OSError`` subclasses built from the Win32 error (``winerror``
 preserved), so ``FileNotFoundError``/``PermissionError``/``FileExistsError``
-clauses keep working.  A refused no-follow open raises ``OSError(errno.ELOOP)``.
+clauses keep working.  A refused no-follow open raises ``OSError(errno.ELOOP)``;
+a path that Win32 would turn into a DOS device ("NUL", "x\\CON.txt") raises
+``OSError(errno.EINVAL)``; a closed descriptor raises ``OSError(errno.EBADF)``.
 """
 from __future__ import annotations
 
@@ -126,7 +128,7 @@ _RETRY_STEP_MAX = 0.250
 # ----------------------------------------------------------------------------- Win32 constants
 
 _SYNCHRONIZE, _DELETE, _READ_CONTROL, _WRITE_DAC, _WRITE_OWNER = 0x100000, 0x10000, 0x20000, 0x40000, 0x80000
-_FILE_READ_DATA = _FILE_LIST_DIRECTORY = 0x1
+_FILE_LIST_DIRECTORY = 0x1                         # == FILE_READ_DATA
 _FILE_WRITE_DATA = 0x2
 _FILE_TRAVERSE = 0x20
 _FILE_READ_ATTRIBUTES, _FILE_WRITE_ATTRIBUTES = 0x80, 0x100
@@ -144,7 +146,7 @@ _FILE_DIRECTORY_FILE, _FILE_SEQUENTIAL_ONLY, _FILE_SYNCHRONOUS_IO_NONALERT = 0x1
 _FILE_NON_DIRECTORY_FILE, _FILE_RANDOM_ACCESS, _FILE_OPEN_REPARSE_POINT = 0x40, 0x800, 0x200000
 _OBJ_CASE_INSENSITIVE = 0x40
 _CREATE_NEW = 1
-_FILE_FLAG_DELETE_ON_CLOSE, _FILE_FLAG_BACKUP_SEMANTICS = 0x04000000, 0x02000000
+_FILE_FLAG_DELETE_ON_CLOSE = 0x04000000
 _FILE_TYPE_DISK = 1
 _FILE_PERSISTENT_ACLS = 0x8
 _LOCKFILE_FAIL_IMMEDIATELY, _LOCKFILE_EXCLUSIVE_LOCK = 0x1, 0x2
@@ -152,7 +154,7 @@ _FILE_RENAME_REPLACE_IF_EXISTS, _FILE_RENAME_POSIX_SEMANTICS = 0x1, 0x2
 _FILE_RENAME_IGNORE_READONLY_ATTRIBUTE = 0x40
 _FILE_DISPOSITION_DELETE, _FILE_DISPOSITION_POSIX_SEMANTICS = 0x1, 0x2
 _FILE_DISPOSITION_IGNORE_READONLY_ATTRIBUTE = 0x10
-_FileBasicInfo, _FileRenameInfo, _FileDispositionInfo, _FileAttributeTagInfo = 0, 3, 4, 9
+_FileBasicInfo, _FileRenameInfo, _FileDispositionInfo, _FileEndOfFileInfo, _FileAttributeTagInfo = 0, 3, 4, 6, 9
 _FileFullDirectoryInfo, _FileFullDirectoryRestartInfo, _FileIdInfo = 14, 15, 18
 _FileDispositionInfoEx, _FileRenameInfoEx = 21, 22
 _ERROR_ACCESS_DENIED, _ERROR_INVALID_FUNCTION, _ERROR_NOT_SUPPORTED = 5, 1, 50
@@ -181,14 +183,15 @@ _STATUS_ERRNO = {
 _PROCESS_TERMINATE, _PROCESS_QUERY_LIMITED_INFORMATION = 0x1, 0x1000
 _EVENT_MODIFY_STATE = 0x2
 _WAIT_OBJECT_0, _WAIT_TIMEOUT, _INFINITE = 0, 0x102, 0xFFFFFFFF
-_STILL_ACTIVE = 259
 _SE_FILE_OBJECT = 1
 _OWNER_SECURITY_INFORMATION, _DACL_SECURITY_INFORMATION = 0x1, 0x4
 _PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
 _INHERIT_ONLY_ACE = 0x8
 _ALLOW_ACE_TYPES = frozenset({0, 5, 9, 11})        # ACCESS_ALLOWED(_OBJECT)(_CALLBACK)(_OBJECT)
+_ACCESS_DENIED_ACE_TYPE = 1
+_FILE_ALL_ACCESS, _GENERIC_ALL = 0x1F01FF, 0x10000000
 _OBJECT_ACE_TYPES = frozenset({5, 6, 7, 8, 11, 12, 15, 16})
-_ADMINISTRATORS_SID, _OWNER_RIGHTS_SID = "S-1-5-32-544", "S-1-3-4"
+_ADMINISTRATORS_SID = "S-1-5-32-544"
 _CTRL_CLOSE_EVENT, _CTRL_LOGOFF_EVENT, _CTRL_SHUTDOWN_EVENT = 2, 5, 6
 
 # ----------------------------------------------------------------------------- Win32 bindings
@@ -314,7 +317,10 @@ _NtCreateFile = _bind(_ntdll, "NtCreateFile", ctypes.c_long, _P(_HANDLE), wt.DWO
 _NtQueryInformationProcess = _bind(_ntdll, "NtQueryInformationProcess", ctypes.c_long, _HANDLE, ctypes.c_int,
                                    ctypes.c_void_p, wt.ULONG, _P(wt.ULONG))
 _RtlNtStatusToDosError = _bind(_ntdll, "RtlNtStatusToDosError", wt.ULONG, wt.ULONG)
-_RtlAreLongPathsEnabled = _bind(_ntdll, "RtlAreLongPathsEnabled", ctypes.c_ubyte)
+try:            # undocumented export (Windows 10 1607+): its absence must not break the import
+    _RtlAreLongPathsEnabled = _bind(_ntdll, "RtlAreLongPathsEnabled", ctypes.c_ubyte)
+except AttributeError:
+    _RtlAreLongPathsEnabled = None
 _CommandLineToArgvW = _bind(_shell32, "CommandLineToArgvW", _P(ctypes.c_wchar_p), wt.LPCWSTR, _P(ctypes.c_int))
 
 # ----------------------------------------------------------------------------- errors and retries
@@ -616,8 +622,10 @@ def from_portable(relative) -> str:
 
 
 def long_paths_enabled() -> bool:
-    """True when the system allows Win32 paths longer than MAX_PATH (LongPathsEnabled)."""
-    return bool(_RtlAreLongPathsEnabled())
+    """True when the system and this process allow Win32 paths longer than MAX_PATH
+    (LongPathsEnabled + longPathAware manifest).  False when ntdll has no
+    RtlAreLongPathsEnabled (Windows before 1607): keep paths short then."""
+    return bool(_RtlAreLongPathsEnabled is not None and _RtlAreLongPathsEnabled())
 
 
 def _full_path(path) -> str:
@@ -629,7 +637,12 @@ def _full_path(path) -> str:
     text = _unify(text)
     if text.startswith(("\\\\?\\", "\\??\\")):
         return "\\\\?\\" + text[4:]
-    return os.path.abspath(text)                     # GetFullPathNameW: CWD, '.', '..'
+    full = os.path.abspath(text)                     # GetFullPathNameW: CWD, '.', '..'
+    if full.startswith("\\\\.\\") and not text.startswith("\\\\.\\"):
+        # "NUL", "x\\CON.txt": legacy DOS device names must never turn a file path
+        # into a device (same rule as nt_path() in src/core/platform.c).
+        raise _errno_error(errno.EINVAL, "path names a DOS device", text)
+    return full
 
 
 def _nt_path(path) -> str:
@@ -765,9 +778,17 @@ def _names_link(root, name: str) -> bool:
         _CloseHandle(probe)
 
 
+_NO_CONSOLE_HANDLE = ctypes.c_void_p(-2).value       # _NO_CONSOLE_FILENO == GetCurrentThread()
+
+
 def _handle_of(target) -> int:
+    """OS handle of an fd or file object.  The std fds of a process without a console
+    map to -2, which is also the GetCurrentThread() pseudo handle: EBADF, like C."""
     fd = target if isinstance(target, int) else target.fileno()
-    return msvcrt.get_osfhandle(fd)
+    handle = msvcrt.get_osfhandle(fd)
+    if handle in (None, 0, _INVALID_HANDLE, _NO_CONSOLE_HANDLE, -1, -2):
+        raise _errno_error(errno.EBADF, "Bad file descriptor", f"<descriptor {fd}>")
+    return handle
 
 
 def _wrap_fd(handle, *, append: bool = False) -> int:
@@ -875,6 +896,8 @@ def _open_spec(flags: int, mode: int, *, nofollow: bool, private: bool | None, s
         raise OSError(errno.EINVAL, "O_DIRECTORY cannot be combined with O_CREAT/O_TRUNC")
     if append_only and not (write and flags & os.O_APPEND):
         raise ValueError("append_only needs O_APPEND with write access")
+    if append_only and flags & os.O_TRUNC:
+        raise ValueError("append_only cannot truncate (O_TRUNC needs FILE_WRITE_DATA)")
     access = _SYNCHRONIZE | _FILE_READ_ATTRIBUTES | _READ_CONTROL
     if directory:
         access |= _FILE_LIST_DIRECTORY | _FILE_TRAVERSE
@@ -909,32 +932,61 @@ def _open_spec(flags: int, mode: int, *, nofollow: bool, private: bool | None, s
     return _OpenSpec(access, share, disposition, options, private_object, not follow)
 
 
+def _truncate_handle(handle, display) -> None:
+    end = ctypes.c_longlong(0)                      # FILE_END_OF_FILE_INFO
+    if not _SetFileInformationByHandle(handle, _FileEndOfFileInfo, ctypes.byref(end), ctypes.sizeof(end)):
+        raise _winerror(ctypes.get_last_error(), display)
+
+
 def _open_handle(root, name: str, spec: _OpenSpec, display) -> int:
     """Open (root, name) per spec with the no-follow post checks of core spec 4.3."""
     security = _private_descriptor(False) if spec.private else None
+    # A no-follow O_TRUNC must not overwrite a link or a placeholder itself: open without
+    # truncating, check what was opened, then truncate (open_target() in platform.c).
+    truncate_after = spec.nofollow and spec.disposition in (_FILE_OVERWRITE, _FILE_OVERWRITE_IF)
+    disposition = spec.disposition
+    if truncate_after:
+        disposition = _FILE_OPEN if spec.disposition == _FILE_OVERWRITE else _FILE_OPEN_IF
+    creating = disposition in (_FILE_CREATE, _FILE_OPEN_IF, _FILE_OVERWRITE_IF)
     retry = _Retry()
     while True:
-        status, handle = _nt_create(root, name, spec.access, spec.share, spec.disposition, spec.options,
+        status, handle = _nt_create(root, name, spec.access, spec.share, disposition, spec.options,
                                     security=security)
         if handle is not None:
             break
-        if status in _RETRYABLE_STATUS and retry.allowed():
+        # A name another program deleted the classic way stays "delete pending" until
+        # its last handle closes: creating it again succeeds shortly.
+        if (status in _RETRYABLE_STATUS or (creating and status == _STATUS_DELETE_PENDING)) and retry.allowed():
             retry.sleep()
             continue
         if spec.nofollow and status in (_STATUS_FILE_IS_A_DIRECTORY, _STATUS_NOT_A_DIRECTORY) and \
                 _names_link(root, name):
             raise _loop_error(display)
         raise _status_error(status, display)
-    if not spec.nofollow:
-        return handle
+    if spec.nofollow:
+        try:
+            attributes, tag = _attributes_tag(handle)
+        except BaseException:
+            _CloseHandle(handle)
+            raise
+        if attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
+            if tag & _NAME_SURROGATE:
+                _CloseHandle(handle)
+                raise _loop_error(display)
+            handle = _reopen_placeholder(root, name, spec, handle, display)      # consumes handle
+    if truncate_after:
+        try:
+            _truncate_handle(handle, display)
+        except BaseException:
+            _CloseHandle(handle)
+            raise
+    return handle
+
+
+def _reopen_placeholder(root, name: str, spec: _OpenSpec, handle, display) -> int:
+    """OneDrive placeholder, dedup, WOF...: an ordinary file.  Open the file itself and
+    insist that both opens see the same object.  Consumes `handle`."""
     try:
-        attributes, tag = _attributes_tag(handle)
-        if not attributes & _FILE_ATTRIBUTE_REPARSE_POINT:
-            return handle
-        if tag & _NAME_SURROGATE:
-            raise _loop_error(display)
-        # OneDrive placeholder, dedup, WOF...: an ordinary file. Open the file itself and
-        # insist that both opens see the same object.
         status, again = _nt_create(root, name, spec.access, spec.share, _FILE_OPEN,
                                    spec.options & ~_FILE_OPEN_REPARSE_POINT)
         if again is None:
@@ -955,10 +1007,11 @@ def _open_handle(root, name: str, spec: _OpenSpec, display) -> int:
     return again
 
 
-def open_flags(flags: int) -> int:
+def open_flags(flags: int, *, nofollow: bool = False) -> int:
     """Flags for a direct os.open(): always binary and non-inheritable.  O_NOFOLLOW and
-    O_DIRECTORY cannot be honoured by os.open (use open_fd), O_NONBLOCK is 0."""
-    if flags & (O_NOFOLLOW | O_DIRECTORY):
+    O_DIRECTORY (and nofollow=True) cannot be honoured by os.open: ValueError, use
+    open_fd() instead of silently following a link.  O_NONBLOCK is 0 (no FIFOs)."""
+    if nofollow or flags & (O_NOFOLLOW | O_DIRECTORY):
         raise ValueError("O_NOFOLLOW/O_DIRECTORY need open_fd(); os.open() cannot honour them")
     return flags | os.O_BINARY | os.O_NOINHERIT
 
@@ -1159,6 +1212,33 @@ def fsync_dir(path) -> None:
 def fsync_tree(root) -> None:
     """fsync_dir() for a published tree (no-op per directory on Windows)."""
     fsync_dir(root)
+
+
+def sync_tree(root) -> int:
+    """Windows replacement for os.sync() after a bulk copy (shutil.copytree): flush every
+    regular file below root (FlushFileBuffers through a write handle, links never
+    followed or entered).  root itself must be a real directory (a link -> ELOOP).
+    Returns the number of files flushed; errors raise (a read-only file cannot be opened
+    for writing: PermissionError — RadioS never creates read-only files)."""
+    top = _text(root)
+    if is_link(top):
+        raise _loop_error(top)
+    if not stat.S_ISDIR(os.stat(top).st_mode):
+        raise _errno_error(errno.ENOTDIR, _ERRNO_TEXT[errno.ENOTDIR], top)
+    flushed = 0
+    for directory, subdirectories, files in os.walk(top, followlinks=False, onerror=_raise):
+        subdirectories[:] = [name for name in subdirectories if not is_link(os.path.join(directory, name))]
+        for name in files:
+            path = os.path.join(directory, name)
+            if is_link(path):
+                continue
+            fsync_file(path)
+            flushed += 1
+    return flushed
+
+
+def _raise(error: OSError) -> None:
+    raise error
 
 
 # ----------------------------------------------------------------------------- rename / delete
@@ -1589,7 +1669,7 @@ def pread(descriptor: int, length: int, offset: int) -> bytes:
     if length == 0:
         return b""
     length = min(length, 0x7FFFF000)
-    handle = msvcrt.get_osfhandle(descriptor)
+    handle = _handle_of(descriptor)
     position = os.lseek(descriptor, 0, os.SEEK_CUR)
     buffer = ctypes.create_string_buffer(length)
     done = wt.DWORD(0)
@@ -1670,7 +1750,8 @@ def _volume_has_acls(handle) -> bool:
 
 
 def _query_security(handle) -> tuple[str | None, list[tuple[int, int, int, str]] | None]:
-    """(owner SID, [(ace type, ace flags, mask, sid)] or None for a NULL DACL)."""
+    """(owner SID, [(ace type, ace flags, mask, sid)] or None for a NULL DACL).  Allow ACEs
+    of every kind and plain deny ACEs; audit ACEs and other types are skipped."""
     owner, dacl, descriptor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
     code = _GetSecurityInfo(handle, _SE_FILE_OBJECT, _OWNER_SECURITY_INFORMATION | _DACL_SECURITY_INFORMATION,
                             ctypes.byref(owner), None, ctypes.byref(dacl), None, ctypes.byref(descriptor))
@@ -1689,8 +1770,8 @@ def _query_security(handle) -> tuple[str | None, list[tuple[int, int, int, str]]
             address = ace.value
             ace_type = ctypes.c_ubyte.from_address(address).value
             ace_flags = ctypes.c_ubyte.from_address(address + 1).value
-            if ace_type not in _ALLOW_ACE_TYPES:
-                continue                                                      # deny/audit never widen access
+            if ace_type not in _ALLOW_ACE_TYPES and ace_type != _ACCESS_DENIED_ACE_TYPE:
+                continue
             mask = ctypes.c_uint32.from_address(address + 4).value
             sid_address = address + 8
             if ace_type in _OBJECT_ACE_TYPES:
@@ -1710,8 +1791,30 @@ def _owner_ok(owner_sid: str | None) -> bool:
 
 def _foreign_grants(aces, owner_sid: str | None, rights: int) -> list[str]:
     trusted = PRIVATE_TRUSTED_SIDS | {current_user_sid()} | ({owner_sid} if owner_sid else set())
-    return [sid for _type, flags, mask, sid in aces
-            if not flags & _INHERIT_ONLY_ACE and mask & rights and sid not in trusted]
+    return [sid for ace_type, flags, mask, sid in aces                # deny ACEs never widen access
+            if ace_type in _ALLOW_ACE_TYPES and not flags & _INHERIT_ONLY_ACE and mask & rights and sid not in trusted]
+
+
+def _user_has_full_control(aces) -> bool:
+    """The DACL grants the token user FILE_ALL_ACCESS through plain allow ACEs and denies it
+    nothing (dacl_user_full() in platform.c): with the owner and no-others rules this is
+    what fchmod(0600/0700) produces."""
+    user, granted = current_user_sid(), 0
+    for ace_type, flags, mask, sid in aces:
+        if flags & _INHERIT_ONLY_ACE or sid != user:
+            continue
+        if ace_type == _ACCESS_DENIED_ACE_TYPE:
+            return False
+        if ace_type == 0:
+            granted |= _FILE_ALL_ACCESS if mask & _GENERIC_ALL else mask
+    return granted & _FILE_ALL_ACCESS == _FILE_ALL_ACCESS
+
+
+def _canonical_private(owner_sid: str | None, aces) -> bool:
+    """handle_is_canonical_private() in platform.c: owner is the token user (not merely
+    Administrators), no foreign grants, the user holds full control."""
+    return (owner_sid == current_user_sid() and aces is not None and
+            not _foreign_grants(aces, owner_sid, PRIVATE_SENSITIVE_RIGHTS) and _user_has_full_control(aces))
 
 
 def owned_by_current_user(target, *, follow_links: bool = False) -> bool:
@@ -1799,10 +1902,28 @@ def acl_supported(target) -> bool:
         return _volume_has_acls(handle)
 
 
+def _set_security(handle, options: int, rights: int, what: int, owner, dacl, display) -> int:
+    """SetSecurityInfo through a relative reopen of `handle` that holds `rights`
+    (descriptors opened for data access have no WRITE_DAC/WRITE_OWNER).  Returns the
+    Win32 error code (0 on success)."""
+    status, writable = _nt_create(handle, "", rights | _READ_CONTROL | _FILE_READ_ATTRIBUTES, _SHARE_ALL, _FILE_OPEN,
+                                  options)
+    if writable is None:
+        return _RtlNtStatusToDosError(status)
+    try:
+        return _SetSecurityInfo(writable, _SE_FILE_OBJECT, what, owner, None, dacl, None)
+    finally:
+        _CloseHandle(writable)
+
+
 def make_private(target, *, follow_links: bool = False, directory: bool | None = None) -> None:
-    """fchmod(0600 file / 0700 dir): explicit owner = current user + the protected private
-    DACL (file or directory variant by type; inheritable ACEs propagate into an existing
-    tree).  No-op when already private.  directory, when given, must match the type.
+    """fchmod(0600 file / 0700 dir) (radios_fd_make_private): the protected private DACL
+    (file or directory variant by type; inheritable ACEs propagate into an existing
+    tree), then owner = current user.  No-op when the object already is in that canonical
+    form (owner is the user, no foreign grants, the user has full control).  The DACL is
+    set first (owners hold WRITE_DAC implicitly) and the owner second (the new DACL grants
+    the user WRITE_OWNER), so files an elevated run left owned by Administrators are taken
+    over without SeTakeOwnershipPrivilege.  directory, when given, must match the type.
     A link is refused (ELOOP) unless follow_links=True makes its target private.
     OSError(ENOTSUP) on volumes without persistent ACLs; PermissionError when the object
     belongs to someone else and we may not take it over."""
@@ -1817,24 +1938,18 @@ def make_private(target, *, follow_links: bool = False, directory: bool | None =
             raise _errno_error(errno.ENOTDIR if directory else errno.EISDIR,
                                _ERRNO_TEXT[errno.ENOTDIR if directory else errno.EISDIR], display)
         owner, aces = _query_security(handle)
-        if _owner_ok(owner) and aces is not None and not _foreign_grants(aces, owner, PRIVATE_SENSITIVE_RIGHTS):
+        if _canonical_private(owner, aces):
             return
-        set_owner = owner != current_user_sid()
-        access = _READ_CONTROL | _WRITE_DAC | (_WRITE_OWNER if set_owner else 0) | _FILE_READ_ATTRIBUTES
         options = 0 if follow_links or isinstance(target, int) or hasattr(target, "fileno") else _FILE_OPEN_REPARSE_POINT
-        status, writable = _nt_create(handle, "", access, _SHARE_ALL, _FILE_OPEN, options)
-        if writable is None:
-            raise _status_error(status, display)
-        try:
-            what = _DACL_SECURITY_INFORMATION | _PROTECTED_DACL_SECURITY_INFORMATION
-            if set_owner:
-                what |= _OWNER_SECURITY_INFORMATION
-            code = _SetSecurityInfo(writable, _SE_FILE_OBJECT, what,
-                                    _sid_pointer(current_user_sid()) if set_owner else None, None,
-                                    _private_dacl(is_directory), None)
-        finally:
-            _CloseHandle(writable)
+        code = _set_security(handle, options, _WRITE_DAC, _DACL_SECURITY_INFORMATION |
+                             _PROTECTED_DACL_SECURITY_INFORMATION, None, _private_dacl(is_directory), display)
         if code:
+            raise _winerror(code, display)
+        if owner == current_user_sid():
+            return
+        code = _set_security(handle, options, _WRITE_OWNER, _OWNER_SECURITY_INFORMATION,
+                             _sid_pointer(current_user_sid()), None, display)
+        if code and not _owner_ok(owner):
             raise _winerror(code, display)
 
 
@@ -1866,8 +1981,7 @@ def mkdir_private(path, *, parents: bool = False, exist_ok: bool = False) -> Non
         return
     if not owned_by_current_user(display):
         raise PermissionError(errno.EACCES, "the directory is not owned by the current user", display)
-    if not is_private(display, directory=True):
-        make_private(display, directory=True)
+    make_private(display, directory=True)               # Linux: chmod(0o700); no-op when canonical
 
 
 def mkdtemp_private(prefix: str = "tmp", suffix: str = "", dir=None) -> str:
@@ -2305,7 +2419,7 @@ def _checked_argv(argv) -> list[str]:
     if not all(isinstance(item, str) for item in items) or any("\x00" in item for item in items):
         raise TypeError("argv items must be str without NUL characters")
     program = items[0]
-    if not is_absolute(program):
+    if not is_absolute(program) or '"' in program:
         raise ValueError(f"the program path must be absolute (never searched in PATH): {program}")
     if program.lower().endswith((".bat", ".cmd")):
         raise ValueError(f"batch files are not started directly (cmd.exe re-parses arguments): {program}")
@@ -2330,12 +2444,17 @@ def popen_no_window(argv, **kwargs) -> subprocess.Popen:
     return subprocess.Popen(items, executable=items[0], creationflags=flags, close_fds=True, **kwargs)
 
 
-def spawn_detached(argv, *, cwd=None, env=None, stdout=None, stderr=None) -> subprocess.Popen:
+def spawn_detached(argv, *, cwd=None, env=None, stdout=None, stderr=None, log_fd=None) -> subprocess.Popen:
     """Start a program that outlives this process: windowless console of its own, new
     process group (no Ctrl+C from our console), CREATE_BREAKAWAY_FROM_JOB (retried
     without it when the job forbids breakaway), stdin = NUL, stdout/stderr = NUL unless
     given (an fd/file such as an append-only log; never our own std handles, so a parent
-    reading our pipe still sees EOF), no other handle inherited."""
+    reading our pipe still sees EOF), no other handle inherited.  log_fd=fd is short for
+    stdout=fd, stderr=fd (the service log of the tools)."""
+    if log_fd is not None:
+        if stdout is not None or stderr is not None:
+            raise ValueError("log_fd replaces stdout/stderr; pass one or the other")
+        stdout = stderr = log_fd
     items = _checked_argv(argv)
     common = dict(executable=items[0], cwd=cwd, env=env, close_fds=True, stdin=subprocess.DEVNULL,
                   stdout=subprocess.DEVNULL if stdout is None else stdout,
@@ -2430,7 +2549,7 @@ __all__ = [
     "open_flags", "open_fd", "os_open", "open_regular", "open_read", "read_bytes_shared", "open_beneath",
     "open_nofollow_path", "mkstemp_private",
     # durability, rename, delete
-    "fsync", "fsync_file", "fsync_dir", "fsync_tree", "replace", "rename_noreplace", "link_noreplace",
+    "fsync", "fsync_file", "fsync_dir", "fsync_tree", "sync_tree", "replace", "rename_noreplace", "link_noreplace",
     "publish_dir_noreplace", "unlink", "unlink_quietly", "rmtree", "rmtree_quietly",
     # locks
     "flock", "lock", "unlock", "unlock_and_close", "locked_file",

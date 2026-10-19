@@ -14,6 +14,7 @@ import ctypes
 import datetime
 import importlib.util
 import os
+import stat
 import subprocess
 import sys
 import urllib.request
@@ -33,8 +34,12 @@ def _load_shim():
     wanted = os.path.normcase(str(SHIM_PATH))
     for module in list(sys.modules.values()):
         location = getattr(module, "__file__", None)
-        if location and os.path.normcase(os.path.abspath(location)) == wanted:
-            return module
+        if location and os.path.basename(location).lower() == SHIM_PATH.name.lower():
+            try:
+                if os.path.normcase(os.path.realpath(location)) == wanted:
+                    return module
+            except (OSError, ValueError):
+                continue
     spec = importlib.util.spec_from_file_location(_MODULE_NAME, SHIM_PATH)
     if spec is None or spec.loader is None:
         raise ImportError(f"RadioS platform layer not found: {SHIM_PATH}")
@@ -54,6 +59,7 @@ globals().update({name: getattr(shim, name) for name in shim.__all__})
 # Names of the tools specification for the shared contract constants.
 FLOCK_OFFSET = shim.LOCK_REGION_OFFSET
 FLOCK_LENGTH = shim.LOCK_REGION_LENGTH
+PRIVATE_ALLOWED_SIDS = shim.PRIVATE_TRUSTED_SIDS       # + the token user and the object's owner
 
 # ----------------------------------------------------------------------------- files
 
@@ -73,7 +79,7 @@ def open_log_append(path) -> int:
     descriptor = shim.open_fd(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600, nofollow=True, private=True,
                               append_only=True)
     try:
-        if not os.path.isfile(path) or not shim.owned_by_current_user(descriptor):
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode) or not shim.owned_by_current_user(descriptor):
             raise PermissionError(13, "the service log must be a regular file owned by the current user", str(path))
         if not shim.is_private(descriptor):
             shim.make_private(descriptor)             # Linux: fchmod(fd, 0o600)
@@ -123,6 +129,8 @@ def resolve_python(python_command: str | None, project_root) -> str:
     root = Path(project_root)
     value = (python_command or "").strip()
     if value and (any(char in value for char in "\\/:")):
+        if not shim.is_absolute(value) and (":" in value or value[0] in "\\/"):
+            raise ValueError(f"python_command must be absolute or relative to the project root: {value!r}")
         candidate = Path(value) if shim.is_absolute(value) else root / shim.from_portable(value)
         if candidate.suffix.lower() != ".exe" or not candidate.is_file():
             raise FileNotFoundError(2, "Yapılandırılan Python yorumlayıcısı bulunamadı (config\\radios.ini [database] "
@@ -309,7 +317,8 @@ def make_public_for_tests(path, *, sid: str = "S-1-5-32-545", rights: int = 0x12
         raise ctypes.WinError(code)
 
 
-__all__ = [*shim.__all__, "shim", "SHIM_PATH", "FLOCK_OFFSET", "FLOCK_LENGTH", "open_nofollow", "open_log_append",
+__all__ = [*shim.__all__, "shim", "SHIM_PATH", "FLOCK_OFFSET", "FLOCK_LENGTH", "PRIVATE_ALLOWED_SIDS",
+           "open_nofollow", "open_log_append",
            "make_private_dir", "private_mkstemp", "ensure_private_tree", "publish_noreplace", "resolve_python",
            "python_argv", "display_command", "boot_time_iso", "no_proxy_opener", "ProcessEntry", "iter_processes",
            "install_warnings", "make_public_for_tests"]

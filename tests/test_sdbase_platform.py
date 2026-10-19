@@ -8,6 +8,7 @@ import contextlib
 import ctypes
 import errno
 import json
+import msvcrt
 import os
 import queue
 import re
@@ -346,9 +347,47 @@ class OpenTest(TempDirTest):
             plat.open_fd(name, os.O_WRONLY | os.O_RDWR)
         with self.assertRaises(ValueError):
             plat.open_flags(os.O_RDONLY | plat.O_NOFOLLOW)
+        with self.assertRaises(ValueError):
+            plat.open_flags(os.O_RDONLY, nofollow=True)
         self.assertEqual(plat.open_flags(os.O_RDONLY), os.O_BINARY | os.O_NOINHERIT)
         with self.assertRaises(ValueError):
             plat.open_fd(name, os.O_WRONLY, append_only=True)
+        with self.assertRaises(ValueError):
+            plat.open_fd(name, os.O_WRONLY | os.O_APPEND | os.O_TRUNC, append_only=True)
+
+    def test_device_names_and_bad_descriptors(self):
+        # GetFullPathNameW turns legacy DOS device names into \\.\ devices: a file path
+        # must never open a device (same rule as the C layer).
+        for device in ("NUL", "con"):
+            with self.assertRaises(OSError) as caught:
+                plat.open_fd(device, os.O_RDONLY)
+            self.assertEqual(caught.exception.errno, errno.EINVAL, device)
+            with self.assertRaises(OSError) as caught:
+                plat.unlink(device)
+            self.assertEqual(caught.exception.errno, errno.EINVAL, device)
+        fd = plat.open_fd(self.write("kapalı"), os.O_RDONLY)
+        os.close(fd)
+        for operation in (lambda: plat.pread(fd, 1, 0), lambda: plat.fsync(fd), lambda: plat.flock(fd, plat.LOCK_SH),
+                          lambda: plat.is_private(fd)):
+            with self.assertRaises(OSError) as caught:
+                operation()
+            self.assertEqual(caught.exception.errno, errno.EBADF)
+
+    def test_nofollow_truncate_and_create(self):
+        name = self.write("kısaltılacak", b"12345")
+        fd = plat.open_fd(name, os.O_WRONLY | os.O_TRUNC, nofollow=True)
+        os.close(fd)
+        self.assertEqual(os.stat(name).st_size, 0)
+        fresh = self.path("yeni ş")
+        fd = plat.open_fd(fresh, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | plat.O_NOFOLLOW, 0o600)
+        try:
+            os.write(fd, b"x")
+        finally:
+            os.close(fd)
+        self.assertTrue(plat.is_private(fresh, exact_file_mode=True))
+        fd = plat.open_fd(fresh, os.O_RDWR | os.O_CREAT | os.O_TRUNC, nofollow=True)
+        os.close(fd)
+        self.assertEqual(os.stat(fresh).st_size, 0)
 
     def test_directories(self):
         folder = self.path("klasör")
@@ -399,6 +438,13 @@ class OpenTest(TempDirTest):
         self.assertEqual(caught.exception.errno, errno.ELOOP)
         with self.assertRaises(FileExistsError):                    # O_EXCL never follows a link name
             plat.open_fd(file_link, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+        for flags in (os.O_WRONLY | os.O_TRUNC, os.O_RDWR | os.O_CREAT | os.O_TRUNC):
+            with self.assertRaises(OSError) as caught:              # never truncates the link or its target
+                plat.open_fd(file_link, flags, nofollow=True)
+            self.assertEqual(caught.exception.errno, errno.ELOOP)
+            self.assertTrue(os.path.islink(file_link))
+            with open(os.path.join(target, "iç.txt"), "rb") as stream:
+                self.assertEqual(stream.read(), b"inside")
         fd = plat.open_fd(file_link, os.O_RDONLY)                  # following is still possible
         os.close(fd)
 
@@ -742,6 +788,37 @@ class LockTest(TempDirTest):
             with self.assertRaises(ValueError):
                 plat.flock(third, bad)
 
+    def test_region_matches_a_raw_lockfileex_holder(self):
+        # A lock taken with plain LockFileEx on the header's region (what the C layer does)
+        # conflicts with the shim and vice versa; the old proposal 0x7FFFFFFF00000000 does not.
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.LockFileEx.argtypes = (ctypes.c_void_p, wt.DWORD, wt.DWORD, wt.DWORD, wt.DWORD, ctypes.c_void_p)
+        kernel32.UnlockFileEx.argtypes = (ctypes.c_void_p, wt.DWORD, wt.DWORD, wt.DWORD, ctypes.c_void_p)
+
+        class Overlapped(ctypes.Structure):
+            _fields_ = [("Internal", ctypes.c_size_t), ("InternalHigh", ctypes.c_size_t), ("Offset", wt.DWORD),
+                        ("OffsetHigh", wt.DWORD), ("hEvent", ctypes.c_void_p)]
+
+        def raw(fd, offset, lock, flags=0x3):                       # EXCLUSIVE | FAIL_IMMEDIATELY
+            overlapped = Overlapped(0, 0, offset & 0xFFFFFFFF, offset >> 32, None)
+            handle = msvcrt.get_osfhandle(fd)
+            if lock:
+                return bool(kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(overlapped)))
+            return bool(kernel32.UnlockFileEx(handle, 0, 1, 0, ctypes.byref(overlapped)))
+
+        c_side, python_side = self.open_lock(), self.open_lock()
+        self.assertTrue(raw(c_side, 0x4000000000000000, True))
+        with self.assertRaises(BlockingIOError):
+            plat.flock(python_side, plat.LOCK_SH | plat.LOCK_NB)
+        self.assertTrue(raw(c_side, 0x4000000000000000, False))
+        plat.flock(python_side, plat.LOCK_SH | plat.LOCK_NB)
+        self.assertFalse(raw(c_side, 0x4000000000000000, True))     # shim SH blocks a raw EX
+        self.assertTrue(raw(c_side, 0x4000000000000000, True, flags=0x1))   # ... but not a raw SH
+        self.assertTrue(raw(c_side, 0x4000000000000000, False))
+        self.assertTrue(raw(c_side, 0x7FFFFFFF00000000, True))      # another region never conflicts
+        self.assertTrue(raw(c_side, 0x7FFFFFFF00000000, False))
+        plat.unlock(python_side)
+
     def test_region_never_blocks_content_io(self):
         holder, other = self.open_lock(), self.open_lock()
         plat.flock(holder, plat.LOCK_EX)
@@ -813,6 +890,32 @@ class LockTest(TempDirTest):
                 if time.monotonic() > deadline:
                     raise
                 time.sleep(0.02)
+
+
+def set_sddl(path, sddl):
+    """Test helper: replace owner and DACL of path with the given SDDL (protected)."""
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    convert = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    convert.argtypes = (wt.LPCWSTR, wt.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p)
+    get_dacl = advapi32.GetSecurityDescriptorDacl
+    get_dacl.argtypes = (ctypes.c_void_p, ctypes.POINTER(wt.BOOL), ctypes.POINTER(ctypes.c_void_p),
+                         ctypes.POINTER(wt.BOOL))
+    get_owner = advapi32.GetSecurityDescriptorOwner
+    get_owner.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wt.BOOL))
+    set_info = advapi32.SetNamedSecurityInfoW
+    set_info.restype = wt.DWORD
+    set_info.argtypes = (wt.LPWSTR, ctypes.c_int, wt.DWORD, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                         ctypes.c_void_p)
+    descriptor = ctypes.c_void_p()
+    if not convert(sddl, 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    present, defaulted, dacl, owner = wt.BOOL(), wt.BOOL(), ctypes.c_void_p(), ctypes.c_void_p()
+    get_dacl(descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted))
+    get_owner(descriptor, ctypes.byref(owner), ctypes.byref(defaulted))
+    code = set_info(os.fspath(path), 1, 0x1 | 0x4 | 0x80000000, owner, None, dacl, None)
+    ctypes.WinDLL("kernel32").LocalFree(descriptor)
+    if code:
+        raise ctypes.WinError(code)
 
 
 def _close_quietly(fd):
@@ -909,6 +1012,18 @@ class PrivacyTest(TempDirTest):
             pass
         self.assertFalse(plat.is_private(child))
         self.assertIn("S-1-5-32-545", plat.foreign_access(child))
+
+    def test_make_private_restores_the_canonical_form(self):
+        user = plat.current_user_sid()
+        name = self.write("salt okuma izni", b"x")
+        # owner-only, but the user may only read: private, yet not what fchmod(0600) gives
+        set_sddl(name, f"O:{user}D:P(A;;FR;;;{user})(A;;FA;;;SY)")
+        self.assertTrue(plat.is_private(name))
+        plat.make_private(name)
+        self.assertEqual(self.applied(name), self.sddl(False))
+        set_sddl(name, f"O:{user}D:P(D;;FW;;;{user})(A;;FA;;;{user})(A;;FA;;;SY)")   # a deny ACE for the user
+        plat.make_private(name)
+        self.assertEqual(self.applied(name), self.sddl(False))
 
     def test_null_dacl_is_never_private(self):
         name = self.write("boş dacl", b"x")
@@ -1044,7 +1159,7 @@ INTERMEDIATE = """
 import os
 grandchild = sys.argv[3]
 log = plat.open_fd(sys.argv[2], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600, append_only=True)
-process = plat.spawn_detached(plat.python_child_argv("-c", grandchild, sys.argv[1]), stdout=log, stderr=log,
+process = plat.spawn_detached(plat.python_child_argv("-c", grandchild, sys.argv[1]), log_fd=log,
                               env=plat.python_child_env())
 os.close(log)
 print(process.pid, flush=True)
@@ -1101,6 +1216,10 @@ class SpawnTest(TempDirTest):
             plat.popen_no_window([python, "-c", "pass"], creationflags=subprocess.DETACHED_PROCESS)
         with self.assertRaises(TypeError):
             plat.popen_no_window(python)
+        with self.assertRaises(ValueError):
+            plat.popen_no_window(['C:\\a"b\\python.exe', "-c", "pass"])
+        with self.assertRaises(ValueError):
+            plat.spawn_detached([python, "-c", "pass"], log_fd=1, stdout=subprocess.DEVNULL)
 
     def test_detached_child_outlives_its_parent_and_never_inherits_pipes(self):
         log = self.path("servis günlüğü.log")
@@ -1183,6 +1302,19 @@ class MiscTest(TempDirTest):
         self.assertEqual(sorted(os.listdir(self.base)), ["dosya"])  # the probe file is gone
         self.assertIsInstance(plat.long_paths_enabled(), bool)
 
+    def test_sync_tree(self):
+        tree = self.path("kopya ağacı")
+        os.makedirs(os.path.join(tree, "alt ç", "derin"))
+        for relative in ("a.bin", os.path.join("alt ç", "b ş.bin"), os.path.join("alt ç", "derin", "c")):
+            with open(os.path.join(tree, relative), "wb") as stream:
+                stream.write(b"veri")
+        self.assertEqual(plat.sync_tree(tree), 3)
+        self.assertEqual(plat.sync_tree(os.path.join(tree, "alt ç", "derin")), 1)
+        with self.assertRaises(NotADirectoryError):
+            plat.sync_tree(os.path.join(tree, "a.bin"))
+        with self.assertRaises(FileNotFoundError):
+            plat.sync_tree(self.path("yok"))
+
     def test_links(self):
         target = self.path("gerçek")
         os.mkdir(target)
@@ -1198,6 +1330,12 @@ class MiscTest(TempDirTest):
         self.assertFalse(plat.entry_is_link(entries["gerçek"]))
         self.assertTrue(plat.has_link_component(os.path.join(link, "alt", "dosya")))
         self.assertFalse(plat.has_link_component(os.path.join(target, "alt", "dosya")))
+        with open(os.path.join(target, "iç"), "wb") as stream:
+            stream.write(b"x")
+        with self.assertRaises(OSError) as caught:
+            plat.sync_tree(link)
+        self.assertEqual(caught.exception.errno, errno.ELOOP)
+        self.assertEqual(plat.sync_tree(self.base), 1)              # the junction is not entered
 
     def test_time_zones(self):
         self.assertEqual(plat.canonical_timezone("Europe/Istanbul"), "Europe/Istanbul")
@@ -1227,6 +1365,10 @@ class MiscTest(TempDirTest):
             tools_platform.resolve_python(sys.executable[:-4] + ".bat", ROOT)
         with self.assertRaises(ValueError):
             tools_platform.resolve_python("py", ROOT)
+        for drive_or_root_relative in ("C:python.exe", "\\python\\python.exe", "/python/python.exe"):
+            with self.assertRaises(ValueError):
+                tools_platform.resolve_python(drive_or_root_relative, ROOT)
+        self.assertEqual(tools_platform.PRIVATE_ALLOWED_SIDS, {"S-1-5-18", "S-1-5-32-544", "S-1-3-4"})
         self.assertEqual(tools_platform.display_command(["C:\\a b\\x.exe", "ş", 'q"']), '"C:\\a b\\x.exe" ş q\\"')
         self.assertTrue(any(entry.pid == os.getpid() and entry.name.lower().endswith(".exe")
                             for entry in tools_platform.iter_processes()))
