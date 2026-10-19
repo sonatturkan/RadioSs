@@ -2992,7 +2992,8 @@ static void history_export(GtkButton *button, gpointer data)
     JsonNode *history = radios_playout_ui_history(programme_context(view)); if (!history) return;
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Yerel oynatma geçmişini kaydet", view->ctx->parent, GTK_FILE_CHOOSER_ACTION_SAVE,
         "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL); gtk_window_set_destroy_with_parent(GTK_WINDOW(dialog), TRUE);
-    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE); gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "RadioS-oynatma-gecmisi.json");
+    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE); radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(dialog), view->ctx);
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "RadioS-oynatma-gecmisi.json");
     g_object_set_data_full(G_OBJECT(dialog), "history-export", json_to_string(history, TRUE), g_free); json_node_free(history);
     g_signal_connect_object(dialog, "response", G_CALLBACK(history_export_response), view->page, 0); gtk_widget_show(dialog);
 }
@@ -4661,6 +4662,18 @@ static void player_output_refresh(PlayerAudio *player);
 static void player_output_forget(PlayerAudio *player);
 static gboolean player_output_ready(PlayerAudio *player);
 static JsonObject *player_input(PlayerAudio *player, gint index);
+/* RadioSAudioSnapshot is about 260 KiB (device inventories and 66 deck
+ * snapshots). It is copied to the heap so nested GTK callbacks never stack
+ * several of them on the GUI thread. NULL when no audio engine is attached;
+ * release with g_free(). */
+static RadioSAudioSnapshot *player_engine_snapshot_new(RadioSViewContext *ctx)
+{
+    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
+    if (!engine) return NULL;
+    RadioSAudioSnapshot *snapshot = g_new0(RadioSAudioSnapshot, 1);
+    radios_audio_engine_snapshot(engine, snapshot); radios_audio_engine_unref(engine);
+    return snapshot;
+}
 static void player_schema_create_clicked(GtkButton *button, gpointer value)
 {
     (void)button; PlayerAudio *player = value;
@@ -5217,22 +5230,22 @@ static void player_rotation_start_ready(RadioSViewContext *ctx, GtkWidget *card,
         if (ctx->notify) ctx->notify(ctx->notify_data, error->message);
         return;
     }
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx); RadioSAudioSnapshot snapshot = {0};
-    if (engine) { radios_audio_engine_snapshot(engine, &snapshot); radios_audio_engine_unref(engine); }
-    gboolean current_cards = TRUE;
-    for (guint i = 0; i < job->count; ++i) {
+    RadioSAudioSnapshot *snapshot = player_engine_snapshot_new(ctx);
+    gboolean current_cards = snapshot != NULL;
+    for (guint i = 0; current_cards && i < job->count; ++i) {
         gchar *key = g_strdup_printf("radios-deck-owner-%u", job->decks[i]);
         GtkWidget *target = g_object_get_data(G_OBJECT(ctx->parent), key); g_free(key);
         GtkWidget *original = g_weak_ref_get(&job->cards[i]);
-        current_cards = current_cards && target && target == original && !gtk_widget_in_destruction(target) &&
-            snapshot.decks[job->decks[i]].generation == job->generations[i];
+        current_cards = target && target == original && !gtk_widget_in_destruction(target) &&
+            snapshot->decks[job->decks[i]].generation == job->generations[i];
         g_clear_object(&original);
     }
+    gboolean source_current = snapshot && snapshot->decks[job->source].generation == job->source_generation;
+    g_free(snapshot);
     RadioSAudioPlayerOptions options = {-1, -1}; radios_audio_ui_player_options(ctx, player->deck, &options);
-    if (!engine || !current_cards || (!job->routed && options.autodj_target != (gint)job->target) || !player_rotation_current(player) ||
+    if (!current_cards || (!job->routed && options.autodj_target != (gint)job->target) || !player_rotation_current(player) ||
         player->load_serial != job->input_serial || player->current != job->current ||
-        radios_playout_ui_intent(ctx) != job->intent ||
-        snapshot.decks[job->source].generation != job->source_generation ||
+        radios_playout_ui_intent(ctx) != job->intent || !source_current ||
         !response || !JSON_NODE_HOLDS_OBJECT(response)) {
         if (ctx->notify) ctx->notify(ctx->notify_data, "Player veya rotasyon hazırlığı değişti; AutoDJ'yi yeniden başlatın.");
         return;
@@ -5311,18 +5324,18 @@ static void player_rotation_scope_ready(RadioSViewContext *ctx, GtkWidget *owner
     if (!failure && (!response || !JSON_NODE_HOLDS_OBJECT(response)))
         g_set_error_literal(&failure, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "Rotasyon hazırlanamadı.");
     if (!failure) {
-        RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx); RadioSAudioSnapshot audio = {0};
-        if (engine) { radios_audio_engine_snapshot(engine, &audio); radios_audio_engine_unref(engine); }
-        gboolean current = engine != NULL && radios_playout_ui_intent(ctx) == job->intent;
-        for (guint i = 0; i < job->captured_cards; ++i) {
+        RadioSAudioSnapshot *audio = player_engine_snapshot_new(ctx);
+        gboolean current = audio != NULL && radios_playout_ui_intent(ctx) == job->intent;
+        for (guint i = 0; current && i < job->captured_cards; ++i) {
             guint deck = job->binding.decks[i];
             gchar *key = g_strdup_printf("radios-deck-owner-%u", deck);
             GtkWidget *now = g_object_get_data(G_OBJECT(ctx->parent), key); g_free(key);
             GtkWidget *original = g_weak_ref_get(&job->pool_cards[i]);
-            current = current && now && now == original && !gtk_widget_in_destruction(now) &&
-                audio.decks[deck].generation == job->generations[deck];
+            current = now && now == original && !gtk_widget_in_destruction(now) &&
+                audio->decks[deck].generation == job->generations[deck];
             g_clear_object(&original);
         }
+        g_free(audio);
         if (!current) g_set_error_literal(&failure, G_IO_ERROR, G_IO_ERROR_CANCELLED,
             "Hazırlık sırasında oynatıcı veya yayın değişti; mevcut ses korundu.");
     }
@@ -5350,19 +5363,19 @@ static void player_rotation_scope_start(PlayerAudio *player, RadioSAutoDJMode mo
     if (!player_rotation_scope_binding(player, json_node_get_object(player->rotation_prepared), mode, &job->binding, &error)) {
         player_rotation_scope_free(job); player_audio_error(player, error); return;
     }
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(player->ctx); RadioSAudioSnapshot audio = {0};
-    if (!engine) { player_rotation_scope_free(job); return; }
-    radios_audio_engine_snapshot(engine, &audio); radios_audio_engine_unref(engine);
+    RadioSAudioSnapshot *audio = player_engine_snapshot_new(player->ctx);
+    if (!audio) { player_rotation_scope_free(job); return; }
     for (guint i = 0; i < job->binding.count; ++i) {
         guint deck = job->binding.decks[i]; gchar *key = g_strdup_printf("radios-deck-owner-%u", deck);
         GtkWidget *card = g_object_get_data(G_OBJECT(player->ctx->parent), key); g_free(key);
         if (!card || gtk_widget_in_destruction(card)) {
-            player_rotation_scope_free(job);
+            g_free(audio); player_rotation_scope_free(job);
             programme_notice(player->view, "Atanmış oynatıcı bulunamadı; rotasyonu yeniden yükleyin."); return;
         }
         g_weak_ref_init(&job->pool_cards[i], card); ++job->captured_cards;
-        job->generations[deck] = audio.decks[deck].generation;
+        job->generations[deck] = audio->decks[deck].generation;
     }
+    g_free(audio);
     job->mode = mode; job->assignment = player->assignment_serial; job->input_serial = player->load_serial;
     job->intent = radios_playout_ui_intent(player->ctx);
     player->rotation_starting = TRUE;
@@ -5415,31 +5428,31 @@ static void player_autodj_clicked(GtkButton *button, gpointer data)
         if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, "Rotasyon kurallarına uygun en az iki yerel parça gerekli.");
         return;
     }
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(player->ctx); RadioSAudioSnapshot snapshot = {0};
-    if (!engine) return;
-    radios_audio_engine_snapshot(engine, &snapshot); radios_audio_engine_unref(engine);
+    RadioSAudioSnapshot *snapshot = player_engine_snapshot_new(player->ctx);
+    if (!snapshot) return;
     guint decks[32], count = 0; GError *pool_error = NULL;
     guint target = options.autodj_target >= 0 ? (guint)options.autodj_target : G_MAXUINT;
     if (!radios_playout_prepared_rotation_pool(player->ctx, prepared, player->deck, target,
             decks, &count, &routed, &pool_error)) {
-        player_audio_error(player, pool_error); return;
+        g_free(snapshot); player_audio_error(player, pool_error); return;
     }
     PlayerRotationStart *job = g_new0(PlayerRotationStart, 1);
     job->assignment = player->assignment_serial; job->input_serial = player->load_serial;
     job->intent = radios_playout_ui_intent(player->ctx); job->current = player->current;
     job->source = player->deck; job->target = target; job->routed = routed;
-    job->source_generation = snapshot.decks[job->source].generation;
+    job->source_generation = snapshot->decks[job->source].generation;
     for (guint i = 0; i < count; ++i) {
         gchar *key = g_strdup_printf("radios-deck-owner-%u", decks[i]);
         GtkWidget *card = g_object_get_data(G_OBJECT(player->ctx->parent), key); g_free(key);
         if (!card || gtk_widget_in_destruction(card)) {
-            player_rotation_start_free(job);
+            g_free(snapshot); player_rotation_start_free(job);
             if (player->ctx->notify) player->ctx->notify(player->ctx->notify_data, "Atanmış player bulunamadı; rotasyondaki player dağılımını güncelleyin.");
             return;
         }
-        job->decks[i] = decks[i]; job->generations[i] = snapshot.decks[decks[i]].generation;
+        job->decks[i] = decks[i]; job->generations[i] = snapshot->decks[decks[i]].generation;
         g_weak_ref_init(&job->cards[i], card); ++job->count;
     }
+    g_free(snapshot);
     player->rotation_starting = TRUE; gtk_widget_set_sensitive(player->autodj_start, FALSE);
     gboolean accepted = radios_player_rotation_prepare_loaded(player->ctx, player->card, prepared,
         player->rotation_document, player->rotation_revision, player->rotation_id, player->rotation_client,
@@ -6501,20 +6514,20 @@ gboolean radios_broadcast_player_register_playlist(RadioSViewContext *ctx, JsonA
     if (!view || view->disposed || !view->players || !items || index >= json_array_get_length(items)) {
         g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_INITIALIZED, "Playlist/player altyapısı hazır değil."); return FALSE;
     }
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx); RadioSAudioSnapshot snapshot = {0};
-    if (!engine) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_INITIALIZED, "Player ses motoru hazır değil."); return FALSE; }
-    radios_audio_engine_snapshot(engine, &snapshot); radios_audio_engine_unref(engine);
+    RadioSAudioSnapshot *snapshot = player_engine_snapshot_new(ctx);
+    if (!snapshot) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_INITIALIZED, "Player ses motoru hazır değil."); return FALSE; }
     PlayerAudio *target = NULL;
     for (guint i = 0; i < 32 && !target; ++i) {
         if (preferred_deck >= 0 && i != (guint)preferred_deck) continue;
         gchar *key = g_strdup_printf("radios-deck-owner-%u", i);
         GtkWidget *card = g_object_get_data(G_OBJECT(ctx->parent), key); g_free(key);
         PlayerAudio *candidate = card ? g_object_get_data(G_OBJECT(card), "radios-player-audio") : NULL;
-        if (!candidate || candidate->destroyed || snapshot.decks[i].state == RADIOS_AUDIO_PLAYING ||
-            snapshot.decks[i].state == RADIOS_AUDIO_PAUSED || snapshot.decks[i].state == RADIOS_AUDIO_LOADING) continue;
+        if (!candidate || candidate->destroyed || snapshot->decks[i].state == RADIOS_AUDIO_PLAYING ||
+            snapshot->decks[i].state == RADIOS_AUDIO_PAUSED || snapshot->decks[i].state == RADIOS_AUDIO_LOADING) continue;
         if (preferred_deck < 0 && candidate->running) continue;
         target = candidate;
     }
+    g_free(snapshot);
     if (!target) { g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY, "Playlist için uygun bağlı player bulunamadı."); return FALSE; }
     player_assignment_invalidate(target);
     player_rotation_clear(target, NULL);
@@ -6585,13 +6598,13 @@ static void player_audio_gain(GtkRange *range, gpointer value)
 }
 static gboolean player_output_ready(PlayerAudio *player)
 {
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(player->ctx);
-    if (!engine) return FALSE;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(engine, &snapshot); radios_audio_engine_unref(engine);
-    if (!snapshot.decks[player->deck].main_routed) return FALSE;
-    for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
-        if (snapshot.mixer.channels[channel].source_deck == (gint)player->deck) return TRUE;
-    return FALSE;
+    RadioSAudioSnapshot *snapshot = player_engine_snapshot_new(player->ctx);
+    if (!snapshot) return FALSE;
+    gboolean ready = FALSE;
+    if (snapshot->decks[player->deck].main_routed)
+        for (guint channel = 0; !ready && channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
+            ready = snapshot->mixer.channels[channel].source_deck == (gint)player->deck;
+    g_free(snapshot); return ready;
 }
 static void player_output_weak(GtkWidget **slot, GtkWidget *widget)
 {
@@ -6646,9 +6659,8 @@ static GtkWidget *player_output_strip(PlayerAudio *player, GtkWidget *channels, 
 static void player_output_refresh(PlayerAudio *player)
 {
     if (!player->output_channel || !player->main) return;
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(player->ctx);
-    if (!engine) return;
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(engine, &snapshot); radios_audio_engine_unref(engine);
+    RadioSAudioSnapshot *snapshot = player_engine_snapshot_new(player->ctx);
+    if (!snapshot) return;
     GString *signature = g_string_new(NULL); gint selected = -1;
     gchar *labels[RADIOS_AUDIO_MIXER_CHANNELS] = {0};
     gboolean retry = g_get_monotonic_time() >= player->output_lookup_after;
@@ -6656,14 +6668,14 @@ static void player_output_refresh(PlayerAudio *player)
     for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) {
         GtkWidget *strip = player_output_strip(player, channels, channel, retry);
         const gchar *title = strip ? g_object_get_data(G_OBJECT(strip), "dj-channel-name") : NULL;
-        gint source = snapshot.mixer.channels[channel].source_deck;
+        gint source = snapshot->mixer.channels[channel].source_deck;
         labels[channel] = title ? g_strdup_printf("%02u · %s", channel + 1, title) : g_strdup_printf("Kanal %u", channel + 1);
         g_string_append_printf(signature, "%d:%s;", source, labels[channel]);
-        if (selected < 0 && snapshot.decks[player->deck].main_routed && source == (gint)player->deck) selected = (gint)channel;
+        if (selected < 0 && snapshot->decks[player->deck].main_routed && source == (gint)player->deck) selected = (gint)channel;
     }
-    g_string_append_printf(signature, "route:%d:selection:%d", snapshot.decks[player->deck].main_routed, selected);
+    g_string_append_printf(signature, "route:%d:selection:%d", snapshot->decks[player->deck].main_routed, selected);
     gboolean previous = player->controls_updating; player->controls_updating = TRUE;
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->main), snapshot.decks[player->deck].main_routed);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(player->main), snapshot->decks[player->deck].main_routed);
     if (g_strcmp0(player->output_signature, signature->str)) {
         gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(player->output_channel));
         gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(player->output_channel), "-1", "Bağlantı yok");
@@ -6677,7 +6689,7 @@ static void player_output_refresh(PlayerAudio *player)
     player->controls_updating = previous;
     gtk_widget_set_sensitive(player->output_channel, radios_audio_ui_mixer_ready(player->ctx) && !player_managed_context(player) && !player->lookup_pending && !player_weekly_armed(player));
     for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel) g_free(labels[channel]);
-    g_string_free(signature, TRUE);
+    g_string_free(signature, TRUE); g_free(snapshot);
 }
 static void player_output_changed(GtkComboBox *combo, gpointer value)
 {
@@ -6686,16 +6698,18 @@ static void player_output_changed(GtkComboBox *combo, gpointer value)
     gint selected = (gint)g_ascii_strtoll(id, NULL, 10); GError *error = NULL;
     RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(player->ctx);
     if (!engine) { player_output_refresh(player); return; }
-    RadioSAudioSnapshot snapshot; radios_audio_engine_snapshot(engine, &snapshot);
+    RadioSAudioSnapshot *snapshot = g_new0(RadioSAudioSnapshot, 1); radios_audio_engine_snapshot(engine, snapshot);
     RadioSAudioRunSnapshot run; radios_audio_engine_runner_snapshot(engine, &run);
     RadioSAudioRunSnapshot own; radios_audio_engine_player_runner_snapshot(engine, player->deck, &own);
     gboolean blocked = selected < -1 || selected >= (gint)RADIOS_AUDIO_MIXER_CHANNELS || run.owned[player->deck] || own.owned[player->deck] ||
         player->lookup_pending || player->rotation_starting || player->rotation_loading || player_weekly_armed(player);
-    gint previous_source = selected >= 0 ? snapshot.mixer.channels[selected].source_deck : -1;
+    gint previous_source = selected >= 0 && selected < (gint)RADIOS_AUDIO_MIXER_CHANNELS ?
+        snapshot->mixer.channels[selected].source_deck : -1;
     if (previous_source == -2) blocked = TRUE; /* Keep the studio microphone strip. */
-    if (previous_source >= 0 && previous_source != (gint)player->deck) {
+    if (previous_source >= (gint)RADIOS_AUDIO_NORMAL_DECKS) blocked = TRUE; /* Not a player deck: never index past the runner tables. */
+    if (previous_source >= 0 && previous_source < (gint)RADIOS_AUDIO_NORMAL_DECKS && previous_source != (gint)player->deck) {
         RadioSAudioRunSnapshot other; radios_audio_engine_player_runner_snapshot(engine, (guint)previous_source, &other);
-        RadioSAudioState state = snapshot.decks[previous_source].state;
+        RadioSAudioState state = snapshot->decks[previous_source].state;
         blocked |= run.owned[previous_source] || other.owned[previous_source] || state == RADIOS_AUDIO_PLAYING || state == RADIOS_AUDIO_PAUSED || state == RADIOS_AUDIO_LOADING;
         gchar *key = g_strdup_printf("radios-deck-owner-%d", previous_source);
         GtkWidget *other_card = g_object_get_data(G_OBJECT(player->ctx->parent), key); g_free(key);
@@ -6707,14 +6721,15 @@ static void player_output_changed(GtkComboBox *combo, gpointer value)
     if (blocked) {
         g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_BUSY, "Bu kanal veya rotasyon kullanımda; mevcut kaynak korunuyor.");
     } else {
-        RadioSAudioMixerConfig config = snapshot.mixer;
+        RadioSAudioMixerConfig config = snapshot->mixer;
         for (guint channel = 0; channel < RADIOS_AUDIO_MIXER_CHANNELS; ++channel)
             if (config.channels[channel].source_deck == (gint)player->deck) config.channels[channel].source_deck = -1;
         if (selected >= 0) config.channels[selected].source_deck = (gint)player->deck;
         if (radios_audio_ui_set_mixer(player->ctx, &config, &error) &&
             !radios_audio_ui_set_deck_main(player->ctx, player->deck, selected >= 0, &error))
-            radios_audio_ui_set_mixer(player->ctx, &snapshot.mixer, NULL);
+            radios_audio_ui_set_mixer(player->ctx, &snapshot->mixer, NULL);
     }
+    g_free(snapshot);
     g_clear_pointer(&player->output_signature, g_free); player_output_refresh(player); player_audio_error(player, error);
 }
 static void player_audio_main(GtkToggleButton *widget, gpointer value)
@@ -7605,17 +7620,15 @@ gboolean radios_broadcast_header_snapshot(RadioSViewContext *ctx, RadioSBroadcas
     RadioSPlayoutSnapshot initial = {0};
     if (radios_playout_ui_get_snapshot(ctx, &initial))
         out->waiting = initial.state == RADIOS_PLAYOUT_WAITING || initial.state == RADIOS_PLAYOUT_MANUAL_WAIT;
-    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
-    RadioSAudioSnapshot raw = {0};
-    if (engine) { radios_audio_engine_snapshot(engine, &raw); radios_audio_engine_unref(engine); }
-    gboolean main_ready = engine && raw.buses[RADIOS_AUDIO_BUS_MAIN].ready && raw.buses[RADIOS_AUDIO_BUS_MAIN].gate;
+    RadioSAudioSnapshot *raw = player_engine_snapshot_new(ctx);
+    gboolean main_ready = raw && raw->buses[RADIOS_AUDIO_BUS_MAIN].ready && raw->buses[RADIOS_AUDIO_BUS_MAIN].gate;
     gint selected = -1; gboolean selected_managed = FALSE;
     RadioSViewContext *selected_source = ctx;
     for (guint deck = 0; main_ready && deck < RADIOS_AUDIO_NORMAL_DECKS; ++deck) {
-        const RadioSAudioDeckSnapshot *real = &raw.decks[deck];
+        const RadioSAudioDeckSnapshot *real = &raw->decks[deck];
         gboolean mapped = FALSE;
-        for (guint channel = 0; channel < G_N_ELEMENTS(raw.mixer.channels); ++channel)
-            mapped |= raw.mixer.channels[channel].source_deck == (gint)deck;
+        for (guint channel = 0; channel < G_N_ELEMENTS(raw->mixer.channels); ++channel)
+            mapped |= raw->mixer.channels[channel].source_deck == (gint)deck;
         gboolean paused = real->state == RADIOS_AUDIO_PAUSED;
         if (!mapped || !real->main_routed || (real->state != RADIOS_AUDIO_PLAYING && !paused)) continue;
         RadioSAudioUiSnapshot audio = {0};
@@ -7671,6 +7684,7 @@ gboolean radios_broadcast_header_snapshot(RadioSViewContext *ctx, RadioSBroadcas
                 broadcast_header_card_playlist(player, out);
         }
     }
+    g_free(raw);
     /* App-owned scope runners keep their accepted queue when cards are hidden
      * or another editor is selected. Observe actual owners in stable order. */
     if (ctx->players && !out->current && !out->programme_active) {

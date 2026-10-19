@@ -1,7 +1,8 @@
 /* GTK node/geometry adaptation. The design's 30 CSS sources are compiled first.
  * Layout lives in C; the palette and sizes below follow header-layout.css,
  * broadcast-black.css, task-views.css and readability.css. */
-.radios { font-family: "Inter Variable", "Inter", sans-serif; font-size: 14px; }
+.radios { font-family: "Inter Variable Text", "Inter Variable", "Inter", "Segoe UI Symbol", "Segoe UI Emoji",
+    "Segoe UI", "Nirmala UI", sans-serif; font-size: 14px; }
 window.radios { background-color: #000; color: #b5b5b5; }
 .radios label { color: inherit; }
 .radios button { background-image: none; box-shadow: none; text-shadow: none;
