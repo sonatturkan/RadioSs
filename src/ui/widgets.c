@@ -1,4 +1,6 @@
 #include "radios/widgets.h"
+#include "radios/platform.h"
+#include <string.h>
 
 static void
 add_classes(GtkWidget *widget, const gchar *names)
@@ -561,4 +563,80 @@ radios_ui_channel_picker_set_changed(GtkWidget *widget, void (*changed)(GtkWidge
         return;
     picker->changed = changed;
     picker->user = user;
+}
+
+PangoFontDescription *
+radios_ui_drawn_font_new(gdouble pixel_size, PangoWeight weight)
+{
+    PangoFontDescription *font = pango_font_description_new();
+    pango_font_description_set_family(font, RADIOS_UI_DRAWN_FONT_FAMILIES);
+    pango_font_description_set_weight(font, weight);
+    pango_font_description_set_absolute_size(font, MAX(1.0, pixel_size) * PANGO_SCALE);
+    return font;
+}
+
+gdouble
+radios_ui_cairo_show_text(cairo_t *cr, const gchar *text, gdouble pixel_size, PangoWeight weight, gboolean measure_only)
+{
+    g_return_val_if_fail(cr != NULL, 0.0);
+    /* A context of its own: pango_cairo_update_context() below must not
+     * change the shared context of a widget. */
+    PangoLayout *layout = pango_cairo_create_layout(cr);
+    PangoFontDescription *font = radios_ui_drawn_font_new(pixel_size, weight);
+    pango_layout_set_font_description(layout, font);
+    pango_font_description_free(font);
+    pango_layout_set_text(layout, text != NULL ? text : "", -1);
+    PangoRectangle logical;
+    pango_layout_get_extents(layout, NULL, &logical);
+    gdouble width = (gdouble)logical.width / PANGO_SCALE;
+    if (!measure_only && cairo_has_current_point(cr)) {
+        gdouble x = 0.0, y = 0.0;
+        cairo_get_current_point(cr, &x, &y);
+        cairo_move_to(cr, x, y - (gdouble)pango_layout_get_baseline(layout) / PANGO_SCALE);
+        pango_cairo_show_layout(cr, layout);
+        cairo_move_to(cr, x + width, y);
+    }
+    g_object_unref(layout);
+    return width;
+}
+
+void
+radios_ui_file_filter_add_audio(GtkFileFilter *filter)
+{
+    static const gchar *const patterns[] = { "*.wav", "*.mp3", "*.flac", "*.ogg", "*.opus", "*.m4a", "*.aac", NULL };
+    g_return_if_fail(GTK_IS_FILE_FILTER(filter));
+    for (guint i = 0; patterns[i] != NULL; ++i)
+        gtk_file_filter_add_pattern(filter, patterns[i]);
+}
+
+void
+radios_ui_file_chooser_default_folder(GtkFileChooser *chooser, RadioSViewContext *ctx)
+{
+    g_return_if_fail(GTK_IS_FILE_CHOOSER(chooser));
+    if (ctx != NULL && ctx->config != NULL && ctx->config->project_root != NULL)
+        gtk_file_chooser_set_current_folder(chooser, ctx->config->project_root);
+}
+
+gchar *
+radios_ui_file_name_suggestion(const gchar *name, const gchar *fallback)
+{
+    gchar *valid = g_utf8_make_valid(name != NULL ? name : "", -1);
+    GString *result = g_string_new(NULL);
+    for (const gchar *letter = valid; *letter != '\0'; letter = g_utf8_next_char(letter)) {
+        gunichar c = g_utf8_get_char(letter);
+        if (c < 0x20 || c == 0x7f || (c < 0x80 && strchr("\\/:*?\"<>|", (gint)c) != NULL))
+            g_string_append_c(result, '_');
+        else
+            g_string_append_unichar(result, c);
+    }
+    g_free(valid);
+    while (result->len > 0 && (result->str[result->len - 1] == '.' || result->str[result->len - 1] == ' '))
+        g_string_truncate(result, result->len - 1);
+    if (result->len > 0 && !radios_path_component_valid(result->str))
+        g_string_prepend_c(result, '_');
+    if (result->len == 0 || !radios_path_component_valid(result->str)) {
+        g_string_free(result, TRUE);
+        return g_strdup(fallback);
+    }
+    return g_string_free(result, FALSE);
 }

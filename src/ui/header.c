@@ -215,9 +215,8 @@ support_response(GtkDialog *dialog, gint response, gpointer data)
         GTK_FILE_CHOOSER_ACTION_SAVE, "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL);
     gtk_window_set_destroy_with_parent(GTK_WINDOW(state->chooser), TRUE);
     gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(state->chooser), TRUE);
+    radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(state->chooser), state->ctx);
     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(state->chooser), "RadioS-bildirim-taslagi.txt");
-    if (state->ctx->config != NULL && state->ctx->config->project_root != NULL)
-        gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(state->chooser), state->ctx->config->project_root);
     g_signal_connect(state->chooser, "response", G_CALLBACK(support_export_response), state);
     g_signal_connect(state->chooser, "destroy", G_CALLBACK(support_chooser_destroyed), state);
     gtk_widget_show(state->chooser);

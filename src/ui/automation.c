@@ -310,11 +310,15 @@ automation_export_response(GtkDialog *dialog, gint response, gpointer data)
     }
     gtk_widget_destroy(GTK_WIDGET(dialog));
 }
-static void automation_export_for_owner(GtkDialog *dialog, gint response, gpointer data)
+/* The save dialogs belong to the main window (destroy-with-parent) but must
+ * not outlive the rules page whose view their response handler uses: closing
+ * the page closes an open dialog.  Without this a page rebuilt while the
+ * dialog was open left the handler with a freed view, or (when the handler
+ * was tied to the page) a dialog whose buttons no longer closed it. */
+static void
+automation_dialog_follow_page(AutomationView *view, GtkWidget *dialog)
 {
-    AutomationView *view = g_object_get_data(G_OBJECT(data), "automation-view");
-    if (!view || view->disposed) gtk_widget_destroy(GTK_WIDGET(dialog));
-    else automation_export_response(dialog, response, view);
+    g_signal_connect_object(view->widget, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
 }
 
 static void
@@ -381,9 +385,11 @@ automation_export(GtkButton *button, gpointer data)
     gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
     gtk_widget_set_name(dialog, "automation-export-dialog");
     gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE);
+    radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(dialog), view->ctx);
     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "radio-s-rules.json");
     g_object_set_data_full(G_OBJECT(dialog), "automation-export-data", g_string_free(json, FALSE), g_free);
     g_signal_connect(dialog, "response", G_CALLBACK(automation_export_response), view);
+    automation_dialog_follow_page(view, dialog);
     gtk_widget_show(dialog);
 }
 
@@ -421,6 +427,8 @@ automation_calendar(GtkButton *button, gpointer data)
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), calendar, TRUE, TRUE, 20);
     g_object_set_data(G_OBJECT(dialog), "automation-calendar", calendar);
     g_signal_connect(dialog, "response", G_CALLBACK(automation_calendar_response), automation_control(view, "planDate"));
+    /* The response writes into the page's date entry. */
+    automation_dialog_follow_page(view, dialog);
     gtk_widget_show_all(dialog);
 }
 
@@ -1064,8 +1072,8 @@ automation_preview(GtkButton *button, gpointer data)
 }
 static void automation_preview_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNode *result, const GError *error, gpointer data)
 {
-    (void)ctx; AutomationView *view = g_object_get_data(G_OBJECT(owner), "automation-view");
-    if (view->disposed || GPOINTER_TO_UINT(data) != view->preview_generation) return;
+    (void)ctx; AutomationView *view = owner ? g_object_get_data(G_OBJECT(owner), "automation-view") : NULL;
+    if (!view || view->disposed || GPOINTER_TO_UINT(data) != view->preview_generation) return;
     view->preview_busy = FALSE; gtk_widget_set_sensitive(view->preview_button, TRUE);
     if (error || !result || !JSON_NODE_HOLDS_OBJECT(result)) { automation_notice(view, error ? error->message : "Önizleme sonucu geçersiz."); return; }
     view->preview = json_node_copy(result); JsonObject *plan = json_node_get_object(result); JsonArray *entries = json_object_get_array_member(plan, "entries");
@@ -1119,11 +1127,13 @@ static void automation_preview_download(GtkButton *button, gpointer data)
     GtkWidget *dialog = gtk_file_chooser_dialog_new("Planı indir", view->ctx->parent, GTK_FILE_CHOOSER_ACTION_SAVE,
         "Vazgeç", GTK_RESPONSE_CANCEL, "Kaydet", GTK_RESPONSE_ACCEPT, NULL);
     gtk_window_set_destroy_with_parent(GTK_WINDOW(dialog), TRUE);
-    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE); gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "RadioS-plan.json");
+    gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog), TRUE); radios_ui_file_chooser_default_folder(GTK_FILE_CHOOSER(dialog), view->ctx);
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), "RadioS-plan.json");
     JsonGenerator *generator = json_generator_new(); json_generator_set_root(generator, view->preview); json_generator_set_pretty(generator, TRUE);
     g_object_set_data_full(G_OBJECT(dialog), "automation-export-data", json_generator_to_data(generator, NULL), g_free); g_object_unref(generator);
     g_object_set_data(G_OBJECT(dialog), "automation-plan-export", GINT_TO_POINTER(1));
-    g_signal_connect_object(dialog, "response", G_CALLBACK(automation_export_for_owner), view->widget, 0); gtk_widget_show(dialog);
+    g_signal_connect(dialog, "response", G_CALLBACK(automation_export_response), view);
+    automation_dialog_follow_page(view, dialog); gtk_widget_show(dialog);
 }
 static void automation_live_action(GtkButton *button, gpointer data)
 {
