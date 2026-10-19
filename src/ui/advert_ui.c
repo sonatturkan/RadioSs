@@ -31,6 +31,10 @@ struct RadioSAdvertController {
     guint timer;
     guint64 intent, playout_intent;
     gboolean closed, pending;
+    /* Reused GTK-thread scratch buffers: an engine snapshot is ~270 KiB and
+     * the receipt ring ~94 KiB, too large for the stack of a 50 ms poll. */
+    RadioSAudioSnapshot *audio;
+    RadioSAudioRunReceipt *receipts;
 };
 typedef struct {
     RadioSAdvertController *controller;
@@ -73,8 +77,13 @@ static JsonObject *copy_object(JsonObject *o)
 {
     JsonNode *node = json_node_new(JSON_NODE_OBJECT); json_node_set_object(node, o);
     gchar *text = json_to_string(node, FALSE); json_node_free(node);
-    JsonParser *parser = json_parser_new(); json_parser_load_from_data(parser, text, -1, NULL); g_free(text);
-    JsonObject *result = json_object_ref(json_node_get_object(json_parser_get_root(parser))); g_object_unref(parser); return result;
+    JsonParser *parser = json_parser_new();
+    gboolean parsed = json_parser_load_from_data(parser, text, -1, NULL); g_free(text);
+    JsonNode *root = parsed ? json_parser_get_root(parser) : NULL;
+    /* A deep copy of a serialised object cannot fail in practice; never
+     * dereference a missing root if it ever does. */
+    JsonObject *result = root && JSON_NODE_HOLDS_OBJECT(root) ? json_object_ref(json_node_get_object(root)) : json_object_ref(o);
+    g_object_unref(parser); return result;
 }
 static void owner_clear(RadioSAdvertController *p)
 {
@@ -88,9 +97,18 @@ static void job_free(gpointer value)
 }
 static gchar *stamp(gint64 utc)
 {
-    GDateTime *date = g_date_time_new_from_unix_utc(utc / G_USEC_PER_SEC);
+    /* Floor division keeps pre-epoch values well formed; an out-of-range
+     * engine value falls back to the current UTC time instead of crashing. */
+    gint64 seconds = utc / G_USEC_PER_SEC, micros = utc % G_USEC_PER_SEC;
+    if (micros < 0) { micros += G_USEC_PER_SEC; --seconds; }
+    GDateTime *date = g_date_time_new_from_unix_utc(seconds);
+    if (!date) {
+        gint64 now = g_get_real_time();
+        seconds = now / G_USEC_PER_SEC; micros = now % G_USEC_PER_SEC;
+        date = g_date_time_new_from_unix_utc(seconds);
+    }
     gchar *whole = g_date_time_format(date, "%Y-%m-%dT%H:%M:%S"); g_date_time_unref(date);
-    gchar *result = g_strdup_printf("%s.%06dZ", whole, (gint)(utc % G_USEC_PER_SEC)); g_free(whole); return result;
+    gchar *result = g_strdup_printf("%s.%06dZ", whole, (gint)micros); g_free(whole); return result;
 }
 static void event_add(RadioSAdvertController *p, AdvertRun *run, JsonObject *entry,
     const RadioSAudioRunReceipt *receipt, const gchar *state, const gchar *reason, gint64 utc)
@@ -104,8 +122,8 @@ static void event_add(RadioSAdvertController *p, AdvertRun *run, JsonObject *ent
     json_object_set_int_member(event, "consumed_frames", (gint64)(receipt->position_frames > cue_in ? receipt->position_frames - cue_in : 0));
     json_object_set_string_member(event, "occurred_at", time); g_free(time);
     json_object_set_string_member(event, "reason", reason);
-    RadioSAudioSnapshot audio; radios_audio_engine_snapshot(p->engine, &audio);
-    json_object_set_string_member(event, "main_sink", audio.buses[RADIOS_AUDIO_BUS_MAIN].device);
+    radios_audio_engine_snapshot(p->engine, p->audio);
+    json_object_set_string_member(event, "main_sink", p->audio->buses[RADIOS_AUDIO_BUS_MAIN].device);
     json_array_add_object_element(run->pending, event);
 }
 static void capture(RadioSAdvertController *p)
@@ -117,8 +135,8 @@ static void capture(RadioSAdvertController *p)
      * state snapshot after reading an older, nonterminal receipt array. */
     RadioSAudioRunSnapshot actual; radios_audio_engine_runner_snapshot(p->engine, &actual);
     JsonArray *entries = array(run->manifest, "entries");
-    RadioSAudioRunReceipt receipts[RADIOS_AUDIO_RUN_MAX_RECEIPTS];
-    guint count = radios_audio_engine_runner_receipts(p->engine, receipts, G_N_ELEMENTS(receipts));
+    RadioSAudioRunReceipt *receipts = p->receipts;
+    guint count = radios_audio_engine_runner_receipts(p->engine, receipts, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
     gboolean current_observed = FALSE; guint64 last_occurrence = 0;
     for (guint i = 0; entries && i < count; ++i) {
         RadioSAudioRunReceipt *receipt = &receipts[i];
@@ -341,8 +359,13 @@ gboolean radios_advert_ui_pending(RadioSViewContext *ctx)
 RadioSAdvertController *radios_advert_ui_new(RadioSViewContext *ctx)
 {
     if (!ctx || !ctx->playout) return NULL;
+    /* Without the C audio engine every snapshot would read garbage; callers
+     * treat a missing controller as "Reklam yürütücüsü hazır değil". */
+    RadioSAudioEngine *engine = radios_audio_ui_engine_acquire(ctx);
+    if (!engine) return NULL;
     RadioSAdvertController *p = g_new0(RadioSAdvertController, 1); p->references = 1; p->ctx = ctx;
-    p->engine = radios_audio_ui_engine_acquire(ctx); p->runs = g_ptr_array_new_with_free_func(run_unref);
+    p->engine = engine; p->runs = g_ptr_array_new_with_free_func(run_unref);
+    p->audio = g_new0(RadioSAudioSnapshot, 1); p->receipts = g_new0(RadioSAudioRunReceipt, RADIOS_AUDIO_RUN_MAX_RECEIPTS);
     g_weak_ref_init(&p->owner, NULL); p->timer = g_timeout_add(50, poll, p); return p;
 }
 void radios_advert_ui_close(RadioSAdvertController *p)
@@ -376,5 +399,6 @@ void radios_advert_ui_close(RadioSAdvertController *p)
 void radios_advert_ui_unref(RadioSAdvertController *p)
 {
     if (!p || !g_atomic_int_dec_and_test(&p->references)) return;
-    radios_advert_ui_close(p); radios_audio_engine_unref(p->engine); g_ptr_array_unref(p->runs); g_weak_ref_clear(&p->owner); g_free(p);
+    radios_advert_ui_close(p); radios_audio_engine_unref(p->engine); g_ptr_array_unref(p->runs); g_weak_ref_clear(&p->owner);
+    g_free(p->audio); g_free(p->receipts); g_free(p);
 }

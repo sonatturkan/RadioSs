@@ -100,8 +100,11 @@ static void apply(RadioSViewContext *ctx, GtkWidget *owner, JsonObject *config, 
         gtk_entry_set_text(GTK_ENTRY(profile->fields[0]), radios_json_string(config, "filename", ""));
     } else {
         gtk_entry_set_text(GTK_ENTRY(profile->fields[0]), radios_json_string(config, "title", ""));
-        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(profile->fields[1]), json_object_get_boolean_member(config, "automatic"));
-        radios_broadcast_ui_metadata_automatic(profile->panel->ctx, json_object_get_boolean_member(config, "automatic"));
+        /* A profile stored before the flag existed has no "automatic" member;
+         * read it as off instead of raising a GLib critical. */
+        gboolean automatic = json_object_get_boolean_member_with_default(config, "automatic", FALSE);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(profile->fields[1]), automatic);
+        radios_broadcast_ui_metadata_automatic(profile->panel->ctx, automatic);
     }
     profile->loading = FALSE;
 }
