@@ -1191,10 +1191,7 @@ pad_editor_open(GtkButton *button, gpointer data)
     pack(body, fields, FALSE);
     GtkFileFilter *filter = gtk_file_filter_new();
     gtk_file_filter_set_name(filter, "Ses dosyaları");
-    gtk_file_filter_add_mime_type(filter, "audio/*");
-    gtk_file_filter_add_pattern(filter, "*.wav");
-    gtk_file_filter_add_pattern(filter, "*.mp3");
-    gtk_file_filter_add_pattern(filter, "*.flac");
+    radios_ui_file_filter_add_audio(filter);
     gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(editor->file), filter);
     if (pad->file != NULL)
         gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(editor->file), pad->file);
@@ -1945,8 +1942,9 @@ void radios_dj_set_scale(GtkWidget *page, guint mixer_width, guint mixer_height,
         g_list_free(children);
     }
 }
-/* Source menu entries beyond the players: "in:<pulse source>" for a sound-card
- * input, "net:<url>" for a saved network source and "net-new" for the small
+/* Source menu entries beyond the players: "in:<capture endpoint id>" for a
+ * sound-card input (a WASAPI endpoint id, "<render endpoint id>.monitor" for
+ * the loopback of an output), "net:<url>" for a saved network source and "net-new" for the small
  * window that saves a new one. These select a live channel input; the strip's
  * player assignment is then -1 (R5.1). */
 static void source_select(ChannelUI *ui, const gchar *id, const gchar *fallback_text)
@@ -2060,6 +2058,9 @@ static void network_source_dialog_open(ChannelUI *ui)
     pack(fields, radios_ui_label("URL", "dj-small-label"), FALSE); pack(fields, editor->url, FALSE);
     pack(fields, editor->error, FALSE); pack(body, fields, FALSE);
     g_object_set_data_full(G_OBJECT(dialog), "dj-network-source-editor", editor, g_free);
+    /* The editor points at the strip: a strip removed while the dialog is
+     * open (channel sync, page teardown) takes the dialog with it. */
+    g_signal_connect_object(ui->widget, "destroy", G_CALLBACK(gtk_widget_destroy), dialog, G_CONNECT_SWAPPED);
     g_signal_connect(dialog, "response", G_CALLBACK(network_source_response), editor);
     gtk_widget_show_all(dialog); gtk_widget_grab_focus(editor->name);
 }

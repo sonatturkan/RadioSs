@@ -153,9 +153,16 @@ static gboolean
 knob_motion(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
     KnobState *state = data;
-    (void)widget;
     if (!state->dragging)
         return FALSE;
+    /* The release can be lost (Alt+Tab, a focus-stealing dialog or a lost
+     * mouse capture during the drag): without the button the drag is over. */
+    if (!(event->state & GDK_BUTTON1_MASK)) {
+        state->dragging = FALSE;
+        if (gtk_widget_has_grab(widget))
+            gtk_grab_remove(widget);
+        return FALSE;
+    }
     knob_set(state, state->drag_value + (state->drag_y - event->y_root) *
              gtk_adjustment_get_step_increment(state->adjustment));
     return TRUE;
@@ -309,16 +316,15 @@ meter_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
                 cairo_rectangle(cr, i * (cell + 2), channel == 0 ? 2 : height - 8, cell, 5);
                 cairo_fill(cr);
             }
-        cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-        cairo_set_font_size(cr, 9);
+        /* Pango text with the registered Inter face: the cairo toy API would
+         * pick one GDI face (Arial) on Windows with no glyph fallback. */
         for (guint i = 0; i < G_N_ELEMENTS(scale); ++i) {
-            cairo_text_extents_t extents;
             double x = i * width / (G_N_ELEMENTS(scale) - 1);
             rgb(cr, i == 8 ? 0x97616b : (i == 7 ? 0x9b9060 : 0x72818f));
-            cairo_text_extents(cr, scale[i], &extents);
-            x = CLAMP(x - extents.width / 2, 0, width - extents.width);
+            gdouble text_width = radios_ui_cairo_show_text(cr, scale[i], 9, PANGO_WEIGHT_NORMAL, TRUE);
+            x = CLAMP(x - text_width / 2, 0, MAX(0, width - text_width));
             cairo_move_to(cr, x, height / 2 + 3);
-            cairo_show_text(cr, scale[i]);
+            radios_ui_cairo_show_text(cr, scale[i], 9, PANGO_WEIGHT_NORMAL, FALSE);
         }
     }
     if (state->clipped) {
@@ -364,6 +370,7 @@ clock_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     GTimeZone *zone = radios_time_zone_new(identifier ? identifier : "UTC");
     if (!zone) zone = g_time_zone_new_utc();
     GDateTime *now = g_date_time_new_now(zone); g_time_zone_unref(zone);
+    if (!now) return FALSE;
     double width = gtk_widget_get_allocated_width(widget);
     double height = gtk_widget_get_allocated_height(widget);
     double size = MIN(width, height);
@@ -392,14 +399,11 @@ clock_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
     }
     const gchar *numbers[] = { "12", "3", "6", "9" };
     const double positions[][2] = { { 0, -31 }, { 34, 4 }, { 0, 39 }, { -34, 4 } };
-    cairo_select_font_face(cr, "sans-serif", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    cairo_set_font_size(cr, 9);
     rgb(cr, 0x929aa5);
     for (guint i = 0; i < G_N_ELEMENTS(numbers); ++i) {
-        cairo_text_extents_t extents;
-        cairo_text_extents(cr, numbers[i], &extents);
-        cairo_move_to(cr, positions[i][0] - extents.width / 2, positions[i][1]);
-        cairo_show_text(cr, numbers[i]);
+        gdouble text_width = radios_ui_cairo_show_text(cr, numbers[i], 9, PANGO_WEIGHT_NORMAL, TRUE);
+        cairo_move_to(cr, positions[i][0] - text_width / 2, positions[i][1]);
+        radios_ui_cairo_show_text(cr, numbers[i], 9, PANGO_WEIGHT_NORMAL, FALSE);
     }
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
     for (guint i = 0; i < G_N_ELEMENTS(radii); ++i) {

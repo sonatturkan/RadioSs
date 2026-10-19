@@ -29,6 +29,13 @@ enum { ACTION_PLAY = 1 };
 static HeaderNavigation *navigation_get(GtkWidget *owner)
 { return owner ? g_object_get_data(G_OBJECT(owner), "header-navigation-state") : NULL; }
 static gboolean navigation_tick(gpointer data);
+/* A row of a service list: NULL for an element that is not an object (a
+ * malformed reply must not reach json-glib's precondition checks). */
+static JsonObject *record_object(JsonArray *records, guint index)
+{
+    JsonNode *node = json_array_get_element(records, index);
+    return node && JSON_NODE_HOLDS_OBJECT(node) ? json_node_get_object(node) : NULL;
+}
 
 /* The scope the header Play drives when no broadcast queue can play: the
  * first player cluster, else the first player, that has an assigned weekly
@@ -202,8 +209,8 @@ static void programmes_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNo
     RadioSAutomationScope scope; gchar assigned[37]; schema_scope(state, &scope, assigned);
     GString *signature = g_string_new(assigned);
     for (guint i = 0; i < json_array_get_length(records); ++i) {
-        JsonObject *row = json_array_get_object_element(records, i);
-        g_string_append_printf(signature, "|%s=%s", json_object_get_string_member(row, "_id"), json_object_get_string_member(row, "name"));
+        JsonObject *row = record_object(records, i);
+        g_string_append_printf(signature, "|%s=%s", radios_json_string(row, "_id", ""), radios_json_string(row, "name", ""));
     }
     if (!g_strcmp0(signature->str, state->signature)) { g_string_free(signature, TRUE); return; }
     g_free(state->signature); state->signature = g_string_free(signature, FALSE);
@@ -212,9 +219,10 @@ static void programmes_received(RadioSViewContext *ctx, GtkWidget *owner, JsonNo
     GtkComboBoxText *combo = GTK_COMBO_BOX_TEXT(state->programme);
     gtk_combo_box_text_remove_all(combo); gtk_combo_box_text_append(combo, "", "Program akışı");
     for (guint i = 0; i < json_array_get_length(records); ++i) {
-        JsonObject *row = json_array_get_object_element(records, i);
-        const gchar *id = json_object_get_string_member(row, "_id");
-        gchar *label = g_strdup_printf("%s%s", json_object_get_string_member(row, "name"), !g_strcmp0(id, assigned) ? " · atanmış" : "");
+        JsonObject *row = record_object(records, i);
+        const gchar *id = radios_json_string(row, "_id", "");
+        if (!*id) continue;
+        gchar *label = g_strdup_printf("%s%s", radios_json_string(row, "name", id), !g_strcmp0(id, assigned) ? " · atanmış" : "");
         gtk_combo_box_text_append(combo, id, label); g_free(label);
     }
     if (!gtk_combo_box_set_active_id(GTK_COMBO_BOX(state->programme), keep)) gtk_combo_box_set_active(GTK_COMBO_BOX(state->programme), 0);
@@ -322,8 +330,9 @@ static void override_clicked(GtkButton *button, gpointer data)
     gtk_label_set_max_width_chars(GTK_LABEL(text), 60);
     GtkWidget *combo = gtk_combo_box_text_new(); gtk_widget_set_name(combo, "header-schema-choice");
     for (guint i = 0; state->records && i < json_array_get_length(state->records); ++i) {
-        JsonObject *row = json_array_get_object_element(state->records, i);
-        gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), json_object_get_string_member(row, "_id"), json_object_get_string_member(row, "name"));
+        JsonObject *row = record_object(state->records, i);
+        const gchar *id = radios_json_string(row, "_id", "");
+        if (*id) gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), id, radios_json_string(row, "name", id));
     }
     if (!state->override_id || !gtk_combo_box_set_active_id(GTK_COMBO_BOX(combo), state->override_id))
         gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
@@ -455,7 +464,8 @@ static void playlist_choose_toggled(GtkToggleButton *button, gpointer data)
         navigation_tick(state); return;
     }
     for (guint i = 0; i < json_array_get_length(choices); ++i) {
-        JsonObject *row = json_array_get_object_element(choices, i);
+        JsonObject *row = record_object(choices, i);
+        if (!row) continue;
         gboolean current = json_object_get_boolean_member_with_default(row, "current", FALSE);
         GtkWidget *item = gtk_model_button_new();
         g_object_set(item, "text", radios_json_string(row, "title", ""), "role", GTK_BUTTON_ROLE_RADIO, "active", current, NULL);
