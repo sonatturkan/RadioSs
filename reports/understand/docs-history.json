@@ -1,0 +1,67 @@
+{
+ "area": "docs-history",
+ "spec_file": "C:\\Users\\sonatturkan\\AppData\\Local\\Temp\\claude\\c--Users-sonatturkan-Desktop-radyo-projesi-kaynak-kodlar-RadioS\\0ead7b3c-7fb3-425d-a304-a7629cf56b77\\scratchpad\\specs\\docs-history.md",
+ "summary": "docs/ holds 442 files (~17.3 MB). Only 23 of them (~1.9 MB, mostly the three generated JSON files) are current documentation. The other 419 are development history: prompt-N evidence trees with screenshots, JUnit XML, .before/.after/.patch source backups and copied source files; dated multi-agent logs (kilavuz-2026-10-18-*); stage plans; audits; todo/done archives; test reports. tools/radios_package.py:36 currently ships 280 of these history files (4.7 MB) to users, and the planned Windows zip/NSIS layout would ship docs\\** as well. No code reads a history doc. The functional links to docs/ and design/ are: CMake + css_to_gtk.py (design CSS → embedded GTK CSS), islev_envanteri.py (writes and checks docs/islev-envanteri.json and docs/sdbase-openapi.json), radios_package.py COMMON_FILES/TREES plus test_packaging.py (need the README files, a docs tree and design/reference/tasarrım/index.html), the protected-directory lists (storage_locations.c, radios_database.py, desktop_transfer_package.py) and the docs/api.md reference in openapi.py. Everything else is one of nine comment pointers. The spec gives a mechanical manifest: keep 10 docs as they are; rename 13 to topic names (no NN- stage prefixes, dates or kilavuz folder); delete 33 top-level files, 10 subfolders, design/prompt3-requirements.md and 11 SDBASE audit/report docs. Before deleting, contracts are copied out of 6 history files into new docs (mimari, aktarim-paketi, gecis-dagilimi-sozlesmesi, fiziksel-kabul) plus three inserts. The section numbers and rule letters that code comments cite are kept. Checked on this machine: MSYS2 CMake/Ninja handle the non-ASCII tasarrım path, so no rename is needed. MSYS2 Python uses cp1254 by default, so css_to_gtk.py currently fails on index.html. islev_envanteri.py is blocked by the SDBASE fcntl import, and its JSON output is already stale, so it must be regenerated after the port. The spec lists every Linux statement and every piece of version-history narration in the surviving docs/READMEs by file:line, with a Linux→Windows wording table (run-radios.cmd/run-database.cmd, runtime\\python\\python.exe -E -s -B -X utf8, WASAPI/WinMM, private ACL, LockFileEx, Local\\RadioS-stop-<pid>, drive/UNC paths, no Flatpak/SDK). It also gives a Turkish outline for the new README (features, requirements, NSIS/zip install, MSYS2 build, run, data/config, service management, backup, packaging, tests, tools, layout, docs index) and for tests/README. Nothing is lost by deleting: all history stays in the untouched Linux folder.",
+ "files_touched": [
+  "README.md (full rewrite, Turkish, §7.1)",
+  "src/README.md, include/README.md, config/README.md, assets/README.md, data/README.md, cmake/README.md, database/README.md, design/README.md (edits §6.2)",
+  "tests/README.md (rewrite; owner tests area, §6.5/§7.2)",
+  "tools/README.md, packaging/README.md, tools/otomasyon_testleri/README.md, tools/yayin_akisi_724/README.md (doc-history items; Windows content from tools area)",
+  "docs/03..13-*.md, docs/otomasyon-sozluk-ve-kurallar-2026-10-15.md, docs/kilavuz-2026-10-18-4c/sozlesme.md (rename to topic names + edits)",
+  "docs/medya-arsivi.md, medya-surukle-birak.md, program-onayi-ve-haklar.md, rekordbox-ice-aktarim.md, rekordbox-usb-tracklist.md, ses-yonlendirme.md, sessizlik-korumasi.md (edits)",
+  "NEW docs/mimari.md, docs/aktarim-paketi.md, docs/gecis-dagilimi-sozlesmesi.md, docs/fiziksel-kabul.md, docs/windows-platformu.md",
+  "DELETE 33 docs/*.md, then docs/01-islev-haritasi.md, 14-nihai-kabul-ve-paketleme.md, kilavuz-2026-10-18-4c.md, kilavuz-2026-10-18-C-C8.md, kilavuz-2026-10-18-D.md, yayin-akisi-724-2026-10-17.md after extraction",
+  "DELETE docs/{effector-display,kilavuz-2026-10-18-4c,player-graphic,prompt-2,prompt-6,prompt-7,prompt-9,prompt-12,prompt-13,prompt-14}/",
+  "DELETE design/prompt3-requirements.md (design/reference/tasarrım/** kept byte-for-byte)",
+  "database/SDBASE/README.md, database/SDBASE/IMPLEMENTATION_STATUS.md (rewrite, keep file names)",
+  "database/SDBASE/docs/*.md: 25 edited, 11 deleted (audit_closure, finalization_081, gap_matrix, load_verification, local_manual_audit, maturity_080, open_source_app_verification, requirements, research, storage_maturity, verification)",
+  "docs/islev-envanteri.json, docs/sdbase-openapi.json (regenerate after port)",
+  "comment pointers: src/ui/transfer_ui.c:9, tests/test_transfer_ui.c:8, tests/run_transfer_ui.py:5, tests/test_live_step_wait_ui.c:41, tests/test_live_row_ui.c:53, tests/content_scale_test_input.h:5, tools/otomasyon_testleri/senaryolar_kume.py:3, tools/otomasyon_testleri/senaryolar_724.py:27",
+  "recommended: new .gitattributes, .gitignore additions (/runtime/, /build-*/)"
+ ],
+ "effort": "large",
+ "key_decisions": [
+  "KEEP 23 current docs; RENAME 13 (drop NN- stage prefixes, dates and the kilavuz-2026-10-18-4c folder: c-uygulama-altyapisi, native-tasarim, veri-servisi, c-veri-baglantisi, medya-kutuphanesi, ses-motoru, dj-ve-gecisler, playlist-ve-otomasyon, reklam-yonetimi, yayin-kayit-acil, yonetim-ve-guvenilirlik, otomasyon-sozluk-ve-kurallar, sema-akisi-sozlesmesi); DROP 33 top-level docs + 10 subfolders",
+  "Before deleting, extract the contracts that code or kept docs rely on: .st transfer package (kilavuz-D L34-67 + 4 facts) -> docs/aktarim-paketi.md (cited by transfer_ui.c); settings.transitions rules (a)-(h) + priority table (C-C8 L35-58) -> docs/gecis-dagilimi-sozlesmesi.md; architecture tables (01 L5-100 subset) -> docs/mimari.md; physical acceptance checklist (14 L71-88) -> docs/fiziksel-kabul.md; plus inserts into playlist-ve-otomasyon.md, tests/README.md and tools/yayin_akisi_724/README.md",
+  "Preserve the section numbering of sema-akisi-sozlesmesi.md (§1, §1b, §2..§6) and the rule letters (a)-(h) of gecis-dagilimi-sozlesmesi.md, because code comments cite 'contract §1b/§2/§5' and 'rule g'",
+  "Keep docs/islev-envanteri.json and docs/sdbase-openapi.json (written and checked by tools/islev_envanteri.py) and regenerate them after the SDBASE port (both are already stale). Keep docs/source-import-manifest.json as the provenance record linked from design/ and database/ READMEs",
+  "Keep design/reference/tasarrım/** byte-for-byte with the folder name unchanged: it is a build input (CSS → reference-css.c) and the inventory hashes every file; CMake 4.4.4/Ninja 1.13.2 handle the non-ASCII path (verified). css_to_gtk.py never emits font-family, so D5 needs no design edit",
+  "SDBASE: keep 25 engine docs (strip dated results and version narration, rewrite CLI examples as runtime\\python\\python.exe -E -s -B -X utf8 -m sdbase.cli run from database\\SDBASE\\src, Windows paths); drop 11 audit/research/report docs; keep IMPLEMENTATION_STATUS.md because radios_package.py COMMON_FILES requires it, rewritten to current scope",
+  "README.md, config/README.md, database/README.md, database/SDBASE/README.md and IMPLEMENTATION_STATUS.md are mandatory package files: never deleted or renamed",
+  "Use one Linux→Windows wording table (§6.0) in all docs: run-radios.cmd/run-database.cmd, bundled Python only, WASAPI/process loopback/WinMM, private ACL instead of 0600/0700, FlushFileBuffers+MoveFileExW, reparse points, LockFileEx, Local\\RadioS-stop-<pid>, PID+creation time, drive/UNC paths, zip/NSIS instead of tar.gz/ELF; delete all Flatpak/Freedesktop SDK text",
+  "New Turkish README: features with doc links, Windows requirements, NSIS/zip install and Windows notes, MSYS2 UCRT64 build, run options, data/config, data service, backup, packaging, tests, tools, layout, docs index, licences. No version-by-version or acceptance-count narration",
+  "Apply order: re-scan → extract → rename → delete → edit content → update pointers → regenerate inventory → verify (link/vocabulary scripts kept in the scratchpad)"
+ ],
+ "risks": [
+  "The tree is being edited concurrently (pulse_backend.c vanished, wasapi_* appeared during the analysis). File names and line numbers in kept docs can drift, so re-run the Appendix C scripts right before applying",
+  "The build is broken on Windows until css_to_gtk.py reads and writes UTF-8 (verified: MSYS2 Python defaults to cp1254 → UnicodeDecodeError on index.html). islev_envanteri.py cannot run until sdbase/storage.py drops fcntl",
+  "A CRLF checkout or any re-save of design/ or sdbase/*.py changes the inventory hashes and breaks islev_envanteri --check. A .gitattributes file is needed",
+  "README files edited by several areas (tools/config/packaging/tests); uncoordinated edits can conflict or reintroduce Linux text",
+  "Semantic mistranslation risk in ses-yonlendirme.md / ses-motoru.md / yonetim-ve-guvenilirlik.md (process loopback does not move the app; device-loss behaviour) — must follow the audio specs",
+  "Ninja fails when the build path exceeds ~250 chars (observed); docs must recommend short root/build paths",
+  "test_packaging.py symlink cases on docs/ need Developer Mode on Windows (WinError 1314 is not caught)",
+  "Stale secret config/credentials.json and per-user ini files were copied from Linux into the Windows tree (outside this area; reported only)",
+  "History could creep back if agents write work logs into docs/; rule: logs go to the scratchpad"
+ ],
+ "cross_area_dependencies": [
+  "tools area: tools/css_to_gtk.py L113,L117 read_text(encoding='utf-8'); L186,L191,L192 write_text(encoding='utf-8', newline='\\n')",
+  "tools area: tools/islev_envanteri.py sort by as_posix() (L131,L165-166), newline='\\n' (L214), UTF-8 stdout",
+  "tools area: radios_package.py keeps the docs/design/database/SDBASE/docs trees and the README files in COMMON_FILES",
+  "tools area: Windows content for tools/README.md, config/README.md and packaging/README.md, plus the README edits in otomasyon_testleri and yayin_akisi_724 (§3.3-G, §4.2 pointers)",
+  "SDBASE engine area: remove the top-level fcntl import (storage.py:17) so tools/islev_envanteri.py can import sdbase; confirm the Windows CLI invocation (-m sdbase.cli from database\\SDBASE\\src) used in the SDBASE docs; apply Windows file-name rules to .st import paths (§3.3-D)",
+  "build area: add -X utf8 to the CSS generator COMMAND (CMakeLists.txt:24); keep the design/reference/tasarrım DEPENDS paths; supply the MSYS2 pacman package list and FFmpeg minimum versions for README; optional rename of the Prompt*/Pdf* cmake files",
+  "tests area: rewrite tests/README.md (outline §7.2) including the soak-test section; update comment pointers in tests/test_transfer_ui.c, tests/run_transfer_ui.py, tests/test_live_step_wait_ui.c, tests/test_live_row_ui.c; replace tests/content_scale_test_input.h",
+  "audio areas: final backend file names (wasapi_backend.c/wasapi_device.c), device-loss/backoff behaviour and process-loopback routing semantics (minimum Windows build 20348) referenced by ses-motoru.md, ses-yonlendirme.md, yonetim-ve-guvenilirlik.md and dj-ve-gecisler.md",
+  "core area: Windows separator- and case-insensitive comparison for the protected-directory lists (storage_locations.c:86-88; matching Python lists); fix the Linux wording of the UI string in storage_locations.c:68 ('/ ile başlamalı')",
+  "integrator: .gitattributes (§5.4), .gitignore (/runtime/, /build-*/, decision on packaging/windows/cache), write docs/windows-platformu.md from DECISIONS D3-D7 and PLATFORM_FACTS",
+  "UI/runtime area: font loading text in assets/README.md and native-tasarim.md follows D5 (InterVariable.ttf via Pango, family 'Inter Variable Text')"
+ ],
+ "platform_api_needs": [
+  "None. This area adds no C or Python shim functions; it only documents platform semantics, and the docs must use exactly these definitions:",
+  "Private file/dir definition of core spec §5.2 (radios_fd_is_private / Python is_private, owned_by_current_user): owner SID = user, DACL only user, SYSTEM and Administrators, inheritance off; fails closed on FAT/exFAT. Docs wording replaces 0600/0700",
+  "Lock semantics: LockFileEx, 1 byte at offset 0x4000000000000000, same lock file names (gui.lock, server.lock …)",
+  "Graceful stop: named manual-reset event Local\\RadioS-stop-<pid> treated as SIGTERM; process identity = PID + process creation time",
+  "Python child invocation (python_child_argv): <root>\\runtime\\python\\python.exe -E -s -B -X utf8 …; never PATH python",
+  "Durable write wording: FlushFileBuffers + MoveFileExW(MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH) with bounded retry on sharing violation; no directory fsync on Windows; reparse points (symlink/junction) are refused"
+ ]
+}

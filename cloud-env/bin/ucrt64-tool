@@ -1,0 +1,8 @@
+#!/bin/bash
+# Run an MSYS2 UCRT64 tool (gcc.exe, windres.exe, ...) under Wine.
+# usage: ucrt64-tool <name> [args...]
+. /opt/radios-port/bin/wine-env.sh
+tool="$1"; shift
+export WINEPATH='Z:\opt\msys2\ucrt64\bin'
+[ -t 0 ] || [ -p /dev/stdin ] || [ -f /dev/stdin ] || exec 0</dev/null
+exec wine "/opt/msys2/ucrt64/bin/${tool}.exe" "$@"

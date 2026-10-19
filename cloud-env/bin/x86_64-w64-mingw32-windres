@@ -1,0 +1,6 @@
+#!/bin/bash
+. /opt/radios-port/bin/wine-env.sh
+export WINEPATH='Z:\opt\msys2\ucrt64\bin'
+exec 0</dev/null
+wine /opt/msys2/ucrt64/bin/windres.exe "$@" 2>&1 | sed -e 's/\r$//'
+exit ${PIPESTATUS[0]}

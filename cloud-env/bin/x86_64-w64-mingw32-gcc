@@ -1,0 +1,16 @@
+#!/bin/bash
+# MSYS2 UCRT64 GCC 16 (the exact Windows toolchain) run under Wine.
+# Rewrites Wine drive paths in dependency files so Ninja/Make see Linux paths.
+. /opt/radios-port/bin/wine-env.sh
+export WINEPATH='Z:\opt\msys2\ucrt64\bin'
+mf=""; prev=""
+for a in "$@"; do
+  [ "$prev" = "-MF" ] && mf="$a"
+  case "$a" in -MF*) [ "$a" != "-MF" ] && mf="${a#-MF}";; esac
+  prev="$a"
+done
+[ -t 0 ] || [ -p /dev/stdin ] || [ -f /dev/stdin ] || exec 0</dev/null
+wine /opt/msys2/ucrt64/bin/gcc.exe "$@" 2> >(sed -e 's/\r$//' -e 's#[Zz]:/#/#g' >&2) | sed -e 's/\r$//'
+rc=${PIPESTATUS[0]}
+if [ -n "$mf" ] && [ -f "$mf" ]; then sed -i -e 's/\r$//' -e 's#[Zz]:/#/#g' -e 's#[Zz]:\\\\#/#g' "$mf"; fi
+exit $rc

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Linux pkg-config over the MSYS2 UCRT64 sysroot (emits Linux paths that Wine-GCC accepts).
+export PKG_CONFIG_LIBDIR="${RADIOS_EXTRA_PKG_CONFIG_PATH:+$RADIOS_EXTRA_PKG_CONFIG_PATH:}/opt/msys2/ucrt64/lib/pkgconfig:/opt/msys2/ucrt64/share/pkgconfig"
+export PKG_CONFIG_SYSROOT_DIR=/opt/msys2
+unset PKG_CONFIG_PATH
+exec /usr/bin/pkg-config "$@"

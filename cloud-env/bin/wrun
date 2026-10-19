@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Run a Windows program (RadioS exe, test, embedded python) under Wine.
+
+- Uses the shared Wine prefix /opt/wineprefix and a virtual X display (:99).
+- PATH-like values with ';' separators and absolute Linux paths in arguments /
+  path-like environment variables are translated to Wine drive paths (Z:\\...),
+  so programs see real Windows paths, exactly as on the target machine.
+- Windows PATH entries are passed through WINEPATH (Wine ignores the Unix PATH).
+- stdin is redirected from NUL when it is not a usable handle (otherwise CPython
+  and CRT programs fail with "invalid handle" under Wine).
+Usage: wrun [--keep-paths] program.exe [args...]
+"""
+import os, sys, subprocess, re
+
+def to_win(p):
+    return 'Z:' + p.replace('/', '\\')
+
+def looks_unix_abs(v):
+    if not v.startswith('/') or v.startswith('//') or len(v) < 2:
+        return False
+    parts = v.split('/')
+    return len(parts) > 2 and os.path.isdir('/' + parts[1]) and parts[1] in ('home', 'opt', 'tmp', 'usr', 'var', 'root', 'etc', 'srv', 'mnt', 'run')
+
+def conv_value(v):
+    if ';' in v or (looks_unix_abs(v) and ':' in v and not v.startswith('/')):
+        return ';'.join(to_win(x) if looks_unix_abs(x) else x for x in v.split(';'))
+    if looks_unix_abs(v):
+        return to_win(v)
+    m = re.match(r'^(--?[A-Za-z0-9_-]+=)(/.*)$', v)
+    if m and looks_unix_abs(m.group(2)):
+        return m.group(1) + to_win(m.group(2))
+    return v
+
+PATHY = re.compile(r'(DIR|PATH|ROOT|FILE|HOME|PREFIX|ZONEINFO|^TMP$|^TEMP$|^TZDIR$|_COMMAND$|_CONFIG$|_LOG$|_OUT$|_IN$)', re.I)
+KEEP = {'PATH', 'LD_LIBRARY_PATH', 'WINEPREFIX', 'WINEPATH', 'WINEDLLPATH', 'WINELOADER', 'WINESERVER', 'HOME', 'PWD', 'OLDPWD', 'SHELL', 'PYTHONHOME', 'PKG_CONFIG_PATH', 'PKG_CONFIG_LIBDIR', 'XDG_RUNTIME_DIR', 'MSYS2_UCRT64'}
+
+def main():
+    args = sys.argv[1:]
+    keep = False
+    if args and args[0] == '--keep-paths':
+        keep = True; args = args[1:]
+    if not args:
+        print(__doc__); return 2
+    env = dict(os.environ)
+    env.setdefault('WINEDEBUG', '-all')
+    env['WINEPREFIX'] = '/opt/wineprefix'
+    env['WINEARCH'] = 'win64'
+    env.setdefault('DISPLAY', ':99')
+    env.setdefault('LANG', 'tr_TR.UTF-8')
+    env.setdefault('TZ', 'Europe/Istanbul')
+    if not os.path.exists('/tmp/.X11-unix/X99'):
+        subprocess.Popen(['Xvfb', ':99', '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        import time; time.sleep(1)
+    # RADIOS_WRUN_CLEAN_PATH=1: do not add the MSYS2 bin dir (proves a staged runtime is self-contained)
+    winpath = [] if os.environ.get('RADIOS_WRUN_CLEAN_PATH') == '1' else ['Z:\\opt\\msys2\\ucrt64\\bin']
+    p = os.environ.get('PATH', '')
+    if ';' in p:  # a Windows-style PATH set by CTest / caller
+        winpath = [to_win(x) if looks_unix_abs(x) else x for x in p.split(';') if x] + winpath
+        env['PATH'] = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+    extra = os.environ.get('WINEPATH')
+    if extra:
+        winpath = [to_win(x) if looks_unix_abs(x) else x for x in extra.split(';') if x] + winpath
+    env['WINEPATH'] = ';'.join(dict.fromkeys(winpath))
+    if not keep:
+        for k, v in list(env.items()):
+            if k in KEEP or k.startswith('WINE'):
+                continue
+            if PATHY.search(k) or ';' in v:
+                env[k] = conv_value(v)
+        args = [args[0]] + [conv_value(a) for a in args[1:]]
+    # Keep one persistent wineserver whose stdio is NOT our pty/pipes (otherwise
+    # readers wait forever for the daemon to close inherited descriptors).
+    ensure_session(env)
+    prog = args[0]
+    cmd = ['wine', prog] + args[1:]
+    base = os.path.basename(prog).lower()
+    console = os.environ.get('RADIOS_WRUN_CONSOLE')
+    use_pty = console == '1'
+    if use_pty and not os.isatty(1):
+        return run_pty(cmd, env)
+    # stdin: NUL unless the caller explicitly pipes data (RADIOS_WRUN_STDIN=1).
+    stdin = None if os.environ.get('RADIOS_WRUN_STDIN') == '1' else subprocess.DEVNULL
+    # Forward stdout/stderr through pipes: Wine cannot hand CPython/CRT a usable
+    # handle for O_APPEND regular files ("WinError 6 invalid handle").
+    import threading
+    p = subprocess.Popen(cmd, env=env, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def pump(src, dst):
+        for chunk in iter(lambda: src.read1(65536), b''):
+            dst.write(chunk); dst.flush()
+    ts = [threading.Thread(target=pump, args=(p.stdout, sys.stdout.buffer), daemon=True),
+          threading.Thread(target=pump, args=(p.stderr, sys.stderr.buffer), daemon=True)]
+    for t in ts: t.start()
+    rc = p.wait()
+    for t in ts: t.join(5)
+    return rc
+
+def ensure_session(env):
+    """Persistent wineserver + hidden keeper window + test-env registry keys."""
+    import time
+    fresh = subprocess.run(['wineserver', '-p'], env=env, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    alive = subprocess.run(['pgrep', '-f', 'desktop_keeper.exe'], stdout=subprocess.DEVNULL).returncode == 0
+    if fresh or not alive:
+        subprocess.Popen(['wine', '/opt/radios-port/wine-support/desktop_keeper.exe'], env=env, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        time.sleep(2)
+        subprocess.run(['wine', 'regedit', '/S', 'Z:\\opt\\radios-port\\wine-support\\test-env.reg'], env=env,
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+ANSI = re.compile(rb'\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[=>]|\r')
+
+def run_pty(cmd, env):
+    """Run with a pseudo console so Win32 console APIs work (Wine gives a process
+    a console only when its stdio is a terminal). stdout+stderr are merged."""
+    import pty, termios, select
+    master, slave = pty.openpty()
+    attrs = termios.tcgetattr(slave)
+    attrs[1] &= ~termios.ONLCR
+    attrs[3] &= ~(termios.ECHO | termios.ICANON)
+    termios.tcsetattr(slave, termios.TCSANOW, attrs)
+    import struct, fcntl
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 50, 250, 0, 0))
+    p = subprocess.Popen(cmd, env=env, stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
+    os.close(slave)
+    out = sys.stdout.buffer
+    pending = b''
+    def emit(data, final=False):
+        nonlocal pending
+        data = pending + data
+        cut = data.rfind(b'\x1b') if not final else -1
+        if cut != -1 and len(data) - cut < 32:
+            pending = data[cut:]; data = data[:cut]
+        else:
+            pending = b''
+        out.write(ANSI.sub(b'', data)); out.flush()
+    exited_at = None
+    import time
+    while True:
+        r, _, _ = select.select([master], [], [], 0.2)
+        if r:
+            try:
+                data = os.read(master, 65536)
+            except OSError:
+                break
+            if not data:
+                break
+            emit(data)
+            continue
+        if p.poll() is not None:
+            if exited_at is None:
+                exited_at = time.monotonic()
+            elif time.monotonic() - exited_at > 0.5:
+                break
+    emit(b'', final=True)
+    os.close(master)
+    return p.wait()
+
+if __name__ == '__main__':
+    sys.exit(main())
