@@ -2,8 +2,7 @@
 # Refresh the windows-port-notes branch from /opt/radios-port (no working-tree changes).
 set -e
 N=/tmp/notes-wt; rm -rf $N; mkdir -p $N
-git -C /home/user/RadioSs --work-tree=$N checkout windows-port-notes -- . 2>/dev/null || true
-git -C /home/user/RadioSs reset -q 2>/dev/null || true
+GIT_INDEX_FILE=/tmp/notes-co.index git -C /home/user/RadioSs --work-tree=$N checkout windows-port-notes -- . 2>/dev/null || true; rm -f /tmp/notes-co.index
 cp -r /opt/radios-port/specs/* $N/specs/; mkdir -p $N/reports; cp -r /opt/radios-port/reports/* $N/reports/
 cp /opt/radios-port/bin/{wrun,wine-env.sh,ucrt64-tool,x86_64-w64-mingw32-gcc,x86_64-w64-mingw32-windres,x86_64-w64-mingw32-pkg-config} $N/cloud-env/bin/
 cp /opt/radios-port/wine-support/*.c /opt/radios-port/wine-support/*.def /opt/radios-port/wine-support/test-env.reg $N/cloud-env/wine-support/

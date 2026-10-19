@@ -1,0 +1,35 @@
+{
+ "area": "c-ui-sweep-p6",
+ "summary": "Swept and ported the five owned UI files. None of them had any of the searched constructs left: no unistd/fcntl/sys includes, g_spawn/GSubprocess, g_unix_*, GDK X11/backend calls, file:// or getenv/HOME handling, '/' path assumptions, Linux wording, CSS font-family strings, or g_time_zone_* calls. weekly_programme_ui.c already uses radios_station_now(), which goes through radios_time_zone_new(). Three files needed no change and compile clean as they are: local_event_ui.c, player_workspace.c and weekly_programme_ui.c.\n\nexternal_access_ui.c (ui-platform-c §14.5): gtk_show_uri_on_window() is still called first, because the test wraps it. If it fails, the URL (already validated as HTTPS) is now opened with ShellExecuteExW using the \"open\" verb, with SEE_MASK_NOASYNC and SEE_MASK_FLAG_NO_UI. The owner HWND is taken from the parent GdkWindow (gdk_win32_window_get_handle). COM is set up around the call as the ShellExecuteEx documentation requires (CoInitializeEx apartment-threaded; RPC_E_CHANGED_MODE is tolerated). The Linux-flavoured error text 'masaüstündeki varsayılan tarayıcıyı kontrol edin' became 'Windows varsayılan tarayıcı ayarını kontrol edin'. No test checks that string.\n\nemergency.c:\n- The two cairo toy-text calls in the waveform/timeline drawing (gtk-windows-runtime §5.6; they would render as Arial with no glyph fallback on Windows) now use the shared radios_ui_cairo_show_text() at 10 px. That is cairo's default toy size, so placement stays the same.\n- The export save dialog sets its default folder through radios_ui_file_chooser_default_folder(). Behaviour is the same (project root).\n- An unused g_path_get_basename() allocation in editor_load was removed (D2b).\n- emergency_apply() now reads the stored document defensively (D2): a missing or wrongly typed 'queues', queue entry, 'values' array or 'preparation' object now counts as absent. Before, it raised json-glib criticals (fatal under G_DEBUG=fatal-warnings) and passed NULL into GTK calls.\n\nTurkish UI texts are unchanged apart from the one browser message.",
+ "files_created": [],
+ "files_modified": [
+  "/home/user/RadioSs/src/ui/emergency.c",
+  "/home/user/RadioSs/src/ui/external_access_ui.c"
+ ],
+ "files_deleted": [],
+ "api": "No public API changes. external_access_ui.c has a new private helper, static gboolean shell_open_url(GtkWindow *parent, const gchar *url), used only as the fallback when gtk_show_uri_on_window() fails. emergency.c has new private helpers em_array_member, em_object_member and em_array_element. emergency.c now calls these existing widgets.h helpers: radios_ui_cairo_show_text(cr, text, 10.0, PANGO_WEIGHT_NORMAL, FALSE) and radios_ui_file_chooser_default_folder(chooser, ctx).",
+ "verification": [
+  "Ran 'git diff HEAD --stat' on the 5 owned files at the start: no earlier changes, so the work started from the Linux originals.",
+  "Compiled all 5 owned files once each, -c only, with the ENV_CLOUD.md recipe (MSYS2 GCC 16 under Wine, -std=c11 -Wall -Wextra -Wpedantic -Werror, D7 defines, gio-windows-2.0 cflags), output to /opt/radios-port/work/c-ui-sweep-p6/. Before the edits: all 5 OK.",
+  "After the edits I recompiled emergency.c and external_access_ui.c: both OK, no warnings. local_event_ui.c, player_workspace.c and weekly_programme_ui.c were unchanged, so their baseline compile stands: all OK, no warnings.",
+  "Compile script: /opt/radios-port/work/c-ui-sweep-p6/cc.sh.",
+  "Per the fast write-only rule, I ran no tests, no probes and nothing under Wine.",
+  "Checked tests/test_external_access_ui.c: its __wrap_gtk_show_uri_on_window always returns TRUE, so the new ShellExecuteExW fallback is never reached in the test and cannot start a real browser."
+ ],
+ "industrial_fixes": [
+  "external_access_ui.c: opening the web panel no longer fails when GLib's Win32 app-info lookup cannot find an https handler. It now falls back to the Windows shell's 'open' verb on the validated HTTPS URL, which respects the user's default-browser associations. The error is reported in the panel; the system error box is suppressed so no modal dialog appears over the on-air UI.",
+  "emergency.c emergency_apply(): a stored emergency document with a missing or mistyped 'queues', queue element, 'values' array, too few values, or a missing 'preparation' object used to trigger json-glib criticals (an abort under G_DEBUG=fatal-warnings) and NULL strings passed to GTK. These cases now read as empty.",
+  "emergency.c wave_draw(): marker and placeholder labels are drawn with Pango in the application font instead of cairo's toy API (which uses a single Arial face on Windows with no glyph fallback).",
+  "emergency.c editor_load(): removed a dead g_path_get_basename() allocation whose result was never used (D2b)."
+ ],
+ "requests_for_other_areas": [
+  "Build system (CMakeLists.txt, radios_ui target): src/ui/external_access_ui.c now calls ShellExecuteExW (shell32) and CoInitializeEx/CoUninitialize (ole32). Today these only reach the final link through radios_platform's PRIVATE link deps and MinGW's default libraries. Please add 'shell32 ole32' to target_link_libraries(radios_ui PRIVATE ...) explicitly so test executables linking radios_ui (e.g. test_external_access_ui) do not depend on that propagation.",
+  "Widgets owner (include/radios/widgets.h, src/ui/widgets.c): emergency.c now depends on radios_ui_cairo_show_text() and radios_ui_file_chooser_default_folder(). These exist in the current, uncommitted working tree; please keep their signatures stable."
+ ],
+ "open_issues": [
+  "emergency.c compiles only against the uncommitted working-tree widgets.h, which declares radios_ui_cairo_show_text and radios_ui_file_chooser_default_folder. It must be committed together with that widgets.h/widgets.c change.",
+  "The ShellExecuteExW fallback in external_access_ui.c has never been exercised: the test wrap always succeeds and nothing was run under Wine. On the Windows PC, confirm that 'Web panelini aç' opens the default browser, including when gtk_show_uri_on_window fails.",
+  "The placeholder text 'Zaman cizgisi taslagi / waveform analizi bekleniyor' in emergency.c is still ASCII-only (no Turkish letters), as in the original. Pango could now render 'Zaman çizgisi taslağı …' correctly, but I did not change it to keep UI texts stable. That is the user's call.",
+  "local_event_ui.c, player_workspace.c and weekly_programme_ui.c only got the grep-driven platform sweep (no hits) plus a compile. They were not reviewed in depth for platform-neutral defects."
+ ]
+}

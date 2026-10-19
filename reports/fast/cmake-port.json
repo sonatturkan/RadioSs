@@ -1,0 +1,89 @@
+{
+ "area": "cmake-port",
+ "summary": "I finished the CMake port that the earlier engineer had mostly written. One build definition now serves both hosts. On the Windows PC it uses the presets pinned to C:/msys64/ucrt64. In this container I checked the same CMakeLists by cross-configuring with the cloud toolchain file, which is not referenced anywhere in the repository. The 161 tests are registered with GUI tests off.\n\nWhat is in place:\n- **Toolchain guard** based on compiler identity: GNU GCC 16.2 or newer built by MSYS2, `-dumpmachine` x86_64-w64-mingw32, `_UCRT` defined, GNU windres, and anything under C:\\MinGW refused. `RADIOS_MSYS2_PREFIX` defaults to the directory above gcc.exe.\n- **Dependencies:** pkg-config limited to the MSYS2 prefix plus the optional `RADIOS_FFMPEG_PREFIX` (D10). gio-windows-2.0 and pango>=1.56 added; libpulse, alsa, xtst and x11 removed.\n- **Flags:** global defines from D7 and the spec, strict warnings applied to C only, D11 release settings (-O2, -gcodeview, RadioS.pdb, no link timestamp, -ffile-prefix-map).\n- **Every executable**, via one deferred finalize step: the SMI-namespace manifest (UTF-8 code page, PerMonitorV2, longPathAware, asInvoker, Windows 10/11, Common Controls v6), the icon, VERSIONINFO from `project(VERSION)`, the `crt_binmode` object and an 8 MiB stack. RadioS.exe is the only GUI-subsystem program.\n- **`--wrap`:** `radios_wrap()` has a `DLLIMPORT` form that also wraps `__imp_<sym>`, and it refuses plain wraps of DLL-imported symbols, which would silently not intercept.\n- **Reference CSS:** built with the pinned MSYS2 python using `-X utf8 -B -I`, run through `CMAKE_CROSSCOMPILING_EMULATOR`.\n- **Source coverage guard:** the configure fails if any `src/**/*.c` file is not in a product target.\n- **CTest on Windows:** all `GDK_BACKEND=x11`, `/tmp` and `:`-separated PYTHONPATH uses are gone. Each test gets a global environment (PATH with MSYS2 bin first, TZDIR, the UTF-8 Python variables, `RADIOS_AUDIO_BACKEND=none` per D8). A GLib \"1..0\" plan counts as a failure, timeouts are scaled, and Python tests run on runtime/python with `-X utf8 -B -s`. GUI tests use the private-desktop launcher when its source exists (D9). The MIDI hotplug case list is checked against the source (18/18 match). The Linux-only tests are replaced by test_platform (one process per case), test_wasapi_backend (one process per case, plus a hardware-labelled full run) and test_wasapi_hotplug when it exists.\n\nChanges made in this session:\n- A GLib case that calls `g_test_skip()` now shows as Skipped instead of Passed, but only where one process runs one case.\n- `src/audio/virtual_backend.c` is added to `radios_audio` automatically when it appears.\n- `audio_recovery` builds `tests/test_wasapi_recovery.c` when it exists, otherwise `test_audio_recovery.c`.\n- The test support library gets `RADIOS_TEST_PROJECT_ROOT` compiled in, for `rt_project_root()`.\n- The configure warns when fontconfig is linked but no source uses it any more.\n- cmake/README.md now describes these files and the cross-compiling knobs.\n\nfontconfig is still required because src/ui/window.c, tests/test_media_drop_ui.c and tests/test_automation_calendar.c still call `FcInit`/`FcConfigAppFontAddFile`.",
+ "files_created": [
+  ".gitattributes",
+  "CMakePresets.json",
+  "cmake/RadioSToolchain.cmake",
+  "cmake/RadioSWindowsExe.cmake",
+  "cmake/RadioSTesting.cmake",
+  "cmake/RadioSCheckPe.cmake",
+  "cmake/RadioSCheckImports.cmake",
+  "src/app/radios.rc",
+  "src/app/radios.manifest",
+  "src/app/crt_binmode.c",
+  "assets/icons/radios.svg",
+  "assets/icons/radios-small.svg",
+  "assets/icons/radios.ico",
+  "assets/icons/README.md",
+  "tools/make_ico.py"
+ ],
+ "files_modified": [
+  "CMakeLists.txt",
+  ".gitignore",
+  "cmake/README.md",
+  "cmake/LibraryAnalysis.cmake",
+  "cmake/MediaArchive.cmake",
+  "cmake/MediaArchiveService.cmake",
+  "cmake/Pdf12Playlist.cmake",
+  "cmake/Pdf2HeaderStatus.cmake",
+  "cmake/Pdf4Neon.cmake",
+  "cmake/Preferences.cmake",
+  "cmake/Prompt10Playlist.cmake",
+  "cmake/Prompt5Tests.cmake",
+  "cmake/Prompt7Tests.cmake",
+  "cmake/Prompt8Tests.cmake",
+  "cmake/ResetUi.cmake",
+  "cmake/SilenceGuard.cmake"
+ ],
+ "files_deleted": [
+  "assets/icons/.gitkeep"
+ ],
+ "api": "Presets in CMakePresets.json (v6; only active when the host is Windows; everything pinned to C:/msys64/ucrt64: gcc, windres, ninja, pkg-config, objdump, python):\n- Configure presets: `windows-debug` (build/, tests on, GUI off), `windows-debug-gui` (build/gui), `windows-release` (build/release, tests off, `RADIOS_FFMPEG_PREFIX=packaging/windows/cache/ffmpeg-9.0.2-lgpl-radios`), `windows-release-tests` (build/release-tests, all tests, LGPL FFmpeg).\n- Build presets: the four above plus `windows-runtime` (target `radios_runtime`), `windows-portable` (`radios_portable`), `windows-installer` (`radios_installer`).\n- Test presets: `windows-debug`, `windows-debug-gui`, `windows-release-tests` (all exclude label `hardware`, 4 jobs, `noTestsAction` error) and `windows-hardware` (only `hardware`, 1 job).\n- Workflow preset: `windows-installer`.\n\nCache variables:\n- `RADIOS_MSYS2_PREFIX`: defaults to the directory above gcc.exe on Windows; required when cross-compiling.\n- `RADIOS_FFMPEG_PREFIX`: when set, pkg-config uses it and every FFmpeg include/lib directory must come from it.\n- `RADIOS_BUILD_PYTHON`: the MSYS2 python.exe.\n- `RADIOS_TEST_PYTHON`: `<root>/runtime/python/python.exe`; checked at configure to be 3.14 with tzdata and UTF-8 mode.\n- `RADIOS_ZONEINFO_DIR`: `<root>/runtime/share/zoneinfo`.\n- `RADIOS_TEST_TIMEOUT_SCALE`: default 2.\n- `RADIOS_TEST_SOURCE_DIR`: the source path as test programs see it; must equal `CMAKE_SOURCE_DIR` on native builds.\n- `RADIOS_STRICT_WARNINGS`: default ON.\n- `RADIOS_GUI_TESTS`: default OFF.\n\nVariables other modules use: `RADIOS_BUILD_PYTHON_COMMAND` (emulator + python + `-X utf8 -B -I`), `RADIOS_TEST_PYTHON_COMMAND` (emulator + runtime python + `-X utf8 -B -s`), `RADIOS_TEST_FOREIGN_CWD` (build/test-cwd), `RADIOS_RESOURCE_DIR` (build/win32), `RADIOS_GLIB_SKIP_REGEX`.\n\nTargets:\n- Static libraries: `radios_platform`, `radios_midi`, `radios_core`, `radios_audio`, `radios_playout`, `radios_ui`; object library `radios_reference_css`; interface target `radios_warnings`.\n- `radios`: produces RadioS.exe (WIN32_EXECUTABLE, RadioS.pdb in Release).\n- Tools: `otomasyon_e2e` (e2e.exe, the `--driver` of automation_recovery_stress), `yayin_akisi_analiz` (EXCLUDE_FROM_ALL).\n- `radios_test_desktop`: radios-test-desktop.exe, only when tools/win32/radios-test-desktop.c exists.\n- Object libraries for executables: `radios_exe_common`, `radios_resources_app`, `radios_resources_tool`.\n- Test support, when the sources exist: `radios_test_runtime` (object), `radios_test_support` (static).\n- `radios_exe_selfcheck` with the tests `exe_manifest` (GetACP==65001, UTF-8 argv, single RT_MANIFEST with the SMI namespaces, longPathAware, asInvoker, PMv2 context, `_O_BINARY`, 8 MiB stack, console subsystem, icon, VERSIONINFO), `exe_pe_selfcheck` and `exe_pe_radios` (objdump: PE32+, subsystem 3 or 2, stack reserve, DllCharacteristics 0x160).\n\nFunctions:\n- `radios_wrap(<target> <sym>... [DLLIMPORT <sym>...])`\n- `radios_optional_source(<var> <relpath>)`\n- `radios_add_gui_test(NAME COMMAND)`\n- `radios_add_glib_cases(<prefix> <target> <source> <path> [RUNNER] [GUI] CASES ... [TESTS_VAR])`\n- `radios_add_glib_program(<name> <target> <source> [TESTS_VAR])`\n- `radios_require_package_root(<prefix> <root>)`\n- `radios_path_is_inside(<path> <dir> <out>)`\n- Deferred: `radios_finalize_targets()` then `radios_finalize_tests()`.\n\nScript: `cmake -P cmake/RadioSCheckImports.cmake -DOBJDUMP= -DEXE= -DFORBIDDEN=`, used by `native_midi_hotplug_imports_no_device_api`.\n\nRuntime/installer modules (owned by runtime-packaging) are pulled in by `include(RadioSRuntime)` and `include(RadioSInstaller)` at the end of CMakeLists.txt.",
+ "verification": [
+  "This session: one cross-configure of the final files into /home/user/RadioSs/build (cmake 4.4.4, Ninja, toolchain file /opt/radios-port/cmake/wine-msys2-ucrt64.cmake). It succeeded with exit code 0 (log: /opt/radios-port/work/cmake-port/logs/configure-final.log), passed the toolchain identity guard, the pkg-config root checks and the source coverage guard, and registered 161 tests with RADIOS_GUI_TESTS=OFF.",
+  "Checked the generated CTestTestfile.cmake: test programs run through the emulator, and each test carries the global ENVIRONMENT_MODIFICATION (PATH prepend, PYTHON* variables, TZDIR, GDK_BACKEND unset, RADIOS_AUDIO_BACKEND=set:none), the FAIL regex for '1..0', and the skip regex on one-case tests.",
+  "Checked the generated build.ninja: the CSS step runs 'cd build && <emulator> <MSYS2 python.exe> -X utf8 -B -I tools/css_to_gtk.py --output-dir build/generated', and 61 link lines carry the stack option 8388608.",
+  "cmake --list-presets=all parses CMakePresets.json: 7 build presets listed. The configure and test presets are hidden on this Linux host by their Windows condition; their contents were checked by reading.",
+  "Scanned every literal and foreach-expanded '-p /path' GLib case registered in CMakeLists.txt and the cmake modules. All of them exist in the test sources (the only misses are the example paths '/a/b' and '/renamed/case' in comments). MIDI hotplug: all 18 registered cases exist in tests/test_midi_hotplug.c.",
+  "Every tests/*.c and tests/*.py file referenced by CMake exists, except the optional sources: header_status_clock.c, radios_test_support.c, support/radios_test_runtime_win32.c, test_wasapi_hotplug.c and test_wasapi_recovery.c. tests/test_sync_runtime.py is referenced by runtime-packaging's module under packaging/windows/tests and was not checked here.",
+  "Glob re-check before finishing: no virtual backend, test support layer, private-desktop launcher or wasapi hotplug/recovery test exists yet. src/audio contains only the files listed in radios_audio and Preferences.cmake.",
+  "Searched for Fc* calls: still used in src/ui/window.c:748, tests/test_media_drop_ui.c:776 and tests/test_automation_calendar.c:3047, so FONTCONFIG stays in for now.",
+  "From the earlier engineer's sessions, not repeated now: a first cross-configure registered 116 tests; the platform, MIDI and self-check targets linked; test_platform cases were run one per process under Wine (results in /opt/radios-port/work/cmake-port/platform-results.txt, where /platform/startup/crash-dumps failed on a 60 s helper timeout); and a DPI probe showed Wine maps the PerMonitorV2 manifest to per-monitor v1.",
+  "Not run, per the user's write-only pass: no build, no ctest (test_platform, test_midi, test_midi_hotplug, test_wasapi_backend, exe_manifest), no objdump of RadioS.exe (it cannot link until the UI/app port lands), no check that a second ninja build does nothing."
+ ],
+ "industrial_fixes": [
+  "Toolchain guard based on compiler identity (GCC version, MSYS2 build, -dumpmachine, _UCRT, GNU windres). Compilers under C:\\MinGW are refused, and on native builds compiler, windres and pkg-config must all come from RADIOS_MSYS2_PREFIX/bin. This prevents mixing ABIs or DLLs with WinLibs.",
+  "pkg-config is limited to the MSYS2 prefix plus RADIOS_FFMPEG_PREFIX, and every include/lib directory a package reports must lie under its expected root. When the LGPL FFmpeg is selected, the build can never silently fall back to the GPL MSYS2 FFmpeg.",
+  "A GLib '-p /stale/case' run prints '1..0' and exits 0; every test now treats that as a failure. GLib case names are also checked against the source at configure time (radios_add_glib_cases / radios_add_glib_program).",
+  "A GLib case that calls g_test_skip() in a one-case process is now reported as Skipped instead of a false Passed (for example the WASAPI hardware cases and the MIDI UI cases without a display).",
+  "No test reaches a real audio device by accident: RADIOS_AUDIO_BACKEND=none is set globally (D8), except for hardware-labelled tests and tests that choose a backend themselves. Stale GDK_BACKEND and RADIOS_AUDIO_SERVER values in the environment are removed.",
+  "Plain --wrap of a DLL-imported symbol (g_*, json_*, cairo_*, pango_*, curl_*, Win32) silently does not intercept on PE. It is now refused, and the DLLIMPORT form wraps __imp_<sym> as well.",
+  "The source coverage guard fails the configure when a src/**/*.c file is missing from every product target, so files added by the parallel porting cannot be forgotten.",
+  "Every executable gets a binary CRT default file mode, an 8 MiB stack, the SMI-namespace manifest (a wrong namespace is silently ignored by Windows), and a single RT_MANIFEST that replaces MinGW's default manifest.",
+  "Release builds are reproducible and their crashes symbolizable: -ffile-prefix-map, --no-insert-timestamp, CodeView debug info and a relative RadioS.pdb.",
+  "A configure-time warning appears once fontconfig is linked but no longer used by any source (D5 leftover)."
+ ],
+ "requests_for_other_areas": [
+  "c-ui-app: drop the Fc* calls and the fontconfig/fontconfig.h include from src/ui/window.c (D5: pango_font_map_add_font_file). c-tests-b / c-tests-support: do the same in tests/test_media_drop_ui.c and tests/test_automation_calendar.c. The integrator (cmake-port) then deletes pkg_check_modules(FONTCONFIG), its usage check, and the three PkgConfig::FONTCONFIG links in CMakeLists.txt. The configure warns as soon as nothing uses fontconfig.",
+  "Owner of tools/css_to_gtk.py: use read_text(encoding='utf-8') at lines 113 and 117, and write_text(..., encoding='utf-8', newline='\\n') at lines 186, 191 and 192 (build-system.md 4.6). The build already runs it with -X utf8, so only the CRLF byproducts remain.",
+  "c-audio-virtual: put the virtual/none backend in src/audio/virtual_backend.c, which CMake adds to radios_audio automatically. Any other new translation unit (for example a separate fake-enumerator TU) must be named so the integrator can add it to radios_audio; the configure fails until then. tests/test_wasapi_hotplug.c is registered as the single test 'wasapi_hotplug', linked to radios_audio.",
+  "c-tests-support: tools/win32/radios-test-desktop.c is built as target radios_test_desktop (radios-test-desktop.exe, links user32). Its command line must be 'radios-test-desktop.exe <program> [args...]', propagating the exit code (77 = skip) and stdout/stderr. CTest wraps direct GUI tests with it, and the Python runners find it through the RADIOS_TEST_DESKTOP environment variable.",
+  "c-tests-support: tests/support/radios_test_runtime_win32.c is linked as an object into every test program, and tests/radios_test_support.c as a static library with RADIOS_TEST_PROJECT_ROOT compiled in; the tests/ directory is a public include dir.",
+  "c-tests-support: tests/test_wasapi_recovery.c replaces test_audio_recovery.c in the audio_recovery test as soon as it exists. Delete the old file (D2b). run_audio_recovery.py receives the program path as its first argument.",
+  "c-tests-b: test_header_ui must either provide tests/header_status_clock.c (a wrapper TU compiling src/ui/header_status.c with g_get_real_time renamed; preferred, picked up automatically) or define the pointer with __wrap___imp_g_get_real_time = __wrap_g_get_real_time. Without either, the link fails on purpose rather than running against the real clock.",
+  "Lead: please commit .gitattributes (D13) together with the tree so a Windows checkout keeps the LF bytes."
+ ],
+ "open_issues": [
+  "Nothing was built or run with ctest in this pass (user decision). Still to verify on the PC: building test_platform, test_midi, test_midi_hotplug and test_wasapi_backend; running them through ctest; exe_manifest and exe_pe_*; that a second ninja build does nothing.",
+  "RadioS.exe, radios_ui and most test programs cannot link until the 9-area C port lands. exe_pe_radios (subsystem 2 check) is registered but can only pass after that.",
+  "WINE-GAP: Wine maps the PerMonitorV2 manifest to per-monitor v1 (verified earlier by the probe /opt/radios-port/work/cmake-port/probe/dpi_probe.c). Under Wine the exe_manifest check 'DPI awareness is PerMonitorV2' is expected to fail; on Windows 10/11 it must pass. The test is not weakened.",
+  "From the earlier engineer's run: /platform/startup/crash-dumps failed with a 60 s helper timeout (platform-results.txt). That belongs to platform-layer review or Wine triage, not to CMake.",
+  "fontconfig is still required and linked (radios_ui, test_media_drop_ui, test_automation_calendar) until the Fc* calls are removed (see requests).",
+  "Configures with BUILD_TESTING=ON need <root>/runtime/python (3.14 + tzdata) and runtime/share/zoneinfo; they stop with a clear message otherwise. The release presets need the LGPL FFmpeg prefix packaging/windows/cache/ffmpeg-9.0.2-lgpl-radios (D10). Building that prefix is the ffmpeg-minimal area's job.",
+  "CTest rule: a SKIP_REGULAR_EXPRESSION match outranks a failure. It is therefore only set on one-case GLib processes; a case that skips and then crashes during teardown would show as Skipped.",
+  "The source coverage guard is FATAL by design (build-system.md 4.11). If the C port adds src/ files under names other than src/audio/virtual_backend.c, the configure stops until those files are added to CMakeLists.txt.",
+  "test_wasapi_hotplug is registered as one whole-program test rather than one process per case, because the file does not exist yet and radios_add_glib_program requires literal case paths. Switch it to per-case once the file is reviewed.",
+  "The Windows-only presets cannot be configured natively here; they were validated by reading and by cmake --list-presets parsing. The native identity guard on C:/msys64/ucrt64 (MSYS2 banner, tools inside the prefix, Windows-side pkg-config path separator) needs a first configure on the PC."
+ ]
+}

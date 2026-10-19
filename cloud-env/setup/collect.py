@@ -29,3 +29,11 @@ for j in sys.argv[1:]:
             print(area, 'committed' if rc.returncode == 0 else 'nothing-to-commit', len(files), 'files')
         else:
             print(area, 'no files changed')
+# push the code branch after collecting (user asked for GitHub pushes)
+for i in range(4):
+    r = subprocess.run(['git', 'push', '-q', 'origin', 'windows-port'], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode == 0:
+        print('pushed windows-port'); break
+    import time; time.sleep(2 ** (i + 1))
+else:
+    print('PUSH FAILED', r.stderr[-300:])
